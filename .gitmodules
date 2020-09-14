@@ -1,0 +1,9 @@
+[submodule "src/ext/cJSON"]
+	path = src/ext/cJSON
+	url = https://github.com/DaveGamble/cJSON.git
+[submodule "src/ext/inih"]
+	path = src/ext/inih
+	url = https://github.com/benhoyt/inih
+[submodule "src/test/googletest"]
+	path = src/test/googletest
+	url = https://github.com/google/googletest.git

@@ -1,0 +1,39 @@
+cmake_minimum_required(VERSION 3.10)
+
+project(
+  ubiq_sample
+  VERSION 0.0.1.0
+  LANGUAGES C CXX)
+
+set(CMAKE_C_STANDARD 99)
+set(CMAKE_CXX_STANDARD 11)
+
+set_source_files_properties(
+  ${CMAKE_CURRENT_SOURCE_DIR}/common.c
+  PROPERTIES
+  COMPILE_FLAGS -DUBIQ_SAMPLE_VERSION=\\\"${PROJECT_VERSION}\\\")
+
+add_library(
+  ubiq_sample-common
+  OBJECT
+  common.c)
+
+add_executable(
+  ubiq_sample-c
+
+  ubiq_sample.c
+  $<TARGET_OBJECTS:ubiq_sample-common>
+)
+target_link_libraries(
+  ubiq_sample-c
+  ubiqclient)
+
+add_executable(
+  ubiq_sample-c++
+
+  ubiq_sample.cpp
+  $<TARGET_OBJECTS:ubiq_sample-common>
+)
+target_link_libraries(
+  ubiq_sample-c++
+  ubiqclient++)
