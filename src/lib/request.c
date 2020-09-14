@@ -93,6 +93,8 @@ http_request_method_string(
     case HTTP_RM_TRACE:     res = "TRACE";      break;
     default:                res = "UNKNOWN";    break;
     }
+
+    return res;
 }
 
 struct ubiq_url
