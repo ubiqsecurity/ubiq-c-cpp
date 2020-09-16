@@ -397,7 +397,7 @@ ubiq_platform_decryption_update(
             /* has the fixed-size portion of the header been received? */
             if (dec->len >= sizeof(h->v0)) {
                 const struct ubiq_platform_algorithm * algo;
-                uint8_t ivlen, keylen;
+                unsigned int ivlen, keylen;
 
                 if (h->v0.sbz != 0) {
                     return -EINVAL;
