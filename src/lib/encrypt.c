@@ -474,7 +474,7 @@ ubiq_platform_encryption_begin(
 
         /* the fixed-size portion of the header */
 
-        hdr->pre.version = 0;
+        hdr->pre.version = 1;
         hdr->v0.sbz = 0;
         hdr->v0.algorithm = enc->algo->id;
         hdr->v0.ivlen = ivlen;
@@ -494,6 +494,8 @@ ubiq_platform_encryption_begin(
             EVP_EncryptInit(enc->ctx, enc->algo->cipher,
                             enc->key.raw.buf, (unsigned char *)(hdr + 1));
 
+            int tmp = 0;
+            EVP_EncryptUpdate(enc->ctx, NULL, &tmp, (const unsigned char *)hdr, len);
             enc->key.uses.cur++;
 
             res = 0;

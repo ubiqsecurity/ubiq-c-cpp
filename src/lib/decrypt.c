@@ -390,7 +390,7 @@ ubiq_platform_decryption_update(
 
         /* has the header "preamble" been received? */
         if (dec->len >= sizeof(h->pre)) {
-            if (h->pre.version != 0) {
+            if (h->pre.version != 0 && h->pre.version != 1) {
                 return -EINVAL;
             }
 
@@ -454,6 +454,8 @@ ubiq_platform_decryption_update(
                         dec->ctx = EVP_CIPHER_CTX_new();
                         EVP_DecryptInit(
                             dec->ctx, dec->algo->cipher, dec->key.raw.buf, iv);
+                        int len = 0;
+                        EVP_DecryptUpdate(dec->ctx, NULL, &len, (const unsigned char *)h, sizeof(*h));
 
                         dec->key.uses++;
                     }
