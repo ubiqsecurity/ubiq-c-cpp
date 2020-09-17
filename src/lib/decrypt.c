@@ -457,7 +457,7 @@ ubiq_platform_decryption_update(
 
                         if (h->pre.version == 1) {
                            int tmplen = 0;
-                           EVP_DecryptUpdate(dec->ctx, NULL, &tmplen, (const unsigned char *)h, sizeof(*h));
+                           EVP_DecryptUpdate(dec->ctx, NULL, &tmplen, (const unsigned char *)h, sizeof(*h) + ivlen + keylen);
                         }
                         dec->key.uses++;
                     }

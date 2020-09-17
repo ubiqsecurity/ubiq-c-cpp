@@ -495,7 +495,7 @@ ubiq_platform_encryption_begin(
                             enc->key.raw.buf, (unsigned char *)(hdr + 1));
 
             int tmp = 0;
-            EVP_EncryptUpdate(enc->ctx, NULL, &tmp, (const unsigned char *)hdr, sizeof(*hdr));
+            EVP_EncryptUpdate(enc->ctx, NULL, &tmp, (const unsigned char *)hdr, sizeof(*hdr) + ivlen + enc->key.enc.len);
             enc->key.uses.cur++;
 
             res = 0;
