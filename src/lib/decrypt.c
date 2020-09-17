@@ -454,9 +454,11 @@ ubiq_platform_decryption_update(
                         dec->ctx = EVP_CIPHER_CTX_new();
                         EVP_DecryptInit(
                             dec->ctx, dec->algo->cipher, dec->key.raw.buf, iv);
-                        int len = 0;
-                        EVP_DecryptUpdate(dec->ctx, NULL, &len, (const unsigned char *)h, sizeof(*h));
 
+                        if (h->pre.version == 1) {
+                           int tmplen = 0;
+                           EVP_DecryptUpdate(dec->ctx, NULL, &tmplen, (const unsigned char *)h, sizeof(*h));
+                        }
                         dec->key.uses++;
                     }
                 }
