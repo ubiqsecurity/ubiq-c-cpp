@@ -42,7 +42,7 @@ $ cmake --build . --target all
 From within the examples directory
 
 ```sh
-$ ./build/ubiq_sample-c -h
+$ ./ubiq_sample-c -i ./README.md -o /tmp/readme.enc -e -s -c ./credentials ubiq_sample-c -h
 ```
 <pre>
 Encrypt or decrypt files using the Ubiq service
@@ -68,7 +68,7 @@ Encrypt or decrypt files using the Ubiq service
 #### Demonstrate using the simple (-s / --simple) API interface to encrypt this README.md file and write the encrypted data to /tmp/readme.enc
 
 ```sh
-$ ./ubiq_sample-c -i ./README.md -o /tmp/readme.enc -e -s -c ./credentials 
+$ ./ubiq_sample-c -i /usr/share/doc/libubiqclient-dev/examples/README.md -o /tmp/readme.enc -e -s -c ./credentials 
 ```
 
 #### Demonstrate using the simple (-s / --simple) API interface to decrypt the /tmp/readme.enc file and write the decrypted output to /tmp/README.out
@@ -80,7 +80,7 @@ $ ./ubiq_sample-c -i /tmp/readme.enc -o /tmp/README.out -d -s -c ./credentials
 #### Demonstrate using the piecewise (-p / --piecewise) API interface to encrypt this README.md file and write the encrypted data to /tmp/readme.enc
 
 ```sh
-$ ./ubiq_sample-c -i ./README.md -o /tmp/readme.enc -e -p -c ./credentials
+$ ./ubiq_sample-c -i /usr/share/doc/libubiqclient-dev/examples/README.md -o /tmp/readme.enc -e -p -c ./credentials
 ```
 
 #### Demonstrate using the piecewise (-p / --piecewise) API interface to decrypt the /tmp/readme.enc file and write the decrypted output to /tmp/README.out

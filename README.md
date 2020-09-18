@@ -33,6 +33,7 @@ Clone this repository, initialize the submodules, and build the packages:
 
 ```bash
 $ git clone https://gitlab.com/ubiqsecurity/ubiq-c-cpp.git
+$ cd ubiq-c-cpp
 $ git submodule init
 $ git submodule update --init --recursive
 $ mkdir build
