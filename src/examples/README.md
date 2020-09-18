@@ -8,7 +8,7 @@ See the [C/C++ API docs](https://dev.ubiqsecurity.com/docs/api).
 
 ## Installation
 
-Make sure to first install the ubiq-security library and development headers
+Make sure to first install the ubiq-security library and development headers from [Releases](https://gitlab.com/ubiqsecurity/ubiq-c-cpp/-/releases)
 
 ```sh
 $ sudo apt install ./libubiqclient_<version>_<arch>.deb
@@ -28,11 +28,11 @@ SECRET_CRYPTO_ACCESS_KEY = ...
 
 ## Build the examples
 
-Copy the examples to a local directory and compile them
+Create a local directory and compile the example application
 
 ```sh
-$ mkdir ubiq_sample
-$ cd ubiq_sample
+$ mkdir ~/ubiq_sample
+$ cd ~/ubiq_sample
 $ cmake /usr/share/doc/libubiqclient-dev/examples
 $ cmake --build . --target all
 ```
@@ -68,25 +68,25 @@ Encrypt or decrypt files using the Ubiq service
 #### Demonstrate using the simple (-s / --simple) API interface to encrypt this README.md file and write the encrypted data to /tmp/readme.enc
 
 ```sh
-$ ./build/ubiq_sample-c -i ./README.md -o /tmp/readme.enc -e -s -c ./credentials 
+$ ./ubiq_sample-c -i ./README.md -o /tmp/readme.enc -e -s -c ./credentials 
 ```
 
 #### Demonstrate using the simple (-s / --simple) API interface to decrypt the /tmp/readme.enc file and write the decrypted output to /tmp/README.out
 
 ```sh
-$ ./build/ubiq_sample-c -i /tmp/readme.enc -o /tmp/README.out -d -s -c ./credentials
+$ ./ubiq_sample-c -i /tmp/readme.enc -o /tmp/README.out -d -s -c ./credentials
 ```
 
 #### Demonstrate using the piecewise (-p / --piecewise) API interface to encrypt this README.md file and write the encrypted data to /tmp/readme.enc
 
 ```sh
-$ ./build/ubiq_sample-c -i ./README.md -o /tmp/readme.enc -e -p -c ./credentials
+$ ./ubiq_sample-c -i ./README.md -o /tmp/readme.enc -e -p -c ./credentials
 ```
 
 #### Demonstrate using the piecewise (-p / --piecewise) API interface to decrypt the /tmp/readme.enc file and write the decrypted output to /tmp/README.out
 
 ```sh
-$ ./build/ubiq_sample-c -i /tmp/readme.enc -o /tmp/README.out -d -p -c ./credentials
+$ ./ubiq_sample-c -i /tmp/readme.enc -o /tmp/README.out -d -p -c ./credentials
 ```
 
 ##### _All of the above commands can be used with the C++ example by subsituting `ubiq_sample-c` with `ubiq_sample-c++`_

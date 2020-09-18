@@ -15,7 +15,7 @@ See the [C/C++ API docs](https://dev.ubiqsecurity.com/docs/api).
 #### Using the package manager:
 
 You don't need this source code unless you want to modify the libraries. If you
-just want to use the libraries, install the pre-built packages:
+just want to use the libraries, install the pre-built packages available from [Releases](https://gitlab.com/ubiqsecurity/ubiq-c-cpp/-/releases):
 
 ```sh
 # installs the runtime libraries, needed for running existing clients
@@ -29,9 +29,12 @@ When building clients, use `-lubiqclient` to link against the C library and
 
 #### Building from source:
 
-From within the cloned git repository directory, Install from source with:
+Clone this repository, initialize the submodules, and build the packages:
 
-```
+```bash
+$ git clone https://gitlab.com/ubiqsecurity/ubiq-c-cpp.git
+$ git submodule init
+$ git submodule update --init --recursive
 $ mkdir build
 $ cd build
 $ cmake ..
