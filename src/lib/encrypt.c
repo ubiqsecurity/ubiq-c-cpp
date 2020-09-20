@@ -474,8 +474,8 @@ ubiq_platform_encryption_begin(
 
         /* the fixed-size portion of the header */
 
-        hdr->pre.version = 1;
-        hdr->v0.sbz = 0;
+        hdr->pre.version = 0;
+        hdr->v0.flags = UBIQ_AES_AAD_FLAG;
         hdr->v0.algorithm = enc->algo->id;
         hdr->v0.ivlen = ivlen;
         hdr->v0.keylen = htons(enc->key.enc.len);

@@ -37,7 +37,7 @@ struct ubiq_platform_preamble
 struct ubiq_platform_header_v0
 {
     struct ubiq_platform_preamble pre;
-    uint8_t sbz;
+    uint8_t flags;
     uint8_t algorithm;
     uint8_t ivlen;
     uint16_t keylen;

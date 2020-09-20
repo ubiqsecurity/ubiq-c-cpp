@@ -2,6 +2,8 @@
 
 #include <openssl/evp.h>
 
+const uint8_t UBIQ_AES_AAD_FLAG;
+
 void ubiq_platform_algorithm_init(void);
 void ubiq_platform_algorithm_exit(void);
 

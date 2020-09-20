@@ -390,7 +390,7 @@ ubiq_platform_decryption_update(
 
         /* has the header "preamble" been received? */
         if (dec->len >= sizeof(h->pre)) {
-            if (h->pre.version != 0 && h->pre.version != 1) {
+            if (h->pre.version != 0) {
                 return -EINVAL;
             }
 
@@ -399,7 +399,7 @@ ubiq_platform_decryption_update(
                 const struct ubiq_platform_algorithm * algo;
                 unsigned int ivlen, keylen;
 
-                if (h->v0.sbz != 0) {
+                if ((h->v0.flags & ~UBIQ_AES_AAD_FLAG) != 0) {
                     return -EINVAL;
                 }
 
@@ -455,7 +455,7 @@ ubiq_platform_decryption_update(
                         EVP_DecryptInit(
                             dec->ctx, dec->algo->cipher, dec->key.raw.buf, iv);
 
-                        if (h->pre.version == 1) {
+                        if ((h->v0.flags & UBIQ_AES_AAD_FLAG) != 0) {
                            int tmplen = 0;
                            EVP_DecryptUpdate(dec->ctx, NULL, &tmplen, (const unsigned char *)h, sizeof(*h) + ivlen + keylen);
                         }
