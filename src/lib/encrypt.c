@@ -475,13 +475,14 @@ ubiq_platform_encryption_begin(
         /* the fixed-size portion of the header */
 
         hdr->pre.version = 0;
-        hdr->v0.flags = UBIQ_AES_AAD_FLAG;
+        hdr->v0.flags = UBIQ_HEADER_V0_FLAG_AAD;
         hdr->v0.algorithm = enc->algo->id;
         hdr->v0.ivlen = ivlen;
         hdr->v0.keylen = htons(enc->key.enc.len);
 
         /* add on the initialization vector */
         if (RAND_bytes((unsigned char *)(hdr + 1), ivlen)) {
+            int tmp = 0;
             /* add the encrypted key */
             memcpy((char *)(hdr + 1) + ivlen, enc->key.enc.buf,
                    enc->key.enc.len);
@@ -494,8 +495,8 @@ ubiq_platform_encryption_begin(
             EVP_EncryptInit(enc->ctx, enc->algo->cipher,
                             enc->key.raw.buf, (unsigned char *)(hdr + 1));
 
-            int tmp = 0;
-            EVP_EncryptUpdate(enc->ctx, NULL, &tmp, (const unsigned char *)hdr, sizeof(*hdr) + ivlen + enc->key.enc.len);
+            EVP_EncryptUpdate(enc->ctx, NULL, &tmp, (const unsigned char*) hdr,
+                              sizeof(*hdr) + ivlen + enc->key.enc.len);
             enc->key.uses.cur++;
 
             res = 0;
