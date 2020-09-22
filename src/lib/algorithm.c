@@ -2,8 +2,6 @@
 
 #include <string.h>
 
-const uint8_t UBIQ_AES_AAD_FLAG = 0b00000001;
-
 static
 struct ubiq_platform_algorithm *
 ubiq_platform_algorithms = NULL;
