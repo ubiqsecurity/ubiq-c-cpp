@@ -8,14 +8,16 @@ simple interfaces to encrypt and decrypt data
 
 ## Documentation
 
-See the [C/C++ API docs](https://dev.ubiqsecurity.com/docs/api).
+See the [C/C++ API docs](https://dev.ubiqsecurity.com/docs/api) and
+[below](#usage).
 
 ## Installation
 
 #### Using the package manager:
 
 You don't need this source code unless you want to modify the libraries. If you
-just want to use the libraries, install the pre-built packages available from [Releases](https://gitlab.com/ubiqsecurity/ubiq-c-cpp/-/releases):
+just want to use the libraries, install the pre-built packages available from
+[Releases](https://gitlab.com/ubiqsecurity/ubiq-c-cpp/-/releases):
 
 ```sh
 # installs the runtime libraries, needed for running existing clients
@@ -59,16 +61,49 @@ $ sudo apt install libcurl4-openssl-dev libssl-dev
 
 ## Usage
 
+### Initialization
+
+Before the library can be used, it must be initialized
+
+```c
+#include <ubiq/platform.h>
+```
+```c
+/* C
+ *
+ * Returns an `int` equal to 0 if the library is successfully
+ * initialized and a negative value, otherwise.
+ */
+ubiq_platform_init();
+```
+```c++
+/* C++
+ *
+ * Returns `void`, but throws an exception if the library
+ * is not successfully initialized.
+ */
+ubiq::platform::init();
+```
+
+Conversely, the library should be shutdown/de-initialized when it is no
+longer needed:
+```c
+/* C */
+ubiq_platform_exit();
+```
+```c++
+/* C++ */
+ubiq::platform::exit();
+```
+
+### Credentials
+
 The library needs to be configured with your account credentials which are
 available in your [Ubiq Dashboard][dashboard] [credentials][credentials]. The
 credentials can be set using environment variables, loaded from an explicitly
 specified file, or read from the default location (~/.ubiq/credentials).
 
-```c
-#include <ubiq/platform.h>
-```
-
-### Read credentials from a specific file and use a specific profile
+#### Read credentials from a specific file and use a specific profile
 ```c
 /* C */
 struct ubiq_platform_credentials * credentials;
@@ -83,7 +118,7 @@ ubiq::platform::credentials credentials(
 ```
 
 
-### Read credentials from ~/.ubiq/credentials and use the default profile
+#### Read credentials from ~/.ubiq/credentials and use the default profile
 ```c
 /* C */
 struct ubiq_platform_credentials * credentials;
@@ -96,7 +131,7 @@ ubiq::platform::credentials credentials;
 ```
 
 
-### Use the following environment variables to set the credential values
+#### Use the following environment variables to set the credential values
 UBIQ_ACCESS_KEY_ID  
 UBIQ_SECRET_SIGNING_KEY  
 UBIQ_SECRET_CRYPTO_ACCESS_KEY  
@@ -112,7 +147,7 @@ ubiq::platform::credentials credentials;
 ```
 
 
-### Explicitly set the credentials
+#### Explicitly set the credentials
 ```c
 /* C */
 struct ubiq_platform_credentials * credentials;
@@ -149,8 +184,9 @@ Unsuccessful requests raise exceptions. In general, exceptions are of the type
 `std::system_error` and in the category `std::generic_category`. These
 exceptions carry error codes corresponding to error numbers.
 
+### Simple encryption and decryption
 
-### Encrypt a simple block of data
+#### Encrypt a single block of data
 
 Pass credentials and data into the encryption function. The encrypted data
 will be returned.
@@ -187,7 +223,7 @@ size_t ptlen;
 ctbuf = ubiq::platform::encrypt(creds, ptbuf, ptlen);
 ```
 
-### Decrypt a simple block of data
+#### Decrypt a single block of data
 
 Pass credentials and encrypted data into the decryption function. The
 plaintext data will be returned.
@@ -223,8 +259,9 @@ size_t ctlen;
 ptbuf = ubiq::platform::decrypt(creds, ctbuf, ctlen);
 ```
 
+### Piecewise encryption and decryption
 
-### Encrypt a large data element where data is loaded in chunks
+#### Encrypt a large data element where data is loaded in chunks
 
 - Create an encryption object using the credentials.
 - Call the encryption instance begin method
@@ -301,7 +338,7 @@ ctbuf.insert(ctbuf.end(), buf.begin(), buf.end());
 ```
 
 
-### Decrypt a large data element where data is loaded in chunks
+#### Decrypt a large data element where data is loaded in chunks
 
 - Create an instance of the decryption object using the credentials.
 - Call the decryption instance begin method
