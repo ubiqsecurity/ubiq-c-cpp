@@ -1,6 +1,8 @@
 #include "ubiq/platform.h"
 #include "ubiq/platform/internal/request.h"
 
+#include <stdexcept>
+
 void ubiq::platform::init(void)
 {
     if (ubiq_platform_init() != 0) {
