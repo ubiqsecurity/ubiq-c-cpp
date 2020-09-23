@@ -19,12 +19,15 @@
 #pragma once
 
 #include <sys/cdefs.h>
+#include <limits.h>
 
 #include <ubiq/platform/encrypt.h>
 #include <ubiq/platform/decrypt.h>
 
 /* C interfaces */
 __BEGIN_DECLS
+
+#define ENOINIT                         (INT_MIN + 1)
 
 /*
  * Library initialization and tear-down

@@ -339,11 +339,8 @@ ubiq_platform_encryption_parse_response(
                  */
                 k = cJSON_GetObjectItemCaseSensitive(j, "algorithm");
                 if (cJSON_IsString(k) && k->valuestring != NULL) {
-                    e->algo = ubiq_platform_algorithm_get_bycipher(
-                        EVP_get_cipherbyname(k->valuestring));
-                    if (!e->algo) {
-                        res = -1;
-                    }
+                    res = ubiq_platform_algorithm_get_bycipher(
+                        EVP_get_cipherbyname(k->valuestring), &e->algo);
                 } else {
                     res = -1;
                 }

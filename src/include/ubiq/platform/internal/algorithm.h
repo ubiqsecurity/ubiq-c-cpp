@@ -2,7 +2,7 @@
 
 #include <openssl/evp.h>
 
-void ubiq_platform_algorithm_init(void);
+int ubiq_platform_algorithm_init(void);
 void ubiq_platform_algorithm_exit(void);
 
 struct ubiq_platform_algorithm
@@ -13,9 +13,11 @@ struct ubiq_platform_algorithm
     unsigned int taglen;
 };
 
-const struct ubiq_platform_algorithm *
+int
 ubiq_platform_algorithm_get_byid(
-    unsigned int);
-const struct ubiq_platform_algorithm *
+    unsigned int,
+    const struct ubiq_platform_algorithm **);
+int
 ubiq_platform_algorithm_get_bycipher(
-    const EVP_CIPHER *);
+    const EVP_CIPHER *,
+    const struct ubiq_platform_algorithm **);

@@ -398,14 +398,16 @@ ubiq_platform_decryption_update(
             if (dec->len >= sizeof(h->v0)) {
                 const struct ubiq_platform_algorithm * algo;
                 unsigned int ivlen, keylen;
+                int err;
 
                 if (h->v0.sbz != 0) {
                     return -EINVAL;
                 }
 
-                algo = ubiq_platform_algorithm_get_byid(h->v0.algorithm);
-                if (!algo) {
-                    return -EINVAL;
+                err = ubiq_platform_algorithm_get_byid(
+                    h->v0.algorithm, &algo);
+                if (err) {
+                    return err;
                 }
 
                 ivlen = h->v0.ivlen;
