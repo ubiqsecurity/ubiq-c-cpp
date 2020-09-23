@@ -9,7 +9,13 @@ simple interfaces to encrypt and decrypt data
 ## Documentation
 
 See the [C/C++ API docs](https://dev.ubiqsecurity.com/docs/api) and
-[below](#usage).
+[below](#usage) for examples.
+
+Individual interfaces are documented in greater detail in:
+* [platform.h](src/include/ubiq/platform.h)
+* [credentials.h](src/include/ubiq/platform/credentials.h)
+* [encrypt.h](src/include/ubiq/platform/encrypt.h)
+* [decrypt.h](src/include/ubiq/platform/decrypt.h)
 
 ## Installation
 
