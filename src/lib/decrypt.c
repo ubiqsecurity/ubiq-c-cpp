@@ -4,8 +4,8 @@
 #include "ubiq/platform/internal/request.h"
 #include "ubiq/platform/internal/algorithm.h"
 #include "ubiq/platform/internal/credentials.h"
+#include "ubiq/platform/internal/common.h"
 
-#include <sys/param.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
@@ -15,7 +15,6 @@
 #include "cJSON/cJSON.h"
 
 #include <openssl/evp.h>
-#include <openssl/pem.h>
 
 struct ubiq_platform_decryption
 {
@@ -154,24 +153,6 @@ ubiq_platform_decryption_reset(
 }
 
 /*
- * openssl requires a callback to retrieve the password
- * for decrypting a private key. this function receives
- * the password in the void pointer and passes it through.
- */
-static
-int
-get_password_callback(char * const buf, const int size,
-                      const int rw,
-                      void * const udata)
-{
-    const char * const pwstr = udata;
-    const int pwlen = strlen(pwstr);
-    const int len = MIN(size, pwlen);
-    memcpy(buf, pwstr, len);
-    return len;
-}
-
-/*
  * send the encrypted data key to the server to
  * be decrypted
  */
@@ -185,7 +166,8 @@ ubiq_platform_decryption_new_key(
 
     cJSON * json;
     char * url, * str, * enc;
-    int len, res;
+    size_t len;
+    int res;
 
     len = snprintf(NULL, 0, fmt, d->restapi);
     url = malloc(len + 1);
@@ -215,109 +197,27 @@ ubiq_platform_decryption_new_key(
     free(enc);
     free(url);
 
-    if (res == 0 &&
-        ubiq_platform_rest_response_code(d->rest) == HTTP_RC_OK) {
-        const void * rsp;
-        size_t len;
+    if (res == 0) {
+        const http_response_code_t rc =
+            ubiq_platform_rest_response_code(d->rest);
 
-        rsp = ubiq_platform_rest_response_content(d->rest, &len);
-        res = (json = cJSON_ParseWithLength(rsp, len)) ? 0 : INT_MIN;
+        if (rc == HTTP_RC_OK) {
+            const void * rsp =
+                ubiq_platform_rest_response_content(d->rest, &len);
 
-        if (res == 0) {
-            EVP_PKEY * prvkey;
-            const cJSON * j;
+            res = INT_MIN;
+            json = cJSON_ParseWithLength(rsp, len);
+            if (json) {
+                res = ubiq_platform_common_parse_new_key(
+                    json, d->srsa,
+                    &d->session, &d->key.fingerprint,
+                    &d->key.raw.buf, &d->key.raw.len);
 
-            prvkey = NULL;
-
-            /*
-             * the code below is very similar to the encryption
-             * response handling. see the comments there, and
-             * consider trying to make the code more common.
-             */
-
-            if (res == 0) {
-                j = cJSON_GetObjectItemCaseSensitive(
-                    json, "encrypted_private_key");
-                if (cJSON_IsString(j) && j->valuestring != NULL) {
-                    BIO * const bp = BIO_new_mem_buf(j->valuestring, -1);
-                    prvkey = PEM_read_bio_PrivateKey(
-                        bp, NULL, get_password_callback, (void *)d->srsa);
-                    BIO_free(bp);
-                    if (!prvkey) {
-                        res = -1;
-                    }
-                } else {
-                    res = -1;
-                }
+                cJSON_Delete(json);
             }
-
-            if (res == 0) {
-                j = cJSON_GetObjectItemCaseSensitive(
-                    json, "encryption_session");
-                if (cJSON_IsString(j) && j->valuestring != NULL) {
-                    d->session = strdup(j->valuestring);
-                } else {
-                    res = -1;
-                }
-            }
-
-            if (res == 0) {
-                j = cJSON_GetObjectItemCaseSensitive(
-                    json, "key_fingerprint");
-                if (cJSON_IsString(j) && j->valuestring != NULL) {
-                    d->key.fingerprint = strdup(j->valuestring);
-                } else {
-                    res = -1;
-                }
-            }
-
-            if (res == 0) {
-                j = cJSON_GetObjectItemCaseSensitive(
-                    json, "wrapped_data_key");
-                if (cJSON_IsString(j) && j->valuestring != NULL) {
-                    EVP_ENCODE_CTX * ectx;
-                    EVP_PKEY_CTX * pctx;
-                    void * buf;
-                    size_t len;
-                    int outl;
-
-                    len = strlen(j->valuestring);
-                    buf = malloc(len);
-
-                    ectx = EVP_ENCODE_CTX_new();
-                    EVP_DecodeInit(ectx);
-                    EVP_DecodeUpdate(ectx, buf, &outl, j->valuestring, len);
-                    len = outl;
-                    EVP_DecodeFinal(ectx, (char *)buf + len, &outl);
-                    len += outl;
-                    EVP_ENCODE_CTX_free(ectx);
-
-                    pctx = EVP_PKEY_CTX_new(prvkey, NULL);
-                    EVP_PKEY_decrypt_init(pctx);
-                    EVP_PKEY_CTX_set_rsa_padding(pctx, RSA_PKCS1_OAEP_PADDING);
-                    EVP_PKEY_decrypt(pctx, NULL, &d->key.raw.len, NULL, 0);
-                    d->key.raw.buf = malloc(d->key.raw.len);
-                    if (EVP_PKEY_decrypt(pctx,
-                                         d->key.raw.buf, &d->key.raw.len,
-                                         buf, len) <= 0) {
-                        res = -1;
-                    }
-                    EVP_PKEY_CTX_free(pctx);
-
-                    free(buf);
-                } else {
-                    res = -1;
-                }
-            }
-
-            if (prvkey) {
-                EVP_PKEY_free(prvkey);
-            }
-
-            cJSON_Delete(json);
+        } else {
+            res = ubiq_platform_http_error(rc);
         }
-    } else {
-        res = -1;
     }
 
     return res;
@@ -343,7 +243,7 @@ ubiq_platform_decryption_begin(
     int res;
 
     if (dec->ctx) {
-        res = -EEXIST;
+        res = -EINPROGRESS;
     } else {
         *ptbuf = NULL;
         *ptlen = 0;
@@ -391,21 +291,23 @@ ubiq_platform_decryption_update(
         /* has the header "preamble" been received? */
         if (dec->len >= sizeof(h->pre)) {
             if (h->pre.version != 0) {
-                return -EINVAL;
+                return -EBADMSG;
             }
 
             /* has the fixed-size portion of the header been received? */
             if (dec->len >= sizeof(h->v0)) {
                 const struct ubiq_platform_algorithm * algo;
                 unsigned int ivlen, keylen;
+                int err;
 
                 if ((h->v0.flags & ~UBIQ_HEADER_V0_FLAG_AAD) != 0) {
-                    return -EINVAL;
+                    return -EBADMSG;
                 }
 
-                algo = ubiq_platform_algorithm_get_byid(h->v0.algorithm);
-                if (!algo) {
-                    return -EINVAL;
+                err = ubiq_platform_algorithm_get_byid(
+                    h->v0.algorithm, &algo);
+                if (err) {
+                    return err;
                 }
 
                 ivlen = h->v0.ivlen;
@@ -504,7 +406,7 @@ ubiq_platform_decryption_end(
 {
     int res;
 
-    res = -EBADF;
+    res = -EBADFD;
     if (dec->ctx) {
         const ssize_t sz = dec->len - dec->algo->taglen;
 
@@ -515,7 +417,7 @@ ubiq_platform_decryption_end(
              * the logic in the update function, it should not be
              * possible for sz to be greater than 0
              */
-            res = -EINVAL;
+            res = -ENODATA;
         } else if (dec->algo->taglen != 0) {
             /*
              * if the algorithm in use requires a tag, treat the
@@ -538,7 +440,7 @@ ubiq_platform_decryption_end(
                 *ptlen = outl;
             } else {
                 free(*ptbuf);
-                res = -1;
+                res = INT_MIN;
             }
         }
 

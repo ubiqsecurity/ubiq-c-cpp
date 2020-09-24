@@ -16,9 +16,7 @@ int ubiq_platform_init(void)
     /* defined as a compiler parameter in CMakeLists.txt */
     ubiq_platform_user_agent = UBIQ_PLATFORM_USER_AGENT;
 
-    ubiq_platform_algorithm_init();
-
-    return 0;
+    return ubiq_platform_algorithm_init();
 }
 
 void ubiq_platform_exit(void)

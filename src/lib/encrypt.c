@@ -4,6 +4,7 @@
 #include "ubiq/platform/internal/request.h"
 #include "ubiq/platform/internal/algorithm.h"
 #include "ubiq/platform/internal/credentials.h"
+#include "ubiq/platform/internal/common.h"
 
 #include <sys/param.h>
 #include <errno.h>
@@ -150,133 +151,19 @@ ubiq_platform_encryption_new(
     return res;
 }
 
-/*
- * openssl requires a callback to obtain a password.
- * in this case, the password is just passed in the
- * void pointer and copied to the result buffer.
- */
 static
 int
-get_password_callback(char * const buf, const int size,
-                      const int rw,
-                      void * const udata)
-{
-    const char * const pwstr = udata;
-    const int pwlen = strlen(pwstr);
-    const int len = MIN(size, pwlen);
-    memcpy(buf, pwstr, len);
-    return len;
-}
-
-static
-int
-ubiq_platform_encryption_parse_response(
+ubiq_platform_encryption_parse_new_key(
     struct ubiq_platform_encryption * const e,
-    const char * const srsa, const cJSON * const r)
+    const char * const srsa, const cJSON * const json)
 {
-    EVP_PKEY * prvkey;
     const cJSON * j;
     int res;
 
-    res = 0;
-    prvkey = NULL;
-
-    if (res == 0) {
-        /*
-         * decrypt the private key using the srsa as a password
-         */
-        j = cJSON_GetObjectItemCaseSensitive(r, "encrypted_private_key");
-        if (cJSON_IsString(j) && j->valuestring != NULL) {
-            BIO * const bp = BIO_new_mem_buf(j->valuestring, -1);
-            prvkey = PEM_read_bio_PrivateKey(
-                bp, NULL, get_password_callback, (void *)srsa);
-            BIO_free(bp);
-            if (!prvkey) {
-                res = -1;
-            }
-        } else {
-            res = -1;
-        }
-    }
-
-    if (res == 0) {
-        /*
-         * save the session id
-         */
-        j = cJSON_GetObjectItemCaseSensitive(r, "encryption_session");
-        if (cJSON_IsString(j) && j->valuestring != NULL) {
-            e->session = strdup(j->valuestring);
-        } else {
-            res = -1;
-        }
-    }
-
-    if (res == 0) {
-        /*
-         * save the key fingerprint
-         */
-        j = cJSON_GetObjectItemCaseSensitive(r, "key_fingerprint");
-        if (cJSON_IsString(j) && j->valuestring != NULL) {
-            e->key.fingerprint = strdup(j->valuestring);
-        } else {
-            res = -1;
-        }
-    }
-
-    if (res == 0) {
-        /*
-         * unwrap the data key
-         */
-        j = cJSON_GetObjectItemCaseSensitive(r, "wrapped_data_key");
-        if (cJSON_IsString(j) && j->valuestring != NULL) {
-            EVP_ENCODE_CTX * ectx;
-            EVP_PKEY_CTX * pctx;
-            void * buf;
-            size_t len;
-            int outl;
-
-            /*
-             * the key has to be base64 decoded. just malloc a buffer
-             * the same size as the existing string since the decoded
-             * value will be smaller than the encoded one
-             */
-            len = strlen(j->valuestring);
-            buf = malloc(len);
-
-            /*
-             * base64 decode the string. the init/update/final scheme
-             * removes the padding (as opposed to the decodeblock
-             * function which leaves it in.
-             */
-            ectx = EVP_ENCODE_CTX_new();
-            EVP_DecodeInit(ectx);
-            EVP_DecodeUpdate(ectx, buf, &outl, j->valuestring, len);
-            len = outl;
-            EVP_DecodeFinal(ectx, (char *)buf + len, &outl);
-            len += outl;
-            EVP_ENCODE_CTX_free(ectx);
-
-            /*
-             * unwrap the data key using the private rsa key that
-             * was decrypted earlier
-             */
-            pctx = EVP_PKEY_CTX_new(prvkey, NULL);
-            EVP_PKEY_decrypt_init(pctx);
-            EVP_PKEY_CTX_set_rsa_padding(pctx, RSA_PKCS1_OAEP_PADDING);
-            EVP_PKEY_decrypt(pctx, NULL, &e->key.raw.len, NULL, 0);
-            e->key.raw.buf = malloc(e->key.raw.len);
-            if (EVP_PKEY_decrypt(pctx,
-                                 e->key.raw.buf, &e->key.raw.len,
-                                 buf, len) <= 0) {
-                res = -1;
-            }
-            EVP_PKEY_CTX_free(pctx);
-
-            free(buf);
-        } else {
-            res = -1;
-        }
-    }
+    res = ubiq_platform_common_parse_new_key(
+        json, srsa,
+        &e->session, &e->key.fingerprint,
+        &e->key.raw.buf, &e->key.raw.len);
 
     if (res == 0) {
         /*
@@ -284,7 +171,7 @@ ubiq_platform_encryption_parse_response(
          * any encrypted data. base64 decode it and just store
          * the result
          */
-        j = cJSON_GetObjectItemCaseSensitive(r, "encrypted_data_key");
+        j = cJSON_GetObjectItemCaseSensitive(json, "encrypted_data_key");
         if (cJSON_IsString(j) && j->valuestring != NULL) {
             EVP_ENCODE_CTX * ectx;
             EVP_PKEY_CTX * pctx;
@@ -309,7 +196,7 @@ ubiq_platform_encryption_parse_response(
             e->key.enc.len += outl;
             EVP_ENCODE_CTX_free(ectx);
         } else {
-            res = -1;
+            res = -EBADMSG;
         }
     }
 
@@ -317,16 +204,16 @@ ubiq_platform_encryption_parse_response(
         /*
          * save the maximum number of uses of the key
          */
-        j = cJSON_GetObjectItemCaseSensitive(r, "max_uses");
+        j = cJSON_GetObjectItemCaseSensitive(json, "max_uses");
         if (cJSON_IsNumber(j)) {
             e->key.uses.max = j->valueint;
         } else {
-            res = -1;
+            res = -EBADMSG;
         }
     }
 
     if (res == 0) {
-        j = cJSON_GetObjectItemCaseSensitive(r, "security_model");
+        j = cJSON_GetObjectItemCaseSensitive(json, "security_model");
         if (cJSON_IsObject(j)) {
             const cJSON * k;
 
@@ -339,13 +226,10 @@ ubiq_platform_encryption_parse_response(
                  */
                 k = cJSON_GetObjectItemCaseSensitive(j, "algorithm");
                 if (cJSON_IsString(k) && k->valuestring != NULL) {
-                    e->algo = ubiq_platform_algorithm_get_bycipher(
-                        EVP_get_cipherbyname(k->valuestring));
-                    if (!e->algo) {
-                        res = -1;
-                    }
+                    res = ubiq_platform_algorithm_get_bycipher(
+                        EVP_get_cipherbyname(k->valuestring), &e->algo);
                 } else {
-                    res = -1;
+                    res = -EBADMSG;
                 }
             }
 
@@ -358,16 +242,12 @@ ubiq_platform_encryption_parse_response(
                 if (cJSON_IsBool(k)) {
                     e->fragment = cJSON_IsTrue(k);
                 } else {
-                    res = -1;
+                    res = -EBADMSG;
                 }
             }
         } else {
-            res = -1;
+            res = -EBADMSG;
         }
-    }
-
-    if (prvkey) {
-        EVP_PKEY_free(prvkey);
     }
 
     return res;
@@ -421,21 +301,25 @@ int ubiq_platform_encryption_create(
          * if the request was successful, parse the response
          */
 
-        if (res == 0 &&
-            ubiq_platform_rest_response_code(e->rest) == HTTP_RC_CREATED) {
-            const void * rsp;
-            size_t len;
-            cJSON * json;
+        if (res == 0) {
+            const http_response_code_t rc =
+                ubiq_platform_rest_response_code(e->rest);
 
-            rsp = ubiq_platform_rest_response_content(e->rest, &len);
-            res = (json = cJSON_ParseWithLength(rsp, len)) ? 0 : INT_MIN;
+            if (rc == HTTP_RC_CREATED) {
+                const void * rsp;
+                size_t len;
+                cJSON * json;
 
-            if (res == 0) {
-                res = ubiq_platform_encryption_parse_response(e, srsa, json);
-                cJSON_Delete(json);
+                rsp = ubiq_platform_rest_response_content(e->rest, &len);
+                res = (json = cJSON_ParseWithLength(rsp, len)) ? 0 : INT_MIN;
+
+                if (res == 0) {
+                    res = ubiq_platform_encryption_parse_new_key(e, srsa, json);
+                    cJSON_Delete(json);
+                }
+            } else {
+                res = ubiq_platform_http_error(rc);
             }
-        } else {
-            res = -1;
         }
     }
 
@@ -457,7 +341,7 @@ ubiq_platform_encryption_begin(
 
     if (enc->ctx) {
         /* encryption already in progress */
-        res = -EEXIST;
+        res = -EINPROGRESS;
     } else if (enc->key.uses.cur >= enc->key.uses.max) {
         /* key is all used up */
         res = -EDQUOT;
@@ -517,7 +401,7 @@ ubiq_platform_encryption_update(
 {
     int res;
 
-    res = -EBADF;
+    res = -EBADFD;
     if (enc->ctx) {
         void * buf;
         int len;
@@ -531,7 +415,7 @@ ubiq_platform_encryption_update(
             res = 0;
         } else {
             free(buf);
-            res = -1;
+            res = INT_MIN;
         }
     }
 
@@ -545,7 +429,7 @@ ubiq_platform_encryption_end(
 {
     int res;
 
-    res = -EBADF;
+    res = -EBADFD;
     if (enc->ctx) {
         void * buf;
         int len, outl;

@@ -23,93 +23,116 @@
 #include <fstream>
 #include <functional>
 
-/*
- * Function to perform encryption/decryption of a single buffer in memory
- *
- * `transform` is a function object pointing to either
- * `ubiq::platform::encrypt` or `ubiq::platform::decrypt`, depending on
- * the operation desired.
- *
- * `creds` is an object containing the credentials for the Ubiq platform.
- *
- * `ifs` is a stream referring to an open file and positioned at the point
- * at which this function should start reading. The file will be read to the
- * end.
- *
- * `ofs` is a stream referring to an open file and positioned at the point
- * at which this function should start writing.
- *
- * Given the above, the function will read the entire contents of the file
- * referred to by `ifs`, pass that data through the operation specified by
- * `transform`, and write the entire output to `ofs`.
- */
 static
 void
-ubiq_sample_transform_simple(
-    const std::function<std::vector<std::uint8_t>(
-        const ubiq::platform::credentials &,
-        const void *, std::size_t)> & transform,
+ubiq_sample_simple_encrypt(
     const ubiq::platform::credentials & creds,
-    std::ifstream & ifs, std::ofstream & ofs)
+    std::ifstream & ifs, std::ofstream & ofs,
+    const std::size_t size)
 {
     std::vector<char> ibuf;
     std::vector<std::uint8_t> obuf;
 
-    /*
-     * determine the size of the input buffer by seeking to the
-     * end of the file and using the resulting offset as the size.
-     */
-    ifs.seekg(0, std::ios::end);
-    ibuf.resize(ifs.tellg());
-    ifs.seekg(0);
-
+    ibuf.resize(size);
     ifs.read(ibuf.data(), ibuf.size());
-    obuf = transform(creds, ibuf.data(), ibuf.size());
+
+    obuf = ubiq::platform::encrypt(creds, ibuf.data(), ibuf.size());
+
     ofs.write((const char *)obuf.data(), obuf.size());
 }
 
-/*
- * Function to perform encryption/decryption of a file stream in pieces
- *
- * `xfrm` is a `ubiq::platform::encryption` or `ubiq::platform::decryption`
- * object, depending on the desired operation. The object already contains
- * the credentials necessary to perform the operation.
- *
- * `ifs` is a stream referring to an open file and positioned at the point
- * at which this function should start reading. The file will be read to the
- * end.
- *
- * `ofs` is a stream referring to an open file and positioned at the point
- * at which this function should start writing.
- *
- * Given the above, the function will read the contents of the file referred
- * to by `ifs` in pieces, passing each piece through the operation
- * specified by `xfrm` and writing any output to `ofs`. The transform
- * operation is accomplished by first calling `xfrm.begin()`, followed by
- * repeated calls to `xfrm.update()` for each piece. When all data has been
- * processed, the function calls `xfrm.end()` to complete the operation.
- */
 static
 void
-ubiq_sample_transform_piecewise(
-    ubiq::platform::transform & xfrm,
-    std::ifstream & ifs, std::ofstream & ofs)
+ubiq_sample_simple_decrypt(
+    const ubiq::platform::credentials & creds,
+    std::ifstream & ifs, std::ofstream & ofs,
+    const std::size_t size)
 {
+    std::vector<char> ibuf;
     std::vector<std::uint8_t> obuf;
 
-    obuf = xfrm.begin();
+    ibuf.resize(size);
+    ifs.read(ibuf.data(), ibuf.size());
+
+    obuf = ubiq::platform::decrypt(creds, ibuf.data(), ibuf.size());
+
+    ofs.write((const char *)obuf.data(), obuf.size());
+}
+
+static
+void
+ubiq_sample_piecewise_encrypt(
+    const ubiq::platform::credentials & creds,
+    std::ifstream & ifs, std::ofstream & ofs)
+{
+    ubiq::platform::encryption enc(
+        creds, 1 /* want to use the key once */);
+    std::vector<std::uint8_t> obuf;
+
+    /*
+     * Start by calling the begin() function. It may produce
+     * some data which needs to be written to the output.
+     */
+    obuf = enc.begin();
     ofs.write((const char *)obuf.data(), obuf.size());
 
+    /*
+     * Now read the contents of the input file in pieces,
+     * encrypting each piece via the update function and
+     * writing the output produced to the output stream.
+     */
     while (!ifs.eof()) {
         std::vector<char> ibuf(128 * 1024);
 
         ifs.read(ibuf.data(), ibuf.size());
         ibuf.resize(ifs.gcount());
-        obuf = xfrm.update(ibuf.data(), ibuf.size());
+        obuf = enc.update(ibuf.data(), ibuf.size());
         ofs.write((const char *)obuf.data(), obuf.size());
     }
 
-    obuf = xfrm.end();
+    /*
+     * Finally, call end() to complete the operation and
+     * write any data produced by the call to the output file
+     */
+    obuf = enc.end();
+    ofs.write((const char *)obuf.data(), obuf.size());
+}
+
+static
+void
+ubiq_sample_piecewise_decrypt(
+    const ubiq::platform::credentials & creds,
+    std::ifstream & ifs, std::ofstream & ofs)
+{
+    ubiq::platform::decryption dec(creds);
+    std::vector<std::uint8_t> obuf;
+
+    /*
+     * Start by calling the begin() function. It may produce
+     * some data which needs to be written to the output.
+     */
+    obuf = dec.begin();
+    ofs.write((const char *)obuf.data(), obuf.size());
+
+    /*
+     * Now read the contents of the input file in pieces,
+     * decrypting each piece via the update function and
+     * writing the output produced to the output stream.
+     */
+    while (!ifs.eof()) {
+        std::vector<char> ibuf(128 * 1024);
+
+        ifs.read(ibuf.data(), ibuf.size());
+        ibuf.resize(ifs.gcount());
+        obuf = dec.update(ibuf.data(), ibuf.size());
+        ofs.write((const char *)obuf.data(), obuf.size());
+    }
+
+    /*
+     * Finally, call end() to complete the operation and
+     * write any data produced by the call to the output file
+     */
+    obuf = dec.end();
     ofs.write((const char *)obuf.data(), obuf.size());
 }
 
@@ -122,6 +145,7 @@ int main(const int argc, char * const argv[])
     ubiq::platform::credentials creds;
     std::ifstream ifs;
     std::ofstream ofs;
+    std::size_t size;
 
     /* library must be initialized */
     ubiq::platform::init();
@@ -178,17 +202,17 @@ int main(const int argc, char * const argv[])
      * method. If the file exceeds that size, force the piecewise
      * method.
      */
-    if (method == UBIQ_SAMPLE_METHOD_SIMPLE) {
-        ifs.seekg(0, std::ios::end);
-        if (ifs.tellg() > UBIQ_SAMPLE_MAX_SIMPLE_SIZE) {
-            std::cerr << "NOTE: This is only for demonstration purposes and is designed to work on memory" << std::endl;
-            std::cerr << "      constrained devices.  Therefore, this sample application will switch to" << std::endl;
-            std::cerr << "      the piecewise APIs for files larger than " << UBIQ_SAMPLE_MAX_SIMPLE_SIZE << " bytes in order to reduce" << std::endl;
-            std::cerr << "      excesive resource usages on resource constrained IoT devices" << std::endl;
-            method = UBIQ_SAMPLE_METHOD_PIECEWISE;
-        }
+    ifs.seekg(0, std::ios::end);
+    size = ifs.tellg();
+    ifs.seekg(0);
 
-        ifs.seekg(0);
+    if (method == UBIQ_SAMPLE_METHOD_SIMPLE &&
+        size > UBIQ_SAMPLE_MAX_SIMPLE_SIZE) {
+        std::cerr << "NOTE: This is only for demonstration purposes and is designed to work on memory" << std::endl;
+        std::cerr << "      constrained devices.  Therefore, this sample application will switch to" << std::endl;
+        std::cerr << "      the piecewise APIs for files larger than " << UBIQ_SAMPLE_MAX_SIMPLE_SIZE << " bytes in order to reduce" << std::endl;
+        std::cerr << "      excesive resource usages on resource constrained IoT devices" << std::endl;
+        method = UBIQ_SAMPLE_METHOD_PIECEWISE;
     }
 
     /* Open the output file */
@@ -200,20 +224,17 @@ int main(const int argc, char * const argv[])
     }
 
     if (method == UBIQ_SAMPLE_METHOD_SIMPLE) {
-        ubiq_sample_transform_simple(
-            (mode == UBIQ_SAMPLE_MODE_ENCRYPT) ?
-            &ubiq::platform::encrypt : &ubiq::platform::decrypt,
-            creds, ifs, ofs);
-    } else {
-        std::unique_ptr<ubiq::platform::transform> xfrm;
-
         if (mode == UBIQ_SAMPLE_MODE_ENCRYPT) {
-            xfrm.reset(new ubiq::platform::encryption(creds, 1));
-        } else {
-            xfrm.reset(new ubiq::platform::decryption(creds));
+            ubiq_sample_simple_encrypt(creds, ifs, ofs, size);
+        } else /* decrypt */ {
+            ubiq_sample_simple_decrypt(creds, ifs, ofs, size);
         }
-
-        ubiq_sample_transform_piecewise(*xfrm, ifs, ofs);
+    } else {
+        if (mode == UBIQ_SAMPLE_MODE_ENCRYPT) {
+            ubiq_sample_piecewise_encrypt(creds, ifs, ofs);
+        } else /* decrypt */{
+            ubiq_sample_piecewise_decrypt(creds, ifs, ofs);
+        }
     }
 
     /* The library needs to clean up after itself */

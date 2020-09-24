@@ -373,8 +373,11 @@ ubiq_platform_credentials_create_specific(
         GETENV(c.host, "UBIQ_SERVER");
     }
 
-    res = ubiq_platform_credentials_create_explicit(
-        c.papi, c.sapi, c.srsa, c.host, creds);
+    res = -ENOENT;
+    if (c.papi && c.sapi && c.srsa) {
+        res = ubiq_platform_credentials_create_explicit(
+            c.papi, c.sapi, c.srsa, c.host, creds);
+    }
 
     ubiq_platform_credentials_clear(&c);
     ubiq_platform_credentials_list_clear(&l);

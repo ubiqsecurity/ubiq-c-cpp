@@ -1,6 +1,8 @@
 #include "ubiq/platform/internal/algorithm.h"
+#include "ubiq/platform.h"
 
 #include <string.h>
+#include <errno.h>
 
 static
 struct ubiq_platform_algorithm *
@@ -13,7 +15,7 @@ ubiq_platform_algorithms_n = 0;
  * maps the openssl ciphers to the numeric id's that are
  * used in the ubiq headers to identify them.
  */
-void
+int
 ubiq_platform_algorithm_init(
     void)
 {
@@ -22,13 +24,22 @@ ubiq_platform_algorithm_init(
         { .cipher = EVP_aes_128_gcm(), .taglen = 16 },
     };
 
-    ubiq_platform_algorithms = malloc(sizeof(algos));
-    ubiq_platform_algorithms_n = sizeof(algos) / sizeof(*algos);
+    int err;
 
-    for (unsigned int i = 0; i < ubiq_platform_algorithms_n; i++) {
-        ubiq_platform_algorithms[i] = algos[i];
-        ubiq_platform_algorithms[i].id = i;
+    err = -ENOMEM;
+    ubiq_platform_algorithms = malloc(sizeof(algos));
+    if (ubiq_platform_algorithms) {
+        ubiq_platform_algorithms_n = sizeof(algos) / sizeof(*algos);
+
+        for (unsigned int i = 0; i < ubiq_platform_algorithms_n; i++) {
+            ubiq_platform_algorithms[i] = algos[i];
+            ubiq_platform_algorithms[i].id = i;
+        }
+
+        err = 0;
     }
+
+    return err;
 }
 
 void
@@ -38,26 +49,44 @@ ubiq_platform_algorithm_exit(
     free(ubiq_platform_algorithms);
 }
 
-const struct ubiq_platform_algorithm *
+int
 ubiq_platform_algorithm_get_byid(
-    const unsigned int i)
+    const unsigned int i,
+    const struct ubiq_platform_algorithm ** const algo)
 {
-    if (i < ubiq_platform_algorithms_n) {
-        return &ubiq_platform_algorithms[i];
-    }
+    int err;
 
-    return NULL;
-}
-
-const struct ubiq_platform_algorithm *
-ubiq_platform_algorithm_get_bycipher(
-    const EVP_CIPHER * const c)
-{
-    for (unsigned int i = 0; i < ubiq_platform_algorithms_n; i++) {
-        if (ubiq_platform_algorithms[i].cipher == c) {
-            return &ubiq_platform_algorithms[i];
+    err = -EAGAIN;
+    if (ubiq_platform_algorithms_n > 0) {
+        err = -EINVAL;
+        if (i < ubiq_platform_algorithms_n) {
+            *algo = &ubiq_platform_algorithms[i];
+            err = 0;
         }
     }
 
-    return NULL;
+    return err;
+}
+
+int
+ubiq_platform_algorithm_get_bycipher(
+    const EVP_CIPHER * const c,
+    const struct ubiq_platform_algorithm ** const algo)
+{
+    int err;
+
+    err = -EAGAIN;
+    if (ubiq_platform_algorithms_n > 0) {
+        err = -EINVAL;
+        for (unsigned int i = 0; i < ubiq_platform_algorithms_n; i++) {
+            if (ubiq_platform_algorithms[i].cipher == c) {
+                *algo = &ubiq_platform_algorithms[i];
+
+                err = 0;
+                break;
+            }
+        }
+    }
+
+    return err;
 }

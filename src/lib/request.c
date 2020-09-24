@@ -41,7 +41,7 @@ ubiq_platform_snprintf_api_url(
         res = snprintf(buf, len, "https://%s/%s", host, path);
     } else {
         /* unsupported scheme already specified */
-        res = -1;
+        res = -EINVAL;
     }
 
     return res;

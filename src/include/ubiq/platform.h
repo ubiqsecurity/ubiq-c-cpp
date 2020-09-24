@@ -19,6 +19,7 @@
 #pragma once
 
 #include <sys/cdefs.h>
+#include <limits.h>
 
 #include <ubiq/platform/encrypt.h>
 #include <ubiq/platform/decrypt.h>
