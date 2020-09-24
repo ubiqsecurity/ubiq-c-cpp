@@ -243,7 +243,7 @@ ubiq_platform_decryption_begin(
     int res;
 
     if (dec->ctx) {
-        res = -EEXIST;
+        res = -EINPROGRESS;
     } else {
         *ptbuf = NULL;
         *ptlen = 0;
@@ -291,7 +291,7 @@ ubiq_platform_decryption_update(
         /* has the header "preamble" been received? */
         if (dec->len >= sizeof(h->pre)) {
             if (h->pre.version != 0) {
-                return -EINVAL;
+                return -EBADMSG;
             }
 
             /* has the fixed-size portion of the header been received? */
@@ -301,7 +301,7 @@ ubiq_platform_decryption_update(
                 int err;
 
                 if (h->v0.sbz != 0) {
-                    return -EINVAL;
+                    return -EBADMSG;
                 }
 
                 err = ubiq_platform_algorithm_get_byid(
@@ -411,7 +411,7 @@ ubiq_platform_decryption_end(
              * the logic in the update function, it should not be
              * possible for sz to be greater than 0
              */
-            res = -EINVAL;
+            res = -ENODATA;
         } else if (dec->algo->taglen != 0) {
             /*
              * if the algorithm in use requires a tag, treat the

@@ -341,7 +341,7 @@ ubiq_platform_encryption_begin(
 
     if (enc->ctx) {
         /* encryption already in progress */
-        res = -EEXIST;
+        res = -EINPROGRESS;
     } else if (enc->key.uses.cur >= enc->key.uses.max) {
         /* key is all used up */
         res = -EDQUOT;
