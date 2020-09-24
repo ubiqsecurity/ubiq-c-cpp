@@ -196,7 +196,7 @@ ubiq_platform_encryption_parse_new_key(
             e->key.enc.len += outl;
             EVP_ENCODE_CTX_free(ectx);
         } else {
-            res = -1;
+            res = -EBADMSG;
         }
     }
 
@@ -208,7 +208,7 @@ ubiq_platform_encryption_parse_new_key(
         if (cJSON_IsNumber(j)) {
             e->key.uses.max = j->valueint;
         } else {
-            res = -1;
+            res = -EBADMSG;
         }
     }
 
@@ -229,7 +229,7 @@ ubiq_platform_encryption_parse_new_key(
                     res = ubiq_platform_algorithm_get_bycipher(
                         EVP_get_cipherbyname(k->valuestring), &e->algo);
                 } else {
-                    res = -1;
+                    res = -EBADMSG;
                 }
             }
 
@@ -242,11 +242,11 @@ ubiq_platform_encryption_parse_new_key(
                 if (cJSON_IsBool(k)) {
                     e->fragment = cJSON_IsTrue(k);
                 } else {
-                    res = -1;
+                    res = -EBADMSG;
                 }
             }
         } else {
-            res = -1;
+            res = -EBADMSG;
         }
     }
 
@@ -301,21 +301,25 @@ int ubiq_platform_encryption_create(
          * if the request was successful, parse the response
          */
 
-        if (res == 0 &&
-            ubiq_platform_rest_response_code(e->rest) == HTTP_RC_CREATED) {
-            const void * rsp;
-            size_t len;
-            cJSON * json;
+        if (res == 0) {
+            const http_response_code_t rc =
+                ubiq_platform_rest_response_code(e->rest);
 
-            rsp = ubiq_platform_rest_response_content(e->rest, &len);
-            res = (json = cJSON_ParseWithLength(rsp, len)) ? 0 : INT_MIN;
+            if (rc == HTTP_RC_CREATED) {
+                const void * rsp;
+                size_t len;
+                cJSON * json;
 
-            if (res == 0) {
-                res = ubiq_platform_encryption_parse_new_key(e, srsa, json);
-                cJSON_Delete(json);
+                rsp = ubiq_platform_rest_response_content(e->rest, &len);
+                res = (json = cJSON_ParseWithLength(rsp, len)) ? 0 : INT_MIN;
+
+                if (res == 0) {
+                    res = ubiq_platform_encryption_parse_new_key(e, srsa, json);
+                    cJSON_Delete(json);
+                }
+            } else {
+                res = ubiq_platform_http_error(rc);
             }
-        } else {
-            res = -1;
         }
     }
 
@@ -394,7 +398,7 @@ ubiq_platform_encryption_update(
 {
     int res;
 
-    res = -EBADF;
+    res = -EBADFD;
     if (enc->ctx) {
         void * buf;
         int len;
@@ -408,7 +412,7 @@ ubiq_platform_encryption_update(
             res = 0;
         } else {
             free(buf);
-            res = -1;
+            res = INT_MIN;
         }
     }
 
@@ -422,7 +426,7 @@ ubiq_platform_encryption_end(
 {
     int res;
 
-    res = -EBADF;
+    res = -EBADFD;
     if (enc->ctx) {
         void * buf;
         int len, outl;

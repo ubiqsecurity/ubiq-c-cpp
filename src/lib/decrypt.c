@@ -198,7 +198,8 @@ ubiq_platform_decryption_new_key(
     free(url);
 
     if (res == 0) {
-        const int rc = ubiq_platform_rest_response_code(d->rest);
+        const http_response_code_t rc =
+            ubiq_platform_rest_response_code(d->rest);
 
         if (rc == HTTP_RC_OK) {
             const void * rsp =
@@ -214,18 +215,8 @@ ubiq_platform_decryption_new_key(
 
                 cJSON_Delete(json);
             }
-        } else if (rc == HTTP_RC_UNAUTHORIZED) {
-            /* something's wrong with the credentials */
-            res = -EACCES;
-        } else if (rc >= 400 && rc < 500) {
-            /* something's wrong with the library */
-            res = -EBADMSG;
-        } else if (rc >= 500 && rc < 600) {
-            /* something's wrong with the server */
-            res = -ECONNABORTED;
         } else {
-            /* something is very wrong somewhere */
-            res = -EPROTO;
+            res = ubiq_platform_http_error(rc);
         }
     }
 
@@ -409,7 +400,7 @@ ubiq_platform_decryption_end(
 {
     int res;
 
-    res = -EBADF;
+    res = -EBADFD;
     if (dec->ctx) {
         const ssize_t sz = dec->len - dec->algo->taglen;
 

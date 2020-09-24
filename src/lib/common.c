@@ -149,3 +149,22 @@ ubiq_platform_common_parse_new_key(
 
     return res;
 }
+
+int
+ubiq_platform_http_error(
+    const http_response_code_t rc)
+{
+    if (rc == HTTP_RC_UNAUTHORIZED) {
+        /* something's wrong with the credentials */
+        return -EACCES;
+    } else if (rc >= 400 && rc < 500) {
+        /* something's wrong with the library */
+        return -EBADMSG;
+    } else if (rc >= 500 && rc < 600) {
+        /* something's wrong with the server */
+        return -ECONNABORTED;
+    }
+
+    /* something is very wrong somewhere */
+    return -EPROTO;
+}
