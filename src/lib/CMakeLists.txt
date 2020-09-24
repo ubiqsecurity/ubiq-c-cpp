@@ -14,6 +14,7 @@ add_library(
   OBJECT
 
   algorithm.c
+  common.c
   credentials.c
   decrypt.c
   encrypt.c
