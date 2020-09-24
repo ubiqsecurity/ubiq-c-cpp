@@ -25,6 +25,52 @@
 
 static
 int
+ubiq_sample_simple_encrypt(
+    const struct ubiq_platform_credentials * const creds,
+    FILE * const ifp, FILE * const ofp,
+    const size_t ilen)
+{
+    void * ibuf, * obuf;
+    size_t olen;
+    int res;
+
+    ibuf = malloc(ilen);
+    fread(ibuf, 1, ilen, ifp);
+
+    res = ubiq_platform_encrypt(creds, ibuf, ilen, &obuf, &olen);
+    if (res == 0) {
+        fwrite(obuf, 1, olen, ofp);
+        free(obuf);
+    }
+
+    free(ibuf);
+}
+
+static
+int
+ubiq_sample_simple_decrypt(
+    const struct ubiq_platform_credentials * const creds,
+    FILE * const ifp, FILE * const ofp,
+    const size_t ilen)
+{
+    void * ibuf, * obuf;
+    size_t olen;
+    int res;
+
+    ibuf = malloc(ilen);
+    fread(ibuf, 1, ilen, ifp);
+
+    res = ubiq_platform_decrypt(creds, ibuf, ilen, &obuf, &olen);
+    if (res == 0) {
+        fwrite(obuf, 1, olen, ofp);
+        free(obuf);
+    }
+
+    free(ibuf);
+}
+
+static
+int
 ubiq_sample_piecewise_encrypt(
     const struct ubiq_platform_credentials * const creds,
     FILE * const ifp, FILE * const ofp)
@@ -156,6 +202,7 @@ int main(const int argc, char * const argv[])
 
     struct ubiq_platform_credentials * creds;
     FILE * ifp, * ofp;
+    size_t size;
     int res;
 
     /* library must be initialized */
@@ -212,20 +259,17 @@ int main(const int argc, char * const argv[])
      * method. If the file exceeds that size, force the piecewise
      * method.
      */
-    if (method == UBIQ_SAMPLE_METHOD_SIMPLE) {
-        size_t size;
+    fseek(ifp, 0, SEEK_END);
+    size = ftell(ifp);
+    fseek(ifp, 0, SEEK_SET);
 
-        fseek(ifp, 0, SEEK_END);
-        size = ftell(ifp);
-        fseek(ifp, 0, SEEK_SET);
-
-        if (size > UBIQ_SAMPLE_MAX_SIMPLE_SIZE) {
-            fprintf(stderr, "NOTE: This is only for demonstration purposes and is designed to work on memory\n");
-            fprintf(stderr, "      constrained devices.  Therefore, this sample application will switch to\n");
-            fprintf(stderr, "      the piecewise APIs for files larger than %u bytes in order to reduce\n", UBIQ_SAMPLE_MAX_SIMPLE_SIZE);
-            fprintf(stderr, "      excesive resource usages on resource constrained IoT devices\n");
-            method = UBIQ_SAMPLE_METHOD_PIECEWISE;
-        }
+    if (method == UBIQ_SAMPLE_METHOD_SIMPLE &&
+        size > UBIQ_SAMPLE_MAX_SIMPLE_SIZE) {
+        fprintf(stderr, "NOTE: This is only for demonstration purposes and is designed to work on memory\n");
+        fprintf(stderr, "      constrained devices.  Therefore, this sample application will switch to\n");
+        fprintf(stderr, "      the piecewise APIs for files larger than %u bytes in order to reduce\n", UBIQ_SAMPLE_MAX_SIMPLE_SIZE);
+        fprintf(stderr, "      excesive resource usages on resource constrained IoT devices\n");
+        method = UBIQ_SAMPLE_METHOD_PIECEWISE;
     }
 
     /* Open the output file */
@@ -238,33 +282,11 @@ int main(const int argc, char * const argv[])
     }
 
     if (method == UBIQ_SAMPLE_METHOD_SIMPLE) {
-        void * ibuf, * obuf;
-        size_t ilen, olen;
-        int res;
-
-        /*
-         * determine the size of the input buffer by seeking to the
-         * end of the file and using the resulting offset as the size.
-         */
-        fseek(ifp, 0, SEEK_END);
-        ilen = ftell(ifp);
-        ibuf = malloc(ilen);
-        fseek(ifp, 0, SEEK_SET);
-
-        fread(ibuf, 1, ilen, ifp);
-
         if (mode == UBIQ_SAMPLE_MODE_ENCRYPT) {
-            res = ubiq_platform_encrypt(creds, ibuf, ilen, &obuf, &olen);
+            res = ubiq_sample_simple_encrypt(creds, ifp, ofp, size);
         } else /* decrypt */ {
-            res = ubiq_platform_decrypt(creds, ibuf, ilen, &obuf, &olen);
+            res = ubiq_sample_simple_decrypt(creds, ifp, ofp, size);
         }
-
-        if (res == 0) {
-            fwrite(obuf, 1, olen, ofp);
-            free(obuf);
-        }
-
-        free(ibuf);
     } else /* piecewise */{
         if (mode == UBIQ_SAMPLE_MODE_ENCRYPT) {
             res = ubiq_sample_piecewise_encrypt(creds, ifp, ofp);

@@ -25,6 +25,42 @@
 
 static
 void
+ubiq_sample_simple_encrypt(
+    const ubiq::platform::credentials & creds,
+    std::ifstream & ifs, std::ofstream & ofs,
+    const std::size_t size)
+{
+    std::vector<char> ibuf;
+    std::vector<std::uint8_t> obuf;
+
+    ibuf.resize(size);
+    ifs.read(ibuf.data(), ibuf.size());
+
+    obuf = ubiq::platform::encrypt(creds, ibuf.data(), ibuf.size());
+
+    ofs.write((const char *)obuf.data(), obuf.size());
+}
+
+static
+void
+ubiq_sample_simple_decrypt(
+    const ubiq::platform::credentials & creds,
+    std::ifstream & ifs, std::ofstream & ofs,
+    const std::size_t size)
+{
+    std::vector<char> ibuf;
+    std::vector<std::uint8_t> obuf;
+
+    ibuf.resize(size);
+    ifs.read(ibuf.data(), ibuf.size());
+
+    obuf = ubiq::platform::decrypt(creds, ibuf.data(), ibuf.size());
+
+    ofs.write((const char *)obuf.data(), obuf.size());
+}
+
+static
+void
 ubiq_sample_piecewise_encrypt(
     const ubiq::platform::credentials & creds,
     std::ifstream & ifs, std::ofstream & ofs)
@@ -109,6 +145,7 @@ int main(const int argc, char * const argv[])
     ubiq::platform::credentials creds;
     std::ifstream ifs;
     std::ofstream ofs;
+    std::size_t size;
 
     /* library must be initialized */
     ubiq::platform::init();
@@ -165,17 +202,17 @@ int main(const int argc, char * const argv[])
      * method. If the file exceeds that size, force the piecewise
      * method.
      */
-    if (method == UBIQ_SAMPLE_METHOD_SIMPLE) {
-        ifs.seekg(0, std::ios::end);
-        if (ifs.tellg() > UBIQ_SAMPLE_MAX_SIMPLE_SIZE) {
-            std::cerr << "NOTE: This is only for demonstration purposes and is designed to work on memory" << std::endl;
-            std::cerr << "      constrained devices.  Therefore, this sample application will switch to" << std::endl;
-            std::cerr << "      the piecewise APIs for files larger than " << UBIQ_SAMPLE_MAX_SIMPLE_SIZE << " bytes in order to reduce" << std::endl;
-            std::cerr << "      excesive resource usages on resource constrained IoT devices" << std::endl;
-            method = UBIQ_SAMPLE_METHOD_PIECEWISE;
-        }
+    ifs.seekg(0, std::ios::end);
+    size = ifs.tellg();
+    ifs.seekg(0);
 
-        ifs.seekg(0);
+    if (method == UBIQ_SAMPLE_METHOD_SIMPLE &&
+        size > UBIQ_SAMPLE_MAX_SIMPLE_SIZE) {
+        std::cerr << "NOTE: This is only for demonstration purposes and is designed to work on memory" << std::endl;
+        std::cerr << "      constrained devices.  Therefore, this sample application will switch to" << std::endl;
+        std::cerr << "      the piecewise APIs for files larger than " << UBIQ_SAMPLE_MAX_SIMPLE_SIZE << " bytes in order to reduce" << std::endl;
+        std::cerr << "      excesive resource usages on resource constrained IoT devices" << std::endl;
+        method = UBIQ_SAMPLE_METHOD_PIECEWISE;
     }
 
     /* Open the output file */
@@ -187,24 +224,11 @@ int main(const int argc, char * const argv[])
     }
 
     if (method == UBIQ_SAMPLE_METHOD_SIMPLE) {
-        std::vector<char> ibuf;
-        std::vector<std::uint8_t> obuf;
-
-        /*
-         * determine the size of the input buffer by seeking to the
-         * end of the file and using the resulting offset as the size.
-         */
-        ifs.seekg(0, std::ios::end);
-        ibuf.resize(ifs.tellg());
-        ifs.seekg(0);
-
-        ifs.read(ibuf.data(), ibuf.size());
         if (mode == UBIQ_SAMPLE_MODE_ENCRYPT) {
-            obuf = ubiq::platform::encrypt(creds, ibuf.data(), ibuf.size());
+            ubiq_sample_simple_encrypt(creds, ifs, ofs, size);
         } else /* decrypt */ {
-            obuf = ubiq::platform::decrypt(creds, ibuf.data(), ibuf.size());
+            ubiq_sample_simple_decrypt(creds, ifs, ofs, size);
         }
-        ofs.write((const char *)obuf.data(), obuf.size());
     } else {
         if (mode == UBIQ_SAMPLE_MODE_ENCRYPT) {
             ubiq_sample_piecewise_encrypt(creds, ifs, ofs);
