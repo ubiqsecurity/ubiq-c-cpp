@@ -27,8 +27,6 @@
 /* C interfaces */
 __BEGIN_DECLS
 
-#define ENOINIT                         (INT_MIN + 1)
-
 /*
  * Library initialization and tear-down
  *

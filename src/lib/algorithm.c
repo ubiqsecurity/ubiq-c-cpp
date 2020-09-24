@@ -56,7 +56,7 @@ ubiq_platform_algorithm_get_byid(
 {
     int err;
 
-    err = -ENOINIT;
+    err = -EAGAIN;
     if (ubiq_platform_algorithms_n > 0) {
         err = -EINVAL;
         if (i < ubiq_platform_algorithms_n) {
@@ -75,7 +75,7 @@ ubiq_platform_algorithm_get_bycipher(
 {
     int err;
 
-    err = -ENOINIT;
+    err = -EAGAIN;
     if (ubiq_platform_algorithms_n > 0) {
         err = -EINVAL;
         for (unsigned int i = 0; i < ubiq_platform_algorithms_n; i++) {
