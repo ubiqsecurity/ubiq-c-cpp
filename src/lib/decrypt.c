@@ -166,7 +166,8 @@ ubiq_platform_decryption_new_key(
 
     cJSON * json;
     char * url, * str, * enc;
-    int len, res;
+    size_t len;
+    int res;
 
     len = snprintf(NULL, 0, fmt, d->restapi);
     url = malloc(len + 1);
@@ -200,10 +201,19 @@ ubiq_platform_decryption_new_key(
         const int rc = ubiq_platform_rest_response_code(d->rest);
 
         if (rc == HTTP_RC_OK) {
-            res = ubiq_platform_parse_new_key(
-                d->rest, d->srsa,
-                &d->session, &d->key.fingerprint,
-                &d->key.raw.buf, &d->key.raw.len);
+            const void * rsp =
+                ubiq_platform_rest_response_content(d->rest, &len);
+
+            res = INT_MIN;
+            json = cJSON_ParseWithLength(rsp, len);
+            if (json) {
+                res = ubiq_platform_common_parse_new_key(
+                    json, d->srsa,
+                    &d->session, &d->key.fingerprint,
+                    &d->key.raw.buf, &d->key.raw.len);
+
+                cJSON_Delete(json);
+            }
         } else if (rc == HTTP_RC_UNAUTHORIZED) {
             /* something's wrong with the credentials */
             res = -EACCES;
