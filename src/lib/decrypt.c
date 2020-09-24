@@ -399,7 +399,7 @@ ubiq_platform_decryption_update(
                 const struct ubiq_platform_algorithm * algo;
                 unsigned int ivlen, keylen;
 
-                if (h->v0.sbz != 0) {
+                if ((h->v0.flags & ~UBIQ_HEADER_V0_FLAG_AAD) != 0) {
                     return -EINVAL;
                 }
 
@@ -455,6 +455,12 @@ ubiq_platform_decryption_update(
                         EVP_DecryptInit(
                             dec->ctx, dec->algo->cipher, dec->key.raw.buf, iv);
 
+                        if ((h->v0.flags & UBIQ_HEADER_V0_FLAG_AAD) != 0) {
+                            int tmplen = 0;
+                            EVP_DecryptUpdate(dec->ctx, NULL, &tmplen,
+                                              (const unsigned char*) h,
+                                              sizeof(*h) + ivlen + keylen);
+                        }
                         dec->key.uses++;
                     }
                 }
