@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1.0 - 2020-09-24
+* Made error values more consistent across the library
+* Added documentation of library initialization and error values
+* Simplified examples
 
 ## 0.1.0.0 - 2020-09-24
 * Added AAD information to ciphers for encrypt and decrypt
