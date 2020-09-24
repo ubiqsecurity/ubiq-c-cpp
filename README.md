@@ -179,16 +179,55 @@ ubiq::platform::credentials credentials(
 
 #### C
 
-Unsuccessful requests return non-zero values. In general, these values are
-negative error numbers which indicate the nature of the error/failure. However,
-specific interfaces may return other values which are documented in the
-interface headers.
+Unsuccessful functions return non-zero values. In general, these values are
+negative error numbers which indicate the nature of the error/failure. More
+common errors include:
+
+* `-EACCES`
+    Access is denied, usually due to invalid credentials, but this can also
+    be caused by failure to decrypt keys from the server
+* `-EAGAIN`:
+    The library has not been initialized
+* `-EBADFD`:
+    The functions associated with a piecewise encryption or decryption have
+    been called in an incorrect order
+* `-EBADMSG`:
+    The server rejected a message from the client or vice versa. This is
+    usually an incompatibility betweer the client and server, but can also
+    be caused by the clock being set incorrectly on the client side,
+    causing authentication to fail. This error can also be caused by an
+    invalid or unsupported data format during decryption
+* `-ECONNABORTED`:
+    An error occurred on the server side
+* `-EDQUOT`:
+    The encryption key has already been used the maximum number of times
+* `-EINPROGRESS`:
+    A piecewise encryption or decryption has already been started when one of
+    the encryption or decryption begin() functions is called
+* `-EINVAL`:
+    A function was called with an invalid value/parameter
+* `-ENODATA`:
+    During encryption, no random data was available. During decryption, not
+    enough data was supplied to completed the decryption
+* `-ENOENT`:
+    The specified or default credentials could not be found or were incomplete
+* `-ENOMEM`:
+    The system was unable to allocate memory from the heap
+* `-EPROTO`:
+    A response from the server was not understood. This is a problem with the
+    library and should be reported.
+
+Errors returned from external libraries are converted to `INT_MIN` where the
+failure is not specific or can't be converted to an error number. While it is
+possible that the error indicates a runtime issue, most likely it is a misuse
+of that external library by the Ubiq client and should be reported.
 
 #### C++
 
 Unsuccessful requests raise exceptions. In general, exceptions are of the type
 `std::system_error` and in the category `std::generic_category`. These
-exceptions carry error codes corresponding to error numbers.
+exceptions carry error codes corresponding to error numbers. The error
+conditions associated with those numbers are described [above](#c).
 
 ### Simple encryption and decryption
 
