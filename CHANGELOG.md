@@ -1,5 +1,8 @@
 # Changelog
 
+## 
+* Create credentials file in the example build directory
+
 ## 0.1.1.0 - 2020-09-24
 * Made error values more consistent across the library
 * Added documentation of library initialization and error values
