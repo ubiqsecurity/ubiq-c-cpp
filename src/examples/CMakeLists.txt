@@ -37,3 +37,9 @@ add_executable(
 target_link_libraries(
   ubiq_sample-c++
   ubiqclient++)
+
+# Copy the Credentials file from the source 
+# directory to the target directory if necessary.
+# Do not copy the file if the file has been updated by the user.
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/credentials credentials COPYONLY)
+
