@@ -1,6 +1,7 @@
 # Changelog
 
 ## 
+* Add infrastructure to build packages in Docker container
 * Create credentials file in the example build directory
 
 ## 0.1.1.0 - 2020-09-24
