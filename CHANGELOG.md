@@ -1,5 +1,8 @@
 # Changelog
 
+## TBD - TBD
+* Change to MIT license
+
 ## 0.1.1.1 - 2020-10-19
 * Add infrastructure to build packages in Docker container
 * Create credentials file in the example build directory
