@@ -42,7 +42,7 @@ $ cmake --build . --target all
 From within the examples directory
 
 ```sh
-$ ./ubiq_sample-c -i ./README.md -o /tmp/readme.enc -e -s -c ./credentials ubiq_sample-c -h
+$ ./ubiq_sample-c -h
 ```
 <pre>
 Encrypt or decrypt files using the Ubiq service
