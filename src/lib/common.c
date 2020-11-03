@@ -1,6 +1,6 @@
-#include "ubiq/platform/internal/common.h"
+#include <ubiq/platform/internal/common.h>
 
-#include <sys/param.h>
+#include <ubiq/platform/compat/sys/param.h>
 #include <string.h>
 #include <errno.h>
 

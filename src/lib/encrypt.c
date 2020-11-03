@@ -6,7 +6,6 @@
 #include "ubiq/platform/internal/credentials.h"
 #include "ubiq/platform/internal/common.h"
 
-#include <sys/param.h>
 #include <errno.h>
 #include <limits.h>
 #include <stdio.h>

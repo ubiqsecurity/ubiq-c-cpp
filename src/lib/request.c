@@ -13,7 +13,7 @@
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
 
-#include <sys/param.h>
+#include <ubiq/platform/compat/sys/param.h>
 
 const char * ubiq_platform_user_agent = NULL;
 
