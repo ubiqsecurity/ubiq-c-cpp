@@ -1,6 +1,6 @@
 #pragma once
 
-#include <sys/cdefs.h>
+#include <ubiq/platform/compat/cdefs.h>
 #include <stddef.h>
 
 __BEGIN_DECLS

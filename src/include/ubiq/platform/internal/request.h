@@ -1,10 +1,9 @@
 #pragma once
 
-#include <sys/cdefs.h>
-
-#include "ubiq/platform/internal/http.h"
-
+#include <ubiq/platform/compat/cdefs.h>
 #include <stddef.h>
+
+#include <ubiq/platform/internal/http.h>
 
 __BEGIN_DECLS
 
