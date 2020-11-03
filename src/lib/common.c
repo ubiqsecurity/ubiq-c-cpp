@@ -1,4 +1,5 @@
 #include <ubiq/platform/internal/common.h>
+#include <ubiq/platform/internal/support.h>
 
 #include <ubiq/platform/compat/sys/param.h>
 #include <string.h>
@@ -95,32 +96,12 @@ ubiq_platform_common_parse_new_key(
         j = cJSON_GetObjectItemCaseSensitive(
             json, "wrapped_data_key");
         if (cJSON_IsString(j) && j->valuestring != NULL) {
-            EVP_ENCODE_CTX * ectx;
             EVP_PKEY_CTX * pctx;
             void * buf;
-            size_t len;
-            int outl;
+            int len;
 
-            /*
-             * the key has to be base64 decoded. just malloc a buffer
-             * the same size as the existing string since the decoded
-             * value will be smaller than the encoded one
-             */
-            len = strlen(j->valuestring);
-            buf = malloc(len);
-
-            /*
-             * base64 decode the string. the init/update/final scheme
-             * removes the padding (as opposed to the decodeblock
-             * function which leaves it in.
-             */
-            ectx = EVP_ENCODE_CTX_new();
-            EVP_DecodeInit(ectx);
-            EVP_DecodeUpdate(ectx, buf, &outl, j->valuestring, len);
-            len = outl;
-            EVP_DecodeFinal(ectx, (char *)buf + len, &outl);
-            len += outl;
-            EVP_ENCODE_CTX_free(ectx);
+            len = ubiq_platform_base64_decode(
+                &buf, j->valuestring, strlen(j->valuestring));
 
             /*
              * unwrap the data key using the private rsa key that

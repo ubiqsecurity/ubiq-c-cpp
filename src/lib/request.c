@@ -1,5 +1,6 @@
 #include "ubiq/platform/internal/assert.h"
 #include "ubiq/platform/internal/request.h"
+#include "ubiq/platform/internal/support.h"
 
 #include <ctype.h>
 #include <errno.h>
@@ -386,6 +387,7 @@ ubiq_platform_rest_header_content(
         unsigned char digest[EVP_MAX_MD_SIZE];
         unsigned int digsiz;
         EVP_MD_CTX * digctx;
+        char * dig64;
 
         digctx = EVP_MD_CTX_create();
         EVP_DigestInit(digctx, EVP_sha512());
@@ -396,8 +398,11 @@ ubiq_platform_rest_header_content(
         EVP_MD_CTX_destroy(digctx);
 
         *len = snprintf(val, *len, "%s", "SHA-512=");
-        EVP_EncodeBlock(val + *len, digest, digsiz);
+        ubiq_platform_base64_encode(&dig64, digest, digsiz);
+        strcpy(val + *len, dig64);
         *len = strlen(val);
+
+        free(dig64);
 
         err = 0;
     } else if (strcmp(key, "Host") == 0) {
@@ -507,6 +512,7 @@ ubiq_platform_rest_request(
         unsigned int hlen;
 
         struct curl_slist * tlist, * slist;
+        char * enc;
 
         /*
          * the initial portion of the Signature header. the 'headers'
@@ -626,11 +632,14 @@ ubiq_platform_rest_request(
         sighdrlen += snprintf(
             sighdr + sighdrlen, sizeof(sighdr) - sighdrlen,
             ", signature=\"");
-        EVP_EncodeBlock(sighdr + sighdrlen, hdig, hlen);
+        ubiq_platform_base64_encode(&enc, hdig, hlen);
+        strcpy(sighdr + sighdrlen, enc);
         sighdrlen = strlen(sighdr);
         sighdrlen += snprintf(
             sighdr + sighdrlen, sizeof(sighdr) - sighdrlen,
             "\"");
+
+        free(enc);
 
         /*
          * add the Signature header to the list of headers

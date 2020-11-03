@@ -5,6 +5,7 @@
 #include "ubiq/platform/internal/algorithm.h"
 #include "ubiq/platform/internal/credentials.h"
 #include "ubiq/platform/internal/common.h"
+#include "ubiq/platform/internal/support.h"
 
 #include <errno.h>
 #include <limits.h>
@@ -172,28 +173,8 @@ ubiq_platform_encryption_parse_new_key(
          */
         j = cJSON_GetObjectItemCaseSensitive(json, "encrypted_data_key");
         if (cJSON_IsString(j) && j->valuestring != NULL) {
-            EVP_ENCODE_CTX * ectx;
-            EVP_PKEY_CTX * pctx;
-            int outl;
-
-            e->key.enc.len = strlen(j->valuestring);
-            e->key.enc.buf = malloc(e->key.enc.len);
-
-            /*
-             * use the init/update/final scheme to automatically
-             * handle padding
-             */
-            ectx = EVP_ENCODE_CTX_new();
-            EVP_DecodeInit(ectx);
-            EVP_DecodeUpdate(ectx,
-                             e->key.enc.buf, &outl,
-                             j->valuestring, e->key.enc.len);
-            e->key.enc.len = outl;
-            EVP_DecodeFinal(ectx,
-                            (char *)e->key.enc.buf + e->key.enc.len,
-                            &outl);
-            e->key.enc.len += outl;
-            EVP_ENCODE_CTX_free(ectx);
+            e->key.enc.len = ubiq_platform_base64_decode(
+                &e->key.enc.buf, j->valuestring, strlen(j->valuestring));
         } else {
             res = -EBADMSG;
         }

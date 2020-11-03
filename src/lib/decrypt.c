@@ -5,6 +5,7 @@
 #include "ubiq/platform/internal/algorithm.h"
 #include "ubiq/platform/internal/credentials.h"
 #include "ubiq/platform/internal/common.h"
+#include "ubiq/platform/internal/support.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -173,15 +174,7 @@ ubiq_platform_decryption_new_key(
     url = malloc(len + 1);
     snprintf(url, len + 1, fmt, d->restapi);
 
-    /*
-     * the key has to be base64 encode for transmission which
-     * is 4/3rds larger than the unencoded data. Adding 2 bytes
-     * prior to the division by 3 rounds up the allocation to
-     * handle any padding that is necessary. an extra byte is
-     * added for the nul terminator.
-     */
-    enc = malloc(4 * ((keylen + 2) / 3) + 1);
-    EVP_EncodeBlock(enc, enckey, keylen);
+    ubiq_platform_base64_encode(&enc, enckey, keylen);
 
     json = cJSON_CreateObject();
     cJSON_AddItemToObject(
