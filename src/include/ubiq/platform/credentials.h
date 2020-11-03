@@ -113,7 +113,7 @@ namespace ubiq {
                 const std::string & host = std::string());
 
             credentials(const credentials &) = default;
-            credentials(credentials &) =  default;
+            credentials(credentials &&) =  default;
 
             credentials & operator =(const credentials &) = default;
             credentials & operator =(credentials &&) = default;
