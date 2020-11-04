@@ -1,5 +1,5 @@
 #include "ubiq/platform.h"
-#include "ubiq/platform/internal/algorithm.h"
+#include "ubiq/platform/internal/support.h"
 #include "ubiq/platform/internal/request.h"
 
 #include <curl/curl.h>

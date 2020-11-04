@@ -2,7 +2,6 @@
 
 #include "ubiq/platform/internal/header.h"
 #include "ubiq/platform/internal/request.h"
-#include "ubiq/platform/internal/algorithm.h"
 #include "ubiq/platform/internal/credentials.h"
 #include "ubiq/platform/internal/common.h"
 #include "ubiq/platform/internal/support.h"
@@ -206,8 +205,8 @@ ubiq_platform_encryption_parse_new_key(
                  */
                 k = cJSON_GetObjectItemCaseSensitive(j, "algorithm");
                 if (cJSON_IsString(k) && k->valuestring != NULL) {
-                    res = ubiq_platform_algorithm_get_bycipher(
-                        EVP_get_cipherbyname(k->valuestring), &e->algo);
+                    res = ubiq_platform_algorithm_get_byname(
+                        k->valuestring, &e->algo);
                 } else {
                     res = -EBADMSG;
                 }
@@ -329,7 +328,7 @@ ubiq_platform_encryption_begin(
         /*
          * good to go, build a header; create the context
          */
-        const size_t ivlen = EVP_CIPHER_iv_length(enc->algo->cipher);
+        const size_t ivlen = enc->algo->len.iv;
         union ubiq_platform_header * hdr;
         size_t len;
 
@@ -356,7 +355,7 @@ ubiq_platform_encryption_begin(
 
             /* set up the encryption context for the update() calls */
             enc->ctx = EVP_CIPHER_CTX_new();
-            EVP_EncryptInit(enc->ctx, enc->algo->cipher,
+            EVP_EncryptInit(enc->ctx, (const EVP_CIPHER *)enc->algo->cipher,
                             enc->key.raw.buf, (unsigned char *)(hdr + 1));
 
             EVP_EncryptUpdate(enc->ctx, NULL, &tmp, (const unsigned char*) hdr,
@@ -414,26 +413,26 @@ ubiq_platform_encryption_end(
         void * buf;
         int len, outl;
 
-        len = EVP_CIPHER_CTX_block_size(enc->ctx) + enc->algo->taglen;
+        len = EVP_CIPHER_CTX_block_size(enc->ctx) + enc->algo->len.tag;
         buf = malloc(len);
 
         EVP_EncryptFinal(enc->ctx, buf, &outl);
-        assert(len - outl >= enc->algo->taglen);
+        assert(len - outl >= enc->algo->len.tag);
 
-        if (enc->algo->taglen) {
+        if (enc->algo->len.tag) {
             /*
              * don't forget the tag for algorithms that need/use it
              */
             EVP_CIPHER_CTX_ctrl(enc->ctx,
                                 EVP_CTRL_AEAD_GET_TAG,
-                                enc->algo->taglen, (char *)buf + outl);
+                                enc->algo->len.tag, (char *)buf + outl);
         }
 
         EVP_CIPHER_CTX_free(enc->ctx);
         enc->ctx = NULL;
 
         *ctbuf = buf;
-        *ctlen = outl + enc->algo->taglen;
+        *ctlen = outl + enc->algo->len.tag;
 
         res = 0;
     }

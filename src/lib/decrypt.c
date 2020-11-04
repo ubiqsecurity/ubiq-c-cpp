@@ -2,7 +2,6 @@
 
 #include "ubiq/platform/internal/header.h"
 #include "ubiq/platform/internal/request.h"
-#include "ubiq/platform/internal/algorithm.h"
 #include "ubiq/platform/internal/credentials.h"
 #include "ubiq/platform/internal/common.h"
 #include "ubiq/platform/internal/support.h"
@@ -348,7 +347,8 @@ ubiq_platform_decryption_update(
 
                         dec->ctx = EVP_CIPHER_CTX_new();
                         EVP_DecryptInit(
-                            dec->ctx, dec->algo->cipher, dec->key.raw.buf, iv);
+                            dec->ctx, (const EVP_CIPHER *)dec->algo->cipher,
+                            dec->key.raw.buf, iv);
 
                         if ((h->v0.flags & UBIQ_HEADER_V0_FLAG_AAD) != 0) {
                             int tmplen = 0;
@@ -372,7 +372,7 @@ ubiq_platform_decryption_update(
          * has to assume that the last bytes are the tag.
          */
 
-        const ssize_t declen = dec->len - (off + dec->algo->taglen);
+        const ssize_t declen = dec->len - (off + dec->algo->len.tag);
 
         if (declen > 0) {
             int outl;
@@ -384,8 +384,8 @@ ubiq_platform_decryption_update(
 
             memmove(dec->buf,
                     (char *)dec->buf + off + declen,
-                    dec->algo->taglen);
-            dec->len = dec->algo->taglen;
+                    dec->algo->len.tag);
+            dec->len = dec->algo->len.tag;
         }
     }
 
@@ -401,7 +401,7 @@ ubiq_platform_decryption_end(
 
     res = -EBADFD;
     if (dec->ctx) {
-        const ssize_t sz = dec->len - dec->algo->taglen;
+        const ssize_t sz = dec->len - dec->algo->len.tag;
 
         if (sz != 0) {
             /*
@@ -411,13 +411,13 @@ ubiq_platform_decryption_end(
              * possible for sz to be greater than 0
              */
             res = -ENODATA;
-        } else if (dec->algo->taglen != 0) {
+        } else if (dec->algo->len.tag != 0) {
             /*
              * if the algorithm in use requires a tag, treat the
              * remaining data as the tag.
              */
             EVP_CIPHER_CTX_ctrl(dec->ctx, EVP_CTRL_GCM_SET_TAG,
-                                dec->algo->taglen, dec->buf);
+                                dec->algo->len.tag, dec->buf);
             res = 0;
         }
 
