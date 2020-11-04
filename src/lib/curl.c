@@ -9,9 +9,9 @@
 
 #include <curl/curl.h>
 
-static char * ubiq_platform_user_agent = NULL;
+const char * ubiq_support_user_agent = NULL;
 
-struct ubiq_platform_http_handle
+struct ubiq_support_http_handle
 {
     CURL * ch;
     struct curl_slist * hlist;
@@ -27,21 +27,20 @@ struct ubiq_platform_http_handle
     } rsp;
 };
 
-int ubiq_platform_http_init(const char * const uagent)
+int ubiq_support_http_init(void)
 {
-    ubiq_platform_user_agent = strdup(uagent);
     return (curl_global_init(CURL_GLOBAL_DEFAULT) == 0) ? 0 : INT_MIN;
 }
 
-void ubiq_platform_http_exit(void)
+void ubiq_support_http_exit(void)
 {
-    free(ubiq_platform_user_agent);
+    curl_global_cleanup();
 }
 
-struct ubiq_platform_http_handle *
-ubiq_platform_http_handle_create(void)
+struct ubiq_support_http_handle *
+ubiq_support_http_handle_create(void)
 {
-    struct ubiq_platform_http_handle * hnd;
+    struct ubiq_support_http_handle * hnd;
 
     hnd = malloc(sizeof(*hnd));
     if (hnd) {
@@ -58,8 +57,8 @@ ubiq_platform_http_handle_create(void)
 }
 
 void
-ubiq_platform_http_handle_reset(
-    struct ubiq_platform_http_handle * const hnd)
+ubiq_support_http_handle_reset(
+    struct ubiq_support_http_handle * const hnd)
 {
     curl_easy_reset(hnd->ch);
     if (hnd->hlist) {
@@ -69,8 +68,8 @@ ubiq_platform_http_handle_reset(
 }
 
 void
-ubiq_platform_http_handle_destroy(
-    struct ubiq_platform_http_handle * const hnd)
+ubiq_support_http_handle_destroy(
+    struct ubiq_support_http_handle * const hnd)
 {
     curl_easy_cleanup(hnd->ch);
     if (hnd->hlist) {
@@ -80,8 +79,8 @@ ubiq_platform_http_handle_destroy(
 }
 
 http_response_code_t
-ubiq_platform_http_response_code(
-    const struct ubiq_platform_http_handle * const hnd)
+ubiq_support_http_response_code(
+    const struct ubiq_support_http_handle * const hnd)
 {
     long st;
     curl_easy_getinfo(hnd->ch, CURLINFO_RESPONSE_CODE, &st);
@@ -89,8 +88,8 @@ ubiq_platform_http_response_code(
 }
 
 const char *
-ubiq_platform_http_response_content_type(
-    const struct ubiq_platform_http_handle * const hnd)
+ubiq_support_http_response_content_type(
+    const struct ubiq_support_http_handle * const hnd)
 {
     char * type;
     curl_easy_getinfo(hnd->ch, CURLINFO_CONTENT_TYPE, &type);
@@ -98,8 +97,8 @@ ubiq_platform_http_response_content_type(
 }
 
 int
-ubiq_platform_http_add_header(
-    struct ubiq_platform_http_handle * hnd, const char * const s)
+ubiq_support_http_add_header(
+    struct ubiq_support_http_handle * hnd, const char * const s)
 {
     struct curl_slist * slist;
     int err;
@@ -121,12 +120,12 @@ ubiq_platform_http_add_header(
  */
 static
 size_t
-ubiq_platform_http_upload(
+ubiq_support_http_upload(
     char * const buffer,
     const size_t size, const size_t nmemb,
     void * const priv)
 {
-    struct ubiq_platform_http_handle * const h = priv;
+    struct ubiq_support_http_handle * const h = priv;
     const size_t copy =
         MIN(size * nmemb, h->req.len - h->req.off);
 
@@ -143,12 +142,12 @@ ubiq_platform_http_upload(
  */
 static
 size_t
-ubiq_platform_http_download(
+ubiq_support_http_download(
     char * const buffer,
     const size_t size, const size_t nmemb,
     void * const priv)
 {
-    struct ubiq_platform_http_handle * const h = priv;
+    struct ubiq_support_http_handle * const h = priv;
     size_t copy;
 
     copy = size * nmemb;
@@ -169,8 +168,8 @@ ubiq_platform_http_download(
 }
 
 int
-ubiq_platform_http_request(
-    struct ubiq_platform_http_handle * hnd,
+ubiq_support_http_request(
+    struct ubiq_support_http_handle * hnd,
     const http_request_method_t method, const char * const urlstr,
     const char * const content_type,
     const void * const content, const size_t length,
@@ -185,12 +184,12 @@ ubiq_platform_http_request(
          * for a 100 Continue response from the server (for up to
          * 1 second) before uploading any content.
          */
-        res = ubiq_platform_http_add_header(hnd, "Expect:");
+        res = ubiq_support_http_add_header(hnd, "Expect:");
         if (res == 0) {
             CURLcode rc;
 
             curl_easy_setopt(
-                hnd->ch, CURLOPT_USERAGENT, ubiq_platform_user_agent);
+                hnd->ch, CURLOPT_USERAGENT, ubiq_support_user_agent);
 
             if (length != 0) {
                 char cthdr[128];
@@ -210,13 +209,13 @@ ubiq_platform_http_request(
                     hnd->ch, CURLOPT_READDATA, hnd);
                 curl_easy_setopt(
                     hnd->ch, CURLOPT_READFUNCTION,
-                    &ubiq_platform_http_upload);
+                    &ubiq_support_http_upload);
                 curl_easy_setopt(
                     hnd->ch, CURLOPT_INFILESIZE, length);
 
                 snprintf(cthdr, sizeof(cthdr),
                          "Content-Type: %s", content_type);
-                ubiq_platform_http_add_header(hnd, cthdr);
+                ubiq_support_http_add_header(hnd, cthdr);
             }
 
             /* add headers to the request */
@@ -232,7 +231,7 @@ ubiq_platform_http_request(
                     hnd->ch, CURLOPT_WRITEDATA, hnd);
                 curl_easy_setopt(
                     hnd->ch, CURLOPT_WRITEFUNCTION,
-                    &ubiq_platform_http_download);
+                    &ubiq_support_http_download);
 
                 hnd->rsp.buf = NULL;
                 hnd->rsp.len = 0;

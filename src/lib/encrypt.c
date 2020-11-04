@@ -170,7 +170,7 @@ ubiq_platform_encryption_parse_new_key(
          */
         j = cJSON_GetObjectItemCaseSensitive(json, "encrypted_data_key");
         if (cJSON_IsString(j) && j->valuestring != NULL) {
-            e->key.enc.len = ubiq_platform_base64_decode(
+            e->key.enc.len = ubiq_support_base64_decode(
                 &e->key.enc.buf, j->valuestring, strlen(j->valuestring));
         } else {
             res = -EBADMSG;

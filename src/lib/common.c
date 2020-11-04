@@ -100,7 +100,7 @@ ubiq_platform_common_parse_new_key(
             void * buf;
             int len;
 
-            len = ubiq_platform_base64_decode(
+            len = ubiq_support_base64_decode(
                 &buf, j->valuestring, strlen(j->valuestring));
 
             /*

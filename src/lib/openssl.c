@@ -96,7 +96,7 @@ ubiq_platform_algorithm_get_byname(
 }
 
 int
-ubiq_platform_base64_encode(
+ubiq_support_base64_encode(
     char ** const obuf,
     const void * const ibuf, const size_t size)
 {
@@ -121,7 +121,7 @@ ubiq_platform_base64_encode(
 }
 
 int
-ubiq_platform_base64_decode(
+ubiq_support_base64_decode(
     void ** const obuf,
     const char * const ibuf, const size_t size)
 {
@@ -166,16 +166,16 @@ ubiq_platform_base64_decode(
     return res;
 }
 
-struct ubiq_platform_digest_context
+struct ubiq_support_digest_context
 {
     const EVP_MD * dig;
     EVP_MD_CTX * ctx;
 };
 
 int
-ubiq_platform_digest_init(
+ubiq_support_digest_init(
     const char * const name,
-    struct ubiq_platform_digest_context ** const _ctx)
+    struct ubiq_support_digest_context ** const _ctx)
 {
     const EVP_MD * const dig = EVP_get_digestbyname(name);
 
@@ -183,7 +183,7 @@ ubiq_platform_digest_init(
 
     err = -EINVAL;
     if (dig) {
-        struct ubiq_platform_digest_context * ctx;
+        struct ubiq_support_digest_context * ctx;
 
         err = -ENOMEM;
         ctx = malloc(sizeof(*ctx));
@@ -205,16 +205,16 @@ ubiq_platform_digest_init(
 }
 
 void
-ubiq_platform_digest_update(
-    struct ubiq_platform_digest_context * const ctx,
+ubiq_support_digest_update(
+    struct ubiq_support_digest_context * const ctx,
     const void * const buf, const size_t len)
 {
     EVP_DigestUpdate(ctx->ctx, buf, len);
 }
 
 int
-ubiq_platform_digest_finalize(
-    struct ubiq_platform_digest_context * const ctx,
+ubiq_support_digest_finalize(
+    struct ubiq_support_digest_context * const ctx,
     void ** _buf, size_t * const _len)
 {
     void * buf;
@@ -237,17 +237,17 @@ ubiq_platform_digest_finalize(
     return err;
 }
 
-struct ubiq_platform_hmac_context
+struct ubiq_support_hmac_context
 {
     const EVP_MD * dig;
     HMAC_CTX * ctx;
 };
 
 int
-ubiq_platform_hmac_init(
+ubiq_support_hmac_init(
     const char * const name,
     const void * const key, const size_t len,
-    struct ubiq_platform_hmac_context ** const _ctx)
+    struct ubiq_support_hmac_context ** const _ctx)
 {
     const EVP_MD * const dig = EVP_get_digestbyname(name);
 
@@ -255,7 +255,7 @@ ubiq_platform_hmac_init(
 
     err = -EINVAL;
     if (dig) {
-        struct ubiq_platform_hmac_context * ctx;
+        struct ubiq_support_hmac_context * ctx;
 
         err = -ENOMEM;
         ctx = malloc(sizeof(*ctx));
@@ -277,16 +277,16 @@ ubiq_platform_hmac_init(
 }
 
 void
-ubiq_platform_hmac_update(
-    struct ubiq_platform_hmac_context * const ctx,
+ubiq_support_hmac_update(
+    struct ubiq_support_hmac_context * const ctx,
     const void * const buf, const size_t len)
 {
     HMAC_Update(ctx->ctx, buf, len);
 }
 
 int
-ubiq_platform_hmac_finalize(
-    struct ubiq_platform_hmac_context * const ctx,
+ubiq_support_hmac_finalize(
+    struct ubiq_support_hmac_context * const ctx,
     void ** _buf, size_t * const _len)
 {
     void * buf;

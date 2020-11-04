@@ -173,7 +173,7 @@ ubiq_platform_decryption_new_key(
     url = malloc(len + 1);
     snprintf(url, len + 1, fmt, d->restapi);
 
-    ubiq_platform_base64_encode(&enc, enckey, keylen);
+    ubiq_support_base64_encode(&enc, enckey, keylen);
 
     json = cJSON_CreateObject();
     cJSON_AddItemToObject(

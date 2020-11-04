@@ -7,8 +7,6 @@
 
 __BEGIN_DECLS
 
-extern const char * ubiq_platform_user_agent;
-
 int
 ubiq_platform_snprintf_api_url(
     char * const buf, const size_t len,

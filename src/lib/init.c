@@ -1,6 +1,5 @@
 #include "ubiq/platform.h"
 #include "ubiq/platform/internal/support.h"
-#include "ubiq/platform/internal/request.h"
 
 int ubiq_platform_init(void)
 {
@@ -8,7 +7,8 @@ int ubiq_platform_init(void)
 
     err = ubiq_platform_algorithm_init();
     if (!err) {
-        err = ubiq_platform_http_init(UBIQ_PLATFORM_USER_AGENT);
+        ubiq_support_user_agent = UBIQ_PLATFORM_USER_AGENT;
+        err = ubiq_support_http_init();
         if (err) {
             ubiq_platform_algorithm_exit();
         }
@@ -19,6 +19,6 @@ int ubiq_platform_init(void)
 
 void ubiq_platform_exit(void)
 {
-    ubiq_platform_http_exit();
+    ubiq_support_http_exit();
     ubiq_platform_algorithm_exit();
 }

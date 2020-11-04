@@ -11,8 +11,6 @@
 #include <stdio.h>
 #include <time.h>
 
-const char * ubiq_platform_user_agent = NULL;
-
 int
 ubiq_platform_snprintf_api_url(
     char * const buf, const size_t len,
@@ -170,7 +168,7 @@ struct ubiq_platform_rest_handle
 {
     const char * papi, * sapi;
 
-    struct ubiq_platform_http_handle * hnd;
+    struct ubiq_support_http_handle * hnd;
 
     /*
      * content received in an http response.
@@ -209,7 +207,7 @@ ubiq_platform_rest_handle_create(
         (*h)->sapi = (*h)->papi + papilen;
         strcpy((char *)(*h)->sapi, sapi);
 
-        (*h)->hnd = ubiq_platform_http_handle_create();
+        (*h)->hnd = ubiq_support_http_handle_create();
         if ((*h)->hnd) {
             res = 0;
         } else {
@@ -225,7 +223,7 @@ void
 ubiq_platform_rest_handle_reset(
     struct ubiq_platform_rest_handle * h)
 {
-    ubiq_platform_http_handle_reset(h->hnd);
+    ubiq_support_http_handle_reset(h->hnd);
 
     /* handle is either NULL or malloc'd. */
     free(h->rsp.buf);
@@ -238,7 +236,7 @@ ubiq_platform_rest_handle_destroy(
     struct ubiq_platform_rest_handle * h)
 {
     ubiq_platform_rest_handle_reset(h);
-    ubiq_platform_http_handle_destroy(h->hnd);
+    ubiq_support_http_handle_destroy(h->hnd);
     free(h);
 }
 
@@ -246,7 +244,7 @@ http_response_code_t
 ubiq_platform_rest_response_code(
     const struct ubiq_platform_rest_handle * const h)
 {
-    return ubiq_platform_http_response_code(h->hnd);
+    return ubiq_support_http_response_code(h->hnd);
 }
 
 const void *
@@ -265,7 +263,7 @@ const char *
 ubiq_platform_rest_response_content_type(
     const struct ubiq_platform_rest_handle * const h)
 {
-    return ubiq_platform_http_response_content_type(h->hnd);
+    return ubiq_support_http_response_content_type(h->hnd);
 }
 
 /*
@@ -337,18 +335,18 @@ ubiq_platform_rest_header_content(
         err = 0;
     } else if (strcmp(key, "Digest") == 0) {
         /* hard-coded to sha512 */
-        struct ubiq_platform_digest_context * ctx;
+        struct ubiq_support_digest_context * ctx;
         void * digest;
         size_t digsiz;
         char * digenc;
 
-        ubiq_platform_digest_init("sha512", &ctx);
+        ubiq_support_digest_init("sha512", &ctx);
         if (length != 0) {
-            ubiq_platform_digest_update(ctx, content, length);
+            ubiq_support_digest_update(ctx, content, length);
         }
-        ubiq_platform_digest_finalize(ctx, &digest, &digsiz);
+        ubiq_support_digest_finalize(ctx, &digest, &digsiz);
 
-        ubiq_platform_base64_encode(&digenc, digest, digsiz);
+        ubiq_support_base64_encode(&digenc, digest, digsiz);
         free(digest);
 
         *len = snprintf(val, *len, "%s", "SHA-512=");
@@ -400,7 +398,7 @@ ubiq_platform_rest_request(
         char hdrs[256];
         int hdrslen;
 
-        struct ubiq_platform_hmac_context * hctx;
+        struct ubiq_support_hmac_context * hctx;
         void * hdig;
         size_t hlen;
 
@@ -425,7 +423,7 @@ ubiq_platform_rest_request(
          * are ignored by the "header_content" function if length is 0
          */
 
-        ubiq_platform_hmac_init("sha512", h->sapi, strlen(h->sapi), &hctx);
+        ubiq_support_hmac_init("sha512", h->sapi, strlen(h->sapi), &hctx);
 
         for (unsigned int i = 0;
              i < sizeof(key) / sizeof(*key) && res == 0;
@@ -466,7 +464,7 @@ ubiq_platform_rest_request(
                      * are added to the list of headers to include
                      * in the http request
                      */
-                    res = ubiq_platform_http_add_header(h->hnd, hdr);
+                    res = ubiq_support_http_add_header(h->hnd, hdr);
                 }
 
                 /*
@@ -484,7 +482,7 @@ ubiq_platform_rest_request(
                  */
                 string_tolower(hdr, n, ':');
                 n += snprintf(hdr + n, sizeof(hdr) - n,  "\n");
-                ubiq_platform_hmac_update(hctx, hdr, n);
+                ubiq_support_hmac_update(hctx, hdr, n);
             }
         }
 
@@ -505,9 +503,9 @@ ubiq_platform_rest_request(
          * header. then add the parameter to the header
          */
 
-        ubiq_platform_hmac_finalize(hctx, &hdig, &hlen);
+        ubiq_support_hmac_finalize(hctx, &hdig, &hlen);
 
-        ubiq_platform_base64_encode(&enc, hdig, hlen);
+        ubiq_support_base64_encode(&enc, hdig, hlen);
         free(hdig);
 
         sighdrlen += snprintf(
@@ -525,9 +523,9 @@ ubiq_platform_rest_request(
          * add the Signature header to the list of headers
          * to send in the http request
          */
-        res = ubiq_platform_http_add_header(h->hnd, sighdr);
+        res = ubiq_support_http_add_header(h->hnd, sighdr);
         if (res == 0) {
-            res = ubiq_platform_http_request(
+            res = ubiq_support_http_request(
                 h->hnd,
                 method, urlstr,
                 content_type, content, length,
