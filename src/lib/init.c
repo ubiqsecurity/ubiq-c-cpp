@@ -2,26 +2,23 @@
 #include "ubiq/platform/internal/support.h"
 #include "ubiq/platform/internal/request.h"
 
-#include <curl/curl.h>
-
 int ubiq_platform_init(void)
 {
-    CURLcode cc;
+    int err;
 
-    cc = curl_global_init(CURL_GLOBAL_DEFAULT);
-    if (cc != 0) {
-        return INT_MIN;
+    err = ubiq_platform_algorithm_init();
+    if (!err) {
+        err = ubiq_platform_http_init(UBIQ_PLATFORM_USER_AGENT);
+        if (err) {
+            ubiq_platform_algorithm_exit();
+        }
     }
 
-    /* defined as a compiler parameter in CMakeLists.txt */
-    ubiq_platform_user_agent = UBIQ_PLATFORM_USER_AGENT;
-
-    return ubiq_platform_algorithm_init();
+    return err;
 }
 
 void ubiq_platform_exit(void)
 {
+    ubiq_platform_http_exit();
     ubiq_platform_algorithm_exit();
-
-    curl_global_cleanup();
 }

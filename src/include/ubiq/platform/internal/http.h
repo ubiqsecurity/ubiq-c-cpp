@@ -100,6 +100,33 @@ typedef enum
     HTTP_RC_NETWORK_AUTH_REQUIRED       = 511,
 } http_response_code_t;
 
+/*
+ * returns a string representation of the http request method.
+ * the returned string is uppercased as it would be in the request.
+ */
+static inline
+const char *
+http_request_method_string(
+    const http_request_method_t method)
+{
+    const char * res;
+
+    switch (method) {
+    case HTTP_RM_CONNECT:   res = "CONNECT";    break;
+    case HTTP_RM_DELETE:    res = "DELETE";     break;
+    case HTTP_RM_GET:       res = "GET";        break;
+    case HTTP_RM_HEAD:      res = "HEAD";       break;
+    case HTTP_RM_PATCH:     res = "PATCH";      break;
+    case HTTP_RM_POST:      res = "POST";       break;
+    case HTTP_RM_PUT:       res = "PUT";        break;
+    case HTTP_RM_OPTIONS:   res = "OPTIONS";    break;
+    case HTTP_RM_TRACE:     res = "TRACE";      break;
+    default:                res = "UNKNOWN";    break;
+    }
+
+    return res;
+}
+
 __END_DECLS
 
 /*
