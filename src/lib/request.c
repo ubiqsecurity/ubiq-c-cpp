@@ -8,9 +8,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include <openssl/evp.h>
-#include <openssl/hmac.h>
+#include <stdio.h>
+#include <time.h>
 
 const char * ubiq_platform_user_agent = NULL;
 
@@ -337,25 +336,25 @@ ubiq_platform_rest_header_content(
         *len = strftime(val, *len, "%a, %d %b %Y %H:%M:%S GMT", &tm);
         err = 0;
     } else if (strcmp(key, "Digest") == 0) {
-        unsigned char digest[EVP_MAX_MD_SIZE];
-        unsigned int digsiz;
-        EVP_MD_CTX * digctx;
-        char * dig64;
+        /* hard-coded to sha512 */
+        struct ubiq_platform_digest_context * ctx;
+        void * digest;
+        size_t digsiz;
+        char * digenc;
 
-        digctx = EVP_MD_CTX_create();
-        EVP_DigestInit(digctx, EVP_sha512());
+        ubiq_platform_digest_init("sha512", &ctx);
         if (length != 0) {
-            EVP_DigestUpdate(digctx, content, length);
+            ubiq_platform_digest_update(ctx, content, length);
         }
-        EVP_DigestFinal(digctx, digest, &digsiz);
-        EVP_MD_CTX_destroy(digctx);
+        ubiq_platform_digest_finalize(ctx, &digest, &digsiz);
+
+        ubiq_platform_base64_encode(&digenc, digest, digsiz);
+        free(digest);
 
         *len = snprintf(val, *len, "%s", "SHA-512=");
-        ubiq_platform_base64_encode(&dig64, digest, digsiz);
-        strcpy(val + *len, dig64);
+        strcpy(val + *len, digenc);
         *len = strlen(val);
-
-        free(dig64);
+        free(digenc);
 
         err = 0;
     } else if (strcmp(key, "Host") == 0) {
@@ -401,9 +400,9 @@ ubiq_platform_rest_request(
         char hdrs[256];
         int hdrslen;
 
-        HMAC_CTX * hctx;
-        unsigned char hdig[EVP_MAX_MD_SIZE];
-        unsigned int hlen;
+        struct ubiq_platform_hmac_context * hctx;
+        void * hdig;
+        size_t hlen;
 
         char * enc;
 
@@ -426,8 +425,7 @@ ubiq_platform_rest_request(
          * are ignored by the "header_content" function if length is 0
          */
 
-        hctx = HMAC_CTX_new();
-        HMAC_Init_ex(hctx, h->sapi, strlen(h->sapi), EVP_sha512(), NULL);
+        ubiq_platform_hmac_init("sha512", h->sapi, strlen(h->sapi), &hctx);
 
         for (unsigned int i = 0;
              i < sizeof(key) / sizeof(*key) && res == 0;
@@ -486,7 +484,7 @@ ubiq_platform_rest_request(
                  */
                 string_tolower(hdr, n, ':');
                 n += snprintf(hdr + n, sizeof(hdr) - n,  "\n");
-                HMAC_Update(hctx, hdr, n);
+                ubiq_platform_hmac_update(hctx, hdr, n);
             }
         }
 
@@ -507,13 +505,14 @@ ubiq_platform_rest_request(
          * header. then add the parameter to the header
          */
 
-        HMAC_Final(hctx, hdig, &hlen);
-        HMAC_CTX_free(hctx);
+        ubiq_platform_hmac_finalize(hctx, &hdig, &hlen);
+
+        ubiq_platform_base64_encode(&enc, hdig, hlen);
+        free(hdig);
 
         sighdrlen += snprintf(
             sighdr + sighdrlen, sizeof(sighdr) - sighdrlen,
             ", signature=\"");
-        ubiq_platform_base64_encode(&enc, hdig, hlen);
         strcpy(sighdr + sighdrlen, enc);
         sighdrlen = strlen(sighdr);
         sighdrlen += snprintf(

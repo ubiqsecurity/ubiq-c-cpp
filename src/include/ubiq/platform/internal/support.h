@@ -30,6 +30,23 @@ ubiq_platform_algorithm_get_byname(
     const char *,
     const struct ubiq_platform_algorithm **);
 
+struct ubiq_platform_digest_context;
+int ubiq_platform_digest_init(
+    const char *, struct ubiq_platform_digest_context **);
+void ubiq_platform_digest_update(
+    struct ubiq_platform_digest_context *, const void *, size_t);
+int ubiq_platform_digest_finalize(
+    struct ubiq_platform_digest_context *, void **, size_t *);
+
+struct ubiq_platform_hmac_context;
+int ubiq_platform_hmac_init(
+    const char *, const void *, size_t,
+    struct ubiq_platform_hmac_context **);
+void ubiq_platform_hmac_update(
+    struct ubiq_platform_hmac_context *, const void *, size_t);
+int ubiq_platform_hmac_finalize(
+    struct ubiq_platform_hmac_context *, void **, size_t *);
+
 int ubiq_platform_base64_encode(char **, const void *, size_t);
 int ubiq_platform_base64_decode(void **, const char *, size_t);
 
