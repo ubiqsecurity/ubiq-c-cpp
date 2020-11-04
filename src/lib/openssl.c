@@ -1,6 +1,7 @@
 #include <ubiq/platform/internal/support.h>
 
 #include <errno.h>
+#include <string.h>
 
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
@@ -19,10 +20,12 @@ ubiq_platform_algorithm_init(
     const struct ubiq_platform_algorithm algos[] = {
         {
             .id = 0,
+            .name = "aes-256-gcm",
             .cipher = (struct ubiq_platform_cipher *)EVP_aes_256_gcm(),
             .len = { .key = 32, .iv = 16, .tag = 16 }
         }, {
             .id = 1,
+            .name = "aes-128-gcm",
             .cipher = (struct ubiq_platform_cipher *)EVP_aes_128_gcm(),
             .len = { .key = 16, .iv = 16, .tag = 16 }
         },
@@ -75,16 +78,13 @@ ubiq_platform_algorithm_get_byname(
     const char * const name,
     const struct ubiq_platform_algorithm ** const algo)
 {
-    const struct ubiq_platform_cipher * const cipher =
-        (struct ubiq_platform_cipher *)EVP_get_cipherbyname(name);
-
     int err;
 
     err = -EAGAIN;
     if (ubiq_platform_algorithms_n > 0) {
         err = -ENOENT;
         for (unsigned int i = 0; i < ubiq_platform_algorithms_n; i++) {
-            if (ubiq_platform_algorithms[i].cipher == cipher) {
+            if (strcasecmp(ubiq_platform_algorithms[i].name, name) == 0) {
                 *algo = &ubiq_platform_algorithms[i];
                 err = 0;
                 break;

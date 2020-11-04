@@ -14,6 +14,7 @@ struct ubiq_platform_cipher;
 struct ubiq_platform_algorithm
 {
     unsigned int id;
+    const char * name;
 
     const struct ubiq_platform_cipher * cipher;
     struct {

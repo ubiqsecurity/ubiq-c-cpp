@@ -16,8 +16,6 @@
 
 #include "cJSON/cJSON.h"
 
-#include <openssl/bio.h>
-#include <openssl/pem.h>
 #include <openssl/evp.h>
 #include <openssl/rand.h>
 
