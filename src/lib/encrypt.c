@@ -1,12 +1,11 @@
 #include "ubiq/platform.h"
 
 #include "ubiq/platform/internal/header.h"
-#include "ubiq/platform/internal/request.h"
-#include "ubiq/platform/internal/algorithm.h"
+#include "ubiq/platform/internal/rest.h"
 #include "ubiq/platform/internal/credentials.h"
 #include "ubiq/platform/internal/common.h"
+#include "ubiq/platform/internal/support.h"
 
-#include <sys/param.h>
 #include <errno.h>
 #include <limits.h>
 #include <stdio.h>
@@ -16,11 +15,6 @@
 #include <assert.h>
 
 #include "cJSON/cJSON.h"
-
-#include <openssl/bio.h>
-#include <openssl/pem.h>
-#include <openssl/evp.h>
-#include <openssl/rand.h>
 
 struct ubiq_platform_encryption
 {
@@ -45,7 +39,7 @@ struct ubiq_platform_encryption
     } key;
 
     const struct ubiq_platform_algorithm * algo;
-    EVP_CIPHER_CTX * ctx;
+    struct ubiq_support_cipher_context * ctx;
 };
 
 void
@@ -112,9 +106,8 @@ ubiq_platform_encryption_destroy(
 
     free(e->session);
 
-    /* don't free cipher */
     if (e->ctx) {
-        EVP_CIPHER_CTX_free(e->ctx);
+        ubiq_support_cipher_destroy(e->ctx);
     }
 
     free(e);
@@ -173,28 +166,8 @@ ubiq_platform_encryption_parse_new_key(
          */
         j = cJSON_GetObjectItemCaseSensitive(json, "encrypted_data_key");
         if (cJSON_IsString(j) && j->valuestring != NULL) {
-            EVP_ENCODE_CTX * ectx;
-            EVP_PKEY_CTX * pctx;
-            int outl;
-
-            e->key.enc.len = strlen(j->valuestring);
-            e->key.enc.buf = malloc(e->key.enc.len);
-
-            /*
-             * use the init/update/final scheme to automatically
-             * handle padding
-             */
-            ectx = EVP_ENCODE_CTX_new();
-            EVP_DecodeInit(ectx);
-            EVP_DecodeUpdate(ectx,
-                             e->key.enc.buf, &outl,
-                             j->valuestring, e->key.enc.len);
-            e->key.enc.len = outl;
-            EVP_DecodeFinal(ectx,
-                            (char *)e->key.enc.buf + e->key.enc.len,
-                            &outl);
-            e->key.enc.len += outl;
-            EVP_ENCODE_CTX_free(ectx);
+            e->key.enc.len = ubiq_support_base64_decode(
+                &e->key.enc.buf, j->valuestring, strlen(j->valuestring));
         } else {
             res = -EBADMSG;
         }
@@ -218,16 +191,10 @@ ubiq_platform_encryption_parse_new_key(
             const cJSON * k;
 
             if (res == 0) {
-                /*
-                 * the algorithm name should correspond with the openssl
-                 * name which is convenient for us. use the resulting
-                 * cipher object pointer to look up the corresponding
-                 * ubiq algorithm
-                 */
                 k = cJSON_GetObjectItemCaseSensitive(j, "algorithm");
                 if (cJSON_IsString(k) && k->valuestring != NULL) {
-                    res = ubiq_platform_algorithm_get_bycipher(
-                        EVP_get_cipherbyname(k->valuestring), &e->algo);
+                    res = ubiq_platform_algorithm_get_byname(
+                        k->valuestring, &e->algo);
                 } else {
                     res = -EBADMSG;
                 }
@@ -349,7 +316,7 @@ ubiq_platform_encryption_begin(
         /*
          * good to go, build a header; create the context
          */
-        const size_t ivlen = EVP_CIPHER_iv_length(enc->algo->cipher);
+        const size_t ivlen = enc->algo->len.iv;
         union ubiq_platform_header * hdr;
         size_t len;
 
@@ -359,14 +326,17 @@ ubiq_platform_encryption_begin(
         /* the fixed-size portion of the header */
 
         hdr->pre.version = 0;
-        hdr->v0.flags = UBIQ_HEADER_V0_FLAG_AAD;
+        hdr->v0.flags = enc->algo->len.tag ? UBIQ_HEADER_V0_FLAG_AAD : 0;
         hdr->v0.algorithm = enc->algo->id;
         hdr->v0.ivlen = ivlen;
         hdr->v0.keylen = htons(enc->key.enc.len);
 
         /* add on the initialization vector */
-        if (RAND_bytes((unsigned char *)(hdr + 1), ivlen)) {
-            int tmp = 0;
+        res = ubiq_support_getrandom(hdr + 1, ivlen);
+        if (res == 0) {
+            const void * aadbuf;
+            size_t aadlen;
+
             /* add the encrypted key */
             memcpy((char *)(hdr + 1) + ivlen, enc->key.enc.buf,
                    enc->key.enc.len);
@@ -374,18 +344,19 @@ ubiq_platform_encryption_begin(
             *ctbuf = (void *)hdr;
             *ctlen = len;
 
-            /* set up the encryption context for the update() calls */
-            enc->ctx = EVP_CIPHER_CTX_new();
-            EVP_EncryptInit(enc->ctx, enc->algo->cipher,
-                            enc->key.raw.buf, (unsigned char *)(hdr + 1));
+            aadbuf = (hdr->v0.flags & UBIQ_HEADER_V0_FLAG_AAD) ? hdr : NULL;
+            aadlen = aadbuf ? (sizeof(*hdr) + ivlen + enc->key.enc.len) : 0;
 
-            EVP_EncryptUpdate(enc->ctx, NULL, &tmp, (const unsigned char*) hdr,
-                              sizeof(*hdr) + ivlen + enc->key.enc.len);
-            enc->key.uses.cur++;
-
-            res = 0;
+            res = ubiq_support_encryption_init(
+                enc->algo,
+                enc->key.raw.buf, enc->key.raw.len,
+                hdr + 1, ivlen,
+                aadbuf, aadlen,
+                &enc->ctx);
+            if (res == 0) {
+                enc->key.uses.cur++;
+            }
         } else {
-            res = -ENODATA;
             free(hdr);
         }
     }
@@ -403,20 +374,8 @@ ubiq_platform_encryption_update(
 
     res = -EBADFD;
     if (enc->ctx) {
-        void * buf;
-        int len;
-
-        len = ptlen + EVP_CIPHER_CTX_block_size(enc->ctx);
-        buf = malloc(len);
-
-        if (EVP_EncryptUpdate(enc->ctx, buf, &len, ptbuf, ptlen)) {
-            *ctbuf = buf;
-            *ctlen = len;
-            res = 0;
-        } else {
-            free(buf);
-            res = INT_MIN;
-        }
+        res = ubiq_support_encryption_update(
+            enc->ctx, ptbuf, ptlen, ctbuf, ctlen);
     }
 
     return res;
@@ -431,31 +390,33 @@ ubiq_platform_encryption_end(
 
     res = -EBADFD;
     if (enc->ctx) {
-        void * buf;
-        int len, outl;
+        void * tagbuf;
+        size_t taglen;
 
-        len = EVP_CIPHER_CTX_block_size(enc->ctx) + enc->algo->taglen;
-        buf = malloc(len);
-
-        EVP_EncryptFinal(enc->ctx, buf, &outl);
-        assert(len - outl >= enc->algo->taglen);
-
-        if (enc->algo->taglen) {
-            /*
-             * don't forget the tag for algorithms that need/use it
-             */
-            EVP_CIPHER_CTX_ctrl(enc->ctx,
-                                EVP_CTRL_AEAD_GET_TAG,
-                                enc->algo->taglen, (char *)buf + outl);
+        tagbuf = NULL;
+        taglen = 0;
+        res = ubiq_support_encryption_finalize(
+            enc->ctx, ctbuf, ctlen, &tagbuf, &taglen);
+        if (res == 0) {
+            enc->ctx = NULL;
         }
 
-        EVP_CIPHER_CTX_free(enc->ctx);
-        enc->ctx = NULL;
+        if (res == 0 && tagbuf && taglen) {
+            void * buf;
 
-        *ctbuf = buf;
-        *ctlen = outl + enc->algo->taglen;
+            res = -ENOMEM;
+            buf = realloc(*ctbuf, *ctlen + taglen);
+            if (buf) {
+                memcpy((char *)buf + *ctlen, tagbuf, taglen);
+                *ctbuf = buf;
+                *ctlen += taglen;
+                res = 0;
+            } else {
+                free(*ctbuf);
+            }
 
-        res = 0;
+            free(tagbuf);
+        }
     }
 
     return res;

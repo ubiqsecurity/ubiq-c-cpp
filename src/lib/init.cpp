@@ -1,5 +1,5 @@
 #include "ubiq/platform.h"
-#include "ubiq/platform/internal/request.h"
+#include "ubiq/platform/internal/support.h"
 
 #include <stdexcept>
 
@@ -14,7 +14,7 @@ void ubiq::platform::init(void)
      *
      * defined as a compiler parameter in CMakeLists.txt
      */
-    ubiq_platform_user_agent = UBIQ_PLATFORM_USER_AGENT;
+    ubiq_support_user_agent = UBIQ_PLATFORM_USER_AGENT;
 }
 
 void ubiq::platform::exit(void)

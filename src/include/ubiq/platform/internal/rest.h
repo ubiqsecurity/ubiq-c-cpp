@@ -1,14 +1,11 @@
 #pragma once
 
-#include <sys/cdefs.h>
-
-#include "ubiq/platform/internal/http.h"
-
+#include <ubiq/platform/compat/cdefs.h>
 #include <stddef.h>
 
-__BEGIN_DECLS
+#include <ubiq/platform/internal/http.h>
 
-extern const char * ubiq_platform_user_agent;
+__BEGIN_DECLS
 
 int
 ubiq_platform_snprintf_api_url(
