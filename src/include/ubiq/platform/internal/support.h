@@ -3,33 +3,13 @@
 #include <ubiq/platform/compat/cdefs.h>
 #include <stddef.h>
 
+#include <ubiq/platform/internal/algorithm.h>
 #include <ubiq/platform/internal/http.h>
 
 __BEGIN_DECLS
 
-int ubiq_platform_algorithm_init(void);
-void ubiq_platform_algorithm_exit(void);
-
-struct ubiq_platform_cipher;
-struct ubiq_platform_algorithm
-{
-    unsigned int id;
-    const char * name;
-
-    const struct ubiq_platform_cipher * cipher;
-    struct {
-        unsigned int key, iv, tag;
-    } len;
-};
-
-int
-ubiq_platform_algorithm_get_byid(
-    unsigned int,
-    const struct ubiq_platform_algorithm **);
-int
-ubiq_platform_algorithm_get_byname(
-    const char *,
-    const struct ubiq_platform_algorithm **);
+int ubiq_support_base64_encode(char **, const void *, size_t);
+int ubiq_support_base64_decode(void **, const char *, size_t);
 
 struct ubiq_support_digest_context;
 int ubiq_support_digest_init(
@@ -84,9 +64,6 @@ int ubiq_support_decryption_finalize(
     struct ubiq_support_cipher_context *,
     const void *, size_t, /* tag */
     void **, size_t * /* pt */);
-
-int ubiq_support_base64_encode(char **, const void *, size_t);
-int ubiq_support_base64_decode(void **, const char *, size_t);
 
 extern const char * ubiq_support_user_agent;
 int ubiq_support_http_init(void);
