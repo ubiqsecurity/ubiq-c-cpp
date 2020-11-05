@@ -14,8 +14,6 @@
 
 #include "cJSON/cJSON.h"
 
-#include <openssl/evp.h>
-
 struct ubiq_platform_decryption
 {
     /* http[s]://host/api/v0 */
@@ -37,7 +35,7 @@ struct ubiq_platform_decryption
     } key;
 
     const struct ubiq_platform_algorithm * algo;
-    EVP_CIPHER_CTX * ctx;
+    struct ubiq_support_cipher_context * ctx;
     void * buf;
     size_t len;
 };
@@ -147,7 +145,7 @@ ubiq_platform_decryption_reset(
 
         d->algo = NULL;
         if (d->ctx) {
-            EVP_CIPHER_CTX_free(d->ctx);
+            ubiq_support_cipher_destroy(d->ctx);
         }
     }
 }
@@ -343,20 +341,27 @@ ubiq_platform_decryption_update(
                      * decryption context
                      */
                     if (res == 0 && dec->key.raw.len) {
+                        const void * aadbuf;
+                        size_t aadlen;
+
                         dec->algo = algo;
 
-                        dec->ctx = EVP_CIPHER_CTX_new();
-                        EVP_DecryptInit(
-                            dec->ctx, (const EVP_CIPHER *)dec->algo->cipher,
-                            dec->key.raw.buf, iv);
-
+                        aadbuf = NULL;
+                        aadlen = 0;
                         if ((h->v0.flags & UBIQ_HEADER_V0_FLAG_AAD) != 0) {
-                            int tmplen = 0;
-                            EVP_DecryptUpdate(dec->ctx, NULL, &tmplen,
-                                              (const unsigned char*) h,
-                                              sizeof(*h) + ivlen + keylen);
+                            aadbuf = h;
+                            aadlen = sizeof(*h) + ivlen + keylen;
                         }
-                        dec->key.uses++;
+
+                        res = ubiq_support_decryption_init(
+                            algo,
+                            dec->key.raw.buf, dec->key.raw.len,
+                            iv, ivlen,
+                            aadbuf, aadlen,
+                            &dec->ctx);
+                        if (res == 0) {
+                            dec->key.uses++;
+                        }
                     }
                 }
             }
@@ -375,17 +380,16 @@ ubiq_platform_decryption_update(
         const ssize_t declen = dec->len - (off + dec->algo->len.tag);
 
         if (declen > 0) {
-            int outl;
-
-            *ptbuf = malloc(declen + EVP_CIPHER_CTX_block_size(dec->ctx));
-            EVP_DecryptUpdate(
-                dec->ctx, *ptbuf, &outl, (char *)dec->buf + off, declen);
-            *ptlen = outl;
-
-            memmove(dec->buf,
-                    (char *)dec->buf + off + declen,
-                    dec->algo->len.tag);
-            dec->len = dec->algo->len.tag;
+            res = ubiq_support_decryption_update(
+                dec->ctx,
+                (char *)dec->buf + off, declen,
+                ptbuf, ptlen);
+            if (res == 0) {
+                memmove(dec->buf,
+                        (char *)dec->buf + off + declen,
+                        dec->algo->len.tag);
+                dec->len = dec->algo->len.tag;
+            }
         }
     }
 
@@ -411,38 +415,19 @@ ubiq_platform_decryption_end(
              * possible for sz to be greater than 0
              */
             res = -ENODATA;
-        } else if (dec->algo->len.tag != 0) {
-            /*
-             * if the algorithm in use requires a tag, treat the
-             * remaining data as the tag.
-             */
-            EVP_CIPHER_CTX_ctrl(dec->ctx, EVP_CTRL_GCM_SET_TAG,
-                                dec->algo->len.tag, dec->buf);
-            res = 0;
-        }
+        } else {
+            res = ubiq_support_decryption_finalize(
+                dec->ctx,
+                dec->buf, dec->len,
+                ptbuf, ptlen);
+            if (res == 0) {
+                free(dec->buf);
+                dec->buf = NULL;
+                dec->len = 0;
 
-        if (res == 0) {
-            int outl;
-
-            /*
-             * depending on the algorithm, finalization may produce
-             * one more block of plain text.
-             */
-            *ptbuf = malloc(EVP_CIPHER_CTX_block_size(dec->ctx));
-            if (EVP_DecryptFinal(dec->ctx, *ptbuf, &outl)) {
-                *ptlen = outl;
-            } else {
-                free(*ptbuf);
-                res = INT_MIN;
+                dec->ctx = NULL;
             }
         }
-
-        free(dec->buf);
-        dec->buf = NULL;
-        dec->len = 0;
-
-        EVP_CIPHER_CTX_free(dec->ctx);
-        dec->ctx = NULL;
     }
 
     return res;

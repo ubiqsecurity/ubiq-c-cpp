@@ -39,7 +39,7 @@ struct ubiq_platform_encryption
     } key;
 
     const struct ubiq_platform_algorithm * algo;
-    struct ubiq_support_encryption_context * ctx;
+    struct ubiq_support_cipher_context * ctx;
 };
 
 void
@@ -106,9 +106,8 @@ ubiq_platform_encryption_destroy(
 
     free(e->session);
 
-    /* don't free cipher */
     if (e->ctx) {
-        ubiq_support_encryption_destroy(e->ctx);
+        ubiq_support_cipher_destroy(e->ctx);
     }
 
     free(e);

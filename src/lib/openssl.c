@@ -317,20 +317,19 @@ ubiq_support_getrandom(
     return (RAND_bytes((unsigned char *)buf, len) == 1) ? 0 : INT_MIN;
 }
 
-struct ubiq_support_encryption_context
+struct ubiq_support_cipher_context
 {
     const struct ubiq_platform_algorithm * algo;
     const EVP_CIPHER * cipher;
     EVP_CIPHER_CTX * ctx;
 };
 
+static
 int
-ubiq_support_encryption_init(
+ubiq_support_cipher_init(
     const struct ubiq_platform_algorithm * const algo,
-    const void * const keybuf, const size_t keylen,
-    const void * const ivbuf, const size_t ivlen,
-    const void * const aadbuf, const size_t aadlen, /* aad */
-    struct ubiq_support_encryption_context ** const _enc)
+    const size_t keylen, const size_t ivlen,
+    struct ubiq_support_cipher_context ** _ctx)
 {
     const EVP_CIPHER * const cipher = EVP_get_cipherbyname(algo->name);
     int err;
@@ -339,41 +338,20 @@ ubiq_support_encryption_init(
     if (cipher &&
         keylen == algo->len.key &&
         ivlen == algo->len.iv) {
-        struct ubiq_support_encryption_context * enc;
+        struct ubiq_support_cipher_context * ctx;
 
         err = -ENOMEM;
-        enc = malloc(sizeof(*enc));
-        if (enc) {
-            enc->algo = algo;
-            enc->cipher = cipher;
+        ctx = malloc(sizeof(*ctx));
+        if (ctx) {
+            ctx->algo = algo;
+            ctx->cipher = cipher;
 
-            enc->ctx = EVP_CIPHER_CTX_new();
-            if (enc->ctx) {
+            ctx->ctx = EVP_CIPHER_CTX_new();
+            if (ctx->ctx) {
+                *_ctx = ctx;
                 err = 0;
-
-                if (!EVP_EncryptInit_ex(
-                        enc->ctx, enc->cipher, NULL, keybuf, ivbuf)) {
-                    err = INT_MIN;
-                }
-
-                if (!err && algo->len.tag && aadlen) {
-                    int outl;
-
-                    if (!EVP_EncryptUpdate(
-                            enc->ctx, NULL, &outl, aadbuf, aadlen)) {
-                        err = INT_MIN;
-                    }
-                }
-
-                if (err) {
-                    EVP_CIPHER_CTX_free(enc->ctx);
-                }
-            }
-
-            if (!err) {
-                *_enc = enc;
             } else {
-                free(enc);
+                free(ctx);
             }
         }
     }
@@ -381,9 +359,54 @@ ubiq_support_encryption_init(
     return err;
 }
 
+void
+ubiq_support_cipher_destroy(
+    struct ubiq_support_cipher_context * const enc)
+{
+    EVP_CIPHER_CTX_free(enc->ctx);
+    free(enc);
+}
+
+int
+ubiq_support_encryption_init(
+    const struct ubiq_platform_algorithm * const algo,
+    const void * const keybuf, const size_t keylen,
+    const void * const ivbuf, const size_t ivlen,
+    const void * const aadbuf, const size_t aadlen, /* aad */
+    struct ubiq_support_cipher_context ** const _enc)
+{
+    struct ubiq_support_cipher_context * enc;
+    int err;
+
+    err = ubiq_support_cipher_init(algo, keylen, ivlen, &enc);
+    if (!err) {
+        if (!EVP_EncryptInit_ex(
+                enc->ctx, enc->cipher, NULL, keybuf, ivbuf)) {
+            err = INT_MIN;
+        }
+
+        if (!err && algo->len.tag && aadlen) {
+            int outl;
+
+            if (!EVP_EncryptUpdate(
+                    enc->ctx, NULL, &outl, aadbuf, aadlen)) {
+                err = INT_MIN;
+            }
+        }
+    }
+
+    if (!err) {
+        *_enc = enc;
+    } else {
+        ubiq_support_cipher_destroy(enc);
+    }
+
+    return err;
+}
+
 int
 ubiq_support_encryption_update(
-    struct ubiq_support_encryption_context * const enc,
+    struct ubiq_support_cipher_context * const enc,
     const void * const ptbuf, const size_t ptlen,
     void ** const ctbuf, size_t * const ctlen)
 {
@@ -411,7 +434,7 @@ ubiq_support_encryption_update(
 
 int
 ubiq_support_encryption_finalize(
-    struct ubiq_support_encryption_context * enc,
+    struct ubiq_support_cipher_context * enc,
     void ** const ctbuf, size_t * const ctlen,
     void ** const tagbuf, size_t * const taglen)
 {
@@ -449,7 +472,7 @@ ubiq_support_encryption_finalize(
             *ctbuf = buf;
             *ctlen = len;
 
-            ubiq_support_encryption_destroy(enc);
+            ubiq_support_cipher_destroy(enc);
         } else {
             free(buf);
         }
@@ -458,9 +481,104 @@ ubiq_support_encryption_finalize(
     return err;
 }
 
-void ubiq_support_encryption_destroy(
-    struct ubiq_support_encryption_context * const enc)
+int
+ubiq_support_decryption_init(
+    const struct ubiq_platform_algorithm * const algo,
+    const void * const keybuf, const size_t keylen,
+    const void * const ivbuf, const size_t ivlen,
+    const void * const aadbuf, const size_t aadlen, /* aad */
+    struct ubiq_support_cipher_context ** const _dec)
 {
-    EVP_CIPHER_CTX_free(enc->ctx);
-    free(enc);
+    struct ubiq_support_cipher_context * dec;
+    int err;
+
+    err = ubiq_support_cipher_init(algo, keylen, ivlen, &dec);
+    if (!err) {
+        if (!EVP_DecryptInit_ex(
+                dec->ctx, dec->cipher, NULL, keybuf, ivbuf)) {
+            err = INT_MIN;
+        }
+
+        if (!err && algo->len.tag && aadlen) {
+            int outl;
+
+            if (!EVP_DecryptUpdate(
+                    dec->ctx, NULL, &outl, aadbuf, aadlen)) {
+                err = INT_MIN;
+            }
+        }
+    }
+
+    if (!err) {
+        *_dec = dec;
+    } else {
+        ubiq_support_cipher_destroy(dec);
+    }
+
+    return err;
+}
+
+int
+ubiq_support_decryption_update(
+    struct ubiq_support_cipher_context * const dec,
+    const void * const ctbuf, const size_t ctlen,
+    void ** const ptbuf, size_t * const ptlen)
+{
+    unsigned int len;
+    void * buf;
+    int err;
+
+    err = -ENOMEM;
+    len = ctlen + EVP_CIPHER_CTX_block_size(dec->ctx);
+    buf = malloc(len);
+    if (buf) {
+        if (EVP_DecryptUpdate(dec->ctx, buf, &len, ctbuf, ctlen)) {
+            *ptbuf = buf;
+            *ptlen = len;
+
+            err = 0;
+        } else {
+            free(buf);
+            err = INT_MIN;
+        }
+    }
+
+    return err;
+}
+
+int
+ubiq_support_decryption_finalize(
+    struct ubiq_support_cipher_context * const dec,
+    const void * const tagbuf, const size_t taglen,
+    void ** const ctbuf, size_t * const ctlen)
+{
+    int err;
+
+    err = -EINVAL;
+    if (taglen == dec->algo->len.tag) {
+        void * buf;
+        int len;
+
+        if (taglen) {
+            EVP_CIPHER_CTX_ctrl(
+                dec->ctx, EVP_CTRL_GCM_SET_TAG, taglen, (char *)tagbuf);
+        }
+
+        len = EVP_CIPHER_CTX_block_size(dec->ctx);
+        buf = malloc(len);
+        err = -ENOMEM;
+        if (buf) {
+            if (EVP_DecryptFinal_ex(dec->ctx, buf, &len)) {
+                *ctbuf = buf;
+                *ctlen = len;
+                ubiq_support_cipher_destroy(dec);
+                err = 0;
+            } else {
+                free(buf);
+                err = INT_MIN;
+            }
+        }
+    }
+
+    return err;
 }
