@@ -346,7 +346,7 @@ ubiq_platform_rest_header_content(
         const time_t now = time(NULL);
         struct tm tm;
 
-        gmtime_r(&now, &tm);
+        ubiq_support_gmtime_r(&now, &tm);
         *len = strftime(val, *len, "%a, %d %b %Y %H:%M:%S GMT", &tm);
         err = 0;
     } else if (strcmp(key, "Digest") == 0) {

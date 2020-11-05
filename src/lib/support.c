@@ -1,6 +1,7 @@
 #include <ubiq/platform/internal/support.h>
 
 #include <errno.h>
+#include <time.h>
 
 #if defined(_WIN32)
 #  include <userenv.h>
@@ -10,6 +11,22 @@
 #  include <stdlib.h>
 #  include <string.h>
 #endif
+
+int
+ubiq_support_gmtime_r(
+    const time_t * const t, struct tm * const tm)
+{
+    int err;
+#if defined(_WIN32)
+    err = -gmtime_s(tm, t);
+#else
+    err = gmtime_r(t, tm);
+    if (err) {
+        err = -errno;
+    }
+#endif
+    return err;
+}
 
 int
 ubiq_support_get_home_dir(
