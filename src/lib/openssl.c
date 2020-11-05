@@ -228,7 +228,7 @@ int
 ubiq_support_getrandom(
     void * const buf, const size_t len)
 {
-    return (RAND_bytes((unsigned char *)buf, len) == 1) ? 0 : INT_MIN;
+    return (RAND_bytes((unsigned char *)buf, len) == 1) ? 0 : -ENODATA;
 }
 
 struct ubiq_support_cipher_context
