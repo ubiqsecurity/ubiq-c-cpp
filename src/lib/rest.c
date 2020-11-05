@@ -462,7 +462,7 @@ ubiq_platform_rest_request(
                  * http header -> "key: value"
                  */
                 n = snprintf(hdr, sizeof(hdr),
-                             "%1$s: %2$.*3$s", key[i], val, (int)len);
+                             "%s: %.*s", key[i], (int)len, val);
 
                 if (strcmp(key[i], "(created)") == 0) {
                     /*
@@ -471,7 +471,7 @@ ubiq_platform_rest_request(
                      */
                     sighdrlen += snprintf(
                         sighdr + sighdrlen, sizeof(sighdr) - sighdrlen,
-                        ", %1$s=%2$.*3$s", "created", val, (int)len);
+                        ", created=%.*s", (int)len, val);
                 } else if (!(key[i][0] == '(' &&
                              key[i][strlen(key[i]) - 1] == ')') &&
                            strcmp(key[i], "Content-Type") != 0) {
