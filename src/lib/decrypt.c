@@ -1,7 +1,7 @@
 #include "ubiq/platform.h"
 
 #include "ubiq/platform/internal/header.h"
-#include "ubiq/platform/internal/request.h"
+#include "ubiq/platform/internal/rest.h"
 #include "ubiq/platform/internal/credentials.h"
 #include "ubiq/platform/internal/common.h"
 #include "ubiq/platform/internal/support.h"

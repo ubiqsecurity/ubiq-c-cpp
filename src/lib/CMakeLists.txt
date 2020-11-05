@@ -18,7 +18,7 @@ add_library(
   decrypt.c
   encrypt.c
   init.c
-  request.c
+  rest.c
   ${CMAKE_SOURCE_DIR}/src/ext/cJSON/cJSON.c
   ${CMAKE_SOURCE_DIR}/src/ext/inih/ini.c)
 

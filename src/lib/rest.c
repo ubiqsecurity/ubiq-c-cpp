@@ -1,5 +1,5 @@
 #include "ubiq/platform/internal/assert.h"
-#include "ubiq/platform/internal/request.h"
+#include "ubiq/platform/internal/rest.h"
 #include "ubiq/platform/internal/support.h"
 
 #include <ctype.h>
