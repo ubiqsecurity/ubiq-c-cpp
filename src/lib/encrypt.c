@@ -311,7 +311,7 @@ ubiq_platform_encryption_begin(
         res = -EINPROGRESS;
     } else if (enc->key.uses.cur >= enc->key.uses.max) {
         /* key is all used up */
-        res = -EDQUOT;
+        res = -ENOSPC;
     } else {
         /*
          * good to go, build a header; create the context
@@ -372,7 +372,7 @@ ubiq_platform_encryption_update(
 {
     int res;
 
-    res = -EBADFD;
+    res = -ESRCH;
     if (enc->ctx) {
         res = ubiq_support_encryption_update(
             enc->ctx, ptbuf, ptlen, ctbuf, ctlen);
@@ -388,7 +388,7 @@ ubiq_platform_encryption_end(
 {
     int res;
 
-    res = -EBADFD;
+    res = -ESRCH;
     if (enc->ctx) {
         void * tagbuf;
         size_t taglen;

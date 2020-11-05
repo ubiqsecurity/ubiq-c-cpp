@@ -403,7 +403,7 @@ ubiq_platform_decryption_end(
 {
     int res;
 
-    res = -EBADFD;
+    res = -ESRCH;
     if (dec->ctx) {
         const ssize_t sz = dec->len - dec->algo->len.tag;
 
