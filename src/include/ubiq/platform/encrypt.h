@@ -24,9 +24,9 @@ __BEGIN_DECLS
  */
 int
 ubiq_platform_encrypt(
-    const struct ubiq_platform_credentials * creds,
-    const void * ptbuf, const size_t ptlen,
-    void ** ctbuf, size_t * ctlen);
+    const struct ubiq_platform_credentials * const creds,
+    const void * const ptbuf, const size_t ptlen,
+    void ** const ctbuf, size_t * const ctlen);
 
 /* Opaque encryption object */
 struct ubiq_platform_encryption;
@@ -48,9 +48,9 @@ struct ubiq_platform_encryption;
  */
 int
 ubiq_platform_encryption_create(
-    const struct ubiq_platform_credentials * creds,
-    unsigned int uses,
-    struct ubiq_platform_encryption ** enc);
+    const struct ubiq_platform_credentials * const creds,
+    const unsigned int uses,
+    struct ubiq_platform_encryption ** const enc);
 
 /*
  * Destroy an encryption object.
@@ -61,7 +61,7 @@ ubiq_platform_encryption_create(
  */
 void
 ubiq_platform_encryption_destroy(
-    struct ubiq_platform_encryption * enc);
+    struct ubiq_platform_encryption * const enc);
 
 /*
  * Begin encryption of a plain text using the specified encryption object.
@@ -74,8 +74,8 @@ ubiq_platform_encryption_destroy(
  */
 int
 ubiq_platform_encryption_begin(
-    struct ubiq_platform_encryption * enc,
-    void ** ctbuf, size_t * ctlen);
+    struct ubiq_platform_encryption * const enc,
+    void ** const ctbuf, size_t * const ctlen);
 
 /*
  * Encrypt a portion of plain text.
@@ -90,9 +90,9 @@ ubiq_platform_encryption_begin(
  */
 int
 ubiq_platform_encryption_update(
-    struct ubiq_platform_encryption * enc,
+    struct ubiq_platform_encryption * const enc,
     const void * ptbuf, const size_t ptlen,
-    void ** ctbuf, size_t * ctlen);
+    void ** const ctbuf, size_t * const ctlen);
 
 /*
  * Complete an encryption of a plain text.
@@ -111,8 +111,8 @@ ubiq_platform_encryption_update(
  */
 int
 ubiq_platform_encryption_end(
-    struct ubiq_platform_encryption * enc,
-    void ** ctbuf, size_t * ctlen);
+    struct ubiq_platform_encryption * const enc,
+    void ** const ctbuf, size_t * const ctlen);
 
 __END_DECLS
 

@@ -226,8 +226,8 @@ ubiq_platform_decryption_destroy(
 
 int
 ubiq_platform_decryption_begin(
-    struct ubiq_platform_decryption * dec,
-    void ** ptbuf, size_t * ptlen)
+    struct ubiq_platform_decryption * const dec,
+    void ** const ptbuf, size_t * const ptlen)
 {
     int res;
 
@@ -245,9 +245,9 @@ ubiq_platform_decryption_begin(
 
 int
 ubiq_platform_decryption_update(
-    struct ubiq_platform_decryption * dec,
-    const void * ctbuf, const size_t ctlen,
-    void ** ptbuf, size_t * ptlen)
+    struct ubiq_platform_decryption * const dec,
+    const void * const ctbuf, const size_t ctlen,
+    void ** const ptbuf, size_t * const ptlen)
 {
     void * buf;
     size_t off;
@@ -397,8 +397,8 @@ ubiq_platform_decryption_update(
 
 int
 ubiq_platform_decryption_end(
-    struct ubiq_platform_decryption * dec,
-    void ** ptbuf, size_t * ptlen)
+    struct ubiq_platform_decryption * const dec,
+    void ** const ptbuf, size_t * const ptlen)
 {
     int res;
 

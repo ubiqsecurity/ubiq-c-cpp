@@ -14,7 +14,7 @@ static const struct ubiq_platform_algorithm ubiq_platform_algorithms[] = {
     },
 };
 
-static const int ubiq_platform_algorithms_n =
+static const size_t ubiq_platform_algorithms_n =
     sizeof(ubiq_platform_algorithms) / sizeof(*ubiq_platform_algorithms);
 
 int

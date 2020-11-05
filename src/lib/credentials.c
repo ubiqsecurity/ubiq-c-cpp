@@ -72,7 +72,7 @@ ubiq_platform_credentials_get_srsa(
 
 void
 ubiq_platform_credentials_destroy(
-    struct ubiq_platform_credentials * creds)
+    struct ubiq_platform_credentials * const creds)
 {
     ubiq_platform_credentials_clear(creds);
     free(creds);
@@ -360,7 +360,7 @@ ubiq_platform_credentials_create(
  */
 int
 ubiq_platform_credentials_create_specific(
-    const char * path, const char * const profile,
+    const char * const path, const char * const profile,
     struct ubiq_platform_credentials ** const creds)
 {
     struct ubiq_platform_credentials_list l;

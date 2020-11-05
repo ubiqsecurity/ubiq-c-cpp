@@ -25,8 +25,8 @@ __BEGIN_DECLS
  */
 int
 ubiq_platform_decrypt(
-    const struct ubiq_platform_credentials * creds,
-    const void * ctbuf, const size_t ctlen,
+    const struct ubiq_platform_credentials * const creds,
+    const void * const ctbuf, const size_t ctlen,
     void ** ptbuf, size_t * ptlen);
 
 /* Opaque decryption object */
@@ -43,8 +43,8 @@ struct ubiq_platform_decryption;
  */
 int
 ubiq_platform_decryption_create(
-    const struct ubiq_platform_credentials * creds,
-    struct ubiq_platform_decryption ** dec);
+    const struct ubiq_platform_credentials * const creds,
+    struct ubiq_platform_decryption ** const dec);
 
 /*
  * Destroy a decryption object.
@@ -55,7 +55,7 @@ ubiq_platform_decryption_create(
  */
 void
 ubiq_platform_decryption_destroy(
-    struct ubiq_platform_decryption * dec);
+    struct ubiq_platform_decryption * const dec);
 
 /*
  * Begin decryption of a cipher text using the specified decryption object.
@@ -67,8 +67,8 @@ ubiq_platform_decryption_destroy(
  */
 int
 ubiq_platform_decryption_begin(
-    struct ubiq_platform_decryption * dec,
-    void ** ptbuf, size_t * ptlen);
+    struct ubiq_platform_decryption * const dec,
+    void ** const ptbuf, size_t * const ptlen);
 
 /*
  * Decrypt a portion of cipher text.
@@ -83,9 +83,9 @@ ubiq_platform_decryption_begin(
  */
 int
 ubiq_platform_decryption_update(
-    struct ubiq_platform_decryption * dec,
-    const void * ctbuf, const size_t ctlen,
-    void ** ptbuf, size_t * ptlen);
+    struct ubiq_platform_decryption * const dec,
+    const void * const ctbuf, const size_t ctlen,
+    void ** const ptbuf, size_t * const ptlen);
 
 /*
  * Complete an decryption of a plain text.
@@ -107,8 +107,8 @@ ubiq_platform_decryption_update(
  */
 int
 ubiq_platform_decryption_end(
-    struct ubiq_platform_decryption * dec,
-    void ** ptbuf, size_t * ptlen);
+    struct ubiq_platform_decryption * const dec,
+    void ** const ptbuf, size_t * const ptlen);
 
 __END_DECLS
 

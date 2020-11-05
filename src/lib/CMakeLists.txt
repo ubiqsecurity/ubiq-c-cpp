@@ -1,12 +1,13 @@
 set_source_files_properties(
   ${CMAKE_SOURCE_DIR}/src/ext/inih/ini.c
   PROPERTIES
-  COMPILE_FLAGS -DINI_ALLOW_MULTILINE=0)
+  COMPILE_DEFINITIONS INI_ALLOW_MULTILINE=0)
 
 set_source_files_properties(
   init.c
   PROPERTIES
-  COMPILE_FLAGS -DUBIQ_PLATFORM_USER_AGENT=\\\"ubiq-c/${PROJECT_VERSION}\\\")
+  COMPILE_DEFINITIONS
+  UBIQ_PLATFORM_USER_AGENT=\"ubiq-c/${PROJECT_VERSION}\")
 
 add_library(
   c_objects
@@ -25,6 +26,16 @@ add_library(
   ${CMAKE_SOURCE_DIR}/src/ext/inih/ini.c)
 
 if(WIN32)
+  # silence warnings about "more secure"
+  # alternative functions on windows
+  #
+  # silence warnings about ISO conformant names
+  target_compile_definitions(
+    c_objects
+    PRIVATE
+    _CRT_SECURE_NO_WARNINGS
+    strdup=_strdup
+    strcasecmp=_stricmp)
 else()
   target_sources(
     c_objects
@@ -48,7 +59,8 @@ set_target_properties(
 set_source_files_properties(
   init.cpp
   PROPERTIES
-  COMPILE_FLAGS -DUBIQ_PLATFORM_USER_AGENT=\\\"ubiq-c++/${PROJECT_VERSION}\\\")
+  COMPILE_DEFINITIONS
+  UBIQ_PLATFORM_USER_AGENT=\"ubiq-c++/${PROJECT_VERSION}\")
 
 add_library(
   cxx_objects

@@ -21,7 +21,7 @@ struct ubiq_platform_credentials;
  */
 int
 ubiq_platform_credentials_create(
-    struct ubiq_platform_credentials ** creds);
+    struct ubiq_platform_credentials ** const creds);
 
 /*
  * Load credentials from a specific profile in a specific file.
@@ -42,7 +42,7 @@ ubiq_platform_credentials_create(
 int
 ubiq_platform_credentials_create_specific(
     const char * const path, const char * const profile,
-    struct ubiq_platform_credentials ** creds);
+    struct ubiq_platform_credentials ** const creds);
 
 /*
  * Create a credentials object from  explicitly specified credentials.
@@ -61,14 +61,14 @@ ubiq_platform_credentials_create_explicit(
     const char * const papi, const char * const sapi,
     const char * const srsa,
     const char * const host,
-    struct ubiq_platform_credentials ** creds);
+    struct ubiq_platform_credentials ** const creds);
 
 /*
  * Destroy a previously created credentials object.
  */
 void
 ubiq_platform_credentials_destroy(
-    struct ubiq_platform_credentials * creds);
+    struct ubiq_platform_credentials * const creds);
 
 __END_DECLS
 

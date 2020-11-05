@@ -60,7 +60,7 @@ string_tolower(
     char * const str,
     const int len, const char delim)
 {
-    for (unsigned int i = 0;
+    for (int i = 0;
          (len < 0 || i < len) && str[i] != delim;
          str[i] = tolower(str[i]), i++);
 }
@@ -121,7 +121,7 @@ int
 ubiq_url_parse(
     struct ubiq_url * url, const char * str)
 {
-    char * host, * chr;
+    char * chr;
     int res;
 
     ubiq_url_init(url);
@@ -183,7 +183,7 @@ struct ubiq_platform_rest_handle
 int
 ubiq_platform_rest_handle_create(
     const char * const papi, const char * const sapi,
-    struct ubiq_platform_rest_handle ** h)
+    struct ubiq_platform_rest_handle ** const h)
 {
     const int papilen = strlen(papi) + 1;
     const int sapilen = strlen(sapi) + 1;
@@ -233,7 +233,7 @@ ubiq_platform_rest_handle_reset(
 
 void
 ubiq_platform_rest_handle_destroy(
-    struct ubiq_platform_rest_handle * h)
+    struct ubiq_platform_rest_handle * const h)
 {
     ubiq_platform_rest_handle_reset(h);
     ubiq_support_http_handle_destroy(h->hnd);
@@ -368,7 +368,7 @@ ubiq_platform_rest_header_content(
 
 int
 ubiq_platform_rest_request(
-    struct ubiq_platform_rest_handle * h,
+    struct ubiq_platform_rest_handle * const h,
     const http_request_method_t method, const char * const urlstr,
     const char * const content_type,
     const void * const content, const size_t length)

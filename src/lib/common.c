@@ -15,9 +15,7 @@ ubiq_platform_common_parse_new_key(
     void ** const keybuf, size_t * const keylen)
 {
     const cJSON * j;
-    const void * rsp;
     const char * prvpem;
-    size_t len;
     int res;
 
     prvpem = NULL;
