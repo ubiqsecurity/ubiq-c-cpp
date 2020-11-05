@@ -1,7 +1,7 @@
 #include <ubiq/platform/internal/support.h>
 #include <ubiq/platform/internal/http.h>
 
-#include <ubiq/platform/compat/sys/param.h>
+#include <sys/param.h>
 
 #include <string.h>
 #include <stdlib.h>
