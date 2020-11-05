@@ -44,17 +44,25 @@ ubiq_support_base64_decode(
     int res;
 
     /*
-     * output is surely smaller than input, so
-     * allocating the input size should be plenty
+     * base64 encoded data is 4 bytes for every 3 of original data,
+     * so allocate 3/4ths of the input size. The addition of 3 prior
+     * to the division ensures that the integer math doesn't leave
+     * the allocation a byte short.
      */
     res = -ENOMEM;
-    buf = malloc(size);
+    buf = malloc(3 * ((size + 3) / 4));
     if (buf) {
         EVP_ENCODE_CTX * ctx;
 
         ctx = EVP_ENCODE_CTX_new();
         if (ctx) {
             int totl;
+
+            /*
+             * the init/update/final method vs. using the single
+             * DecodeBlock call automatically handles any padding
+             * bytes that were added during encoding.
+             */
 
             EVP_DecodeInit(ctx);
 
