@@ -23,13 +23,16 @@ add_library(
   ${CMAKE_SOURCE_DIR}/src/ext/cJSON/cJSON.c
   ${CMAKE_SOURCE_DIR}/src/ext/inih/ini.c)
 
-target_sources(
-  c_objects
+if(WIN32)
+else()
+  target_sources(
+    c_objects
 
-  PRIVATE
+    PRIVATE
 
-  openssl.c
-  curl.c)
+    curl.c
+    openssl.c)
+endif()
 
 target_include_directories(
   c_objects
