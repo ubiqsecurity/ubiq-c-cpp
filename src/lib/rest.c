@@ -121,14 +121,18 @@ int
 ubiq_url_parse(
     struct ubiq_url * url, const char * str)
 {
-    char * chr;
-    int res;
+    char scheme[8];
+    char hostname[256];
+    char path[2048];
+    char query[1024];
+
+    int res, err;
 
     ubiq_url_init(url);
 
-    errno = 0;
-    res = sscanf(str, "%m[^:]://%m[^/]%m[^?]?%ms",
-                 &url->scheme, &url->hostname, &url->path, &url->query);
+    err = INT_MIN;
+    res = sscanf(str, "%7[^:]://%255[^/]%2047[^?]?%1023s",
+                 scheme, hostname, path, query);
     /*
      * sscanf returns the number of elements parsed/set/returned by
      * the call. if less than 3, then the call has failed to parse
@@ -138,30 +142,42 @@ ubiq_url_parse(
      * if 3 is returned, no query is present, which is ok.
      * if 4, then all parts are present.
      */
-    if (res < 3) {
-        switch (res) {
-        case 2: free(url->hostname);
-        case 1: free(url->scheme);
-        default: break;
+    if (res >= 3) {
+        err = -ENOMEM;
+
+        url->scheme = strdup(scheme);
+        url->hostname = strdup(hostname);
+        url->path = strdup(path);
+        if (res > 3) {
+            url->query = strdup(query);
         }
 
-        ubiq_url_init(url);
+        if (url->scheme && url->hostname && url->path &&
+            (res < 4 || url->query) ) {
+            char * chr;
+            /*
+             * if the port is present in the hostname, overwrite the ':'
+             * with a NUL and point the port pointer at the next character.
+             * therefore the port member is never freed. it's either NULL,
+             * or it points into the hostname string.
+             */
+            if ((chr = strchr(url->hostname, ':'))) {
+                url->port = chr + 1;
+                *chr = '\0';
+            }
 
-        return INT_MIN;
+            err = 0;
+        } else {
+            free(url->query);
+            free(url->path);
+            free(url->hostname);
+            free(url->scheme);
+
+            ubiq_url_init(url);
+        }
     }
 
-    /*
-     * if the port is present in the hostname, overwrite the ':'
-     * with a NUL and point the port pointer at the next character.
-     * therefore the port member is never freed. it's either NULL,
-     * or it points into the hostname string.
-     */
-    if ((chr = strchr(url->hostname, ':'))) {
-        url->port = chr + 1;
-        *chr = '\0';
-    }
-
-    return 0;
+    return err;
 }
 
 struct ubiq_platform_rest_handle
