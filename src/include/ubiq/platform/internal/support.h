@@ -6,6 +6,8 @@
 #include <ubiq/platform/internal/algorithm.h>
 #include <ubiq/platform/internal/http.h>
 
+#include <time.h>
+
 #if defined(_WIN32)
 #  include <winsock2.h>
 #else

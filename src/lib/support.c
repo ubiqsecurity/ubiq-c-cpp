@@ -1,7 +1,6 @@
 #include <ubiq/platform/internal/support.h>
 
 #include <errno.h>
-#include <time.h>
 
 #if defined(_WIN32)
 #  include <userenv.h>
@@ -20,8 +19,8 @@ ubiq_support_gmtime_r(
 #if defined(_WIN32)
     err = -gmtime_s(tm, t);
 #else
-    err = gmtime_r(t, tm);
-    if (err) {
+    err = 0;
+    if (!gmtime_r(t, tm)) {
         err = -errno;
     }
 #endif
