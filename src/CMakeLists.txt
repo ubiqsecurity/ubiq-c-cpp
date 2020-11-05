@@ -57,6 +57,9 @@ target_include_directories(
   ubiqclient
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 if(WIN32)
+  target_link_libraries(
+    ubiqclient
+    ws2_32 userenv)
 else()
   target_link_libraries(
     ubiqclient
@@ -107,6 +110,9 @@ target_include_directories(
   ubiqclient++
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 if(WIN32)
+  target_link_libraries(
+    ubiqclient++
+    ws2_32 userenv)
 else()
   target_link_libraries(
     ubiqclient++
