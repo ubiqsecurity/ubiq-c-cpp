@@ -5,6 +5,7 @@
 
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
+#include <openssl/rand.h>
 
 static struct ubiq_platform_algorithm * ubiq_platform_algorithms = NULL;
 static size_t ubiq_platform_algorithms_n = 0;
@@ -22,12 +23,12 @@ ubiq_platform_algorithm_init(
             .id = 0,
             .name = "aes-256-gcm",
             .cipher = (struct ubiq_platform_cipher *)EVP_aes_256_gcm(),
-            .len = { .key = 32, .iv = 16, .tag = 16 }
+            .len = { .key = 32, .iv = 12, .tag = 16 }
         }, {
             .id = 1,
             .name = "aes-128-gcm",
             .cipher = (struct ubiq_platform_cipher *)EVP_aes_128_gcm(),
-            .len = { .key = 16, .iv = 16, .tag = 16 }
+            .len = { .key = 16, .iv = 12, .tag = 16 }
         },
     };
 
@@ -307,4 +308,159 @@ ubiq_support_hmac_finalize(
     }
 
     return err;
+}
+
+int
+ubiq_support_getrandom(
+    void * const buf, const size_t len)
+{
+    return (RAND_bytes((unsigned char *)buf, len) == 1) ? 0 : INT_MIN;
+}
+
+struct ubiq_support_encryption_context
+{
+    const struct ubiq_platform_algorithm * algo;
+    const EVP_CIPHER * cipher;
+    EVP_CIPHER_CTX * ctx;
+};
+
+int
+ubiq_support_encryption_init(
+    const struct ubiq_platform_algorithm * const algo,
+    const void * const keybuf, const size_t keylen,
+    const void * const ivbuf, const size_t ivlen,
+    const void * const aadbuf, const size_t aadlen, /* aad */
+    struct ubiq_support_encryption_context ** const _enc)
+{
+    const EVP_CIPHER * const cipher = EVP_get_cipherbyname(algo->name);
+    int err;
+
+    err = -EINVAL;
+    if (cipher &&
+        keylen == algo->len.key &&
+        ivlen == algo->len.iv) {
+        struct ubiq_support_encryption_context * enc;
+
+        err = -ENOMEM;
+        enc = malloc(sizeof(*enc));
+        if (enc) {
+            enc->algo = algo;
+            enc->cipher = cipher;
+
+            enc->ctx = EVP_CIPHER_CTX_new();
+            if (enc->ctx) {
+                err = 0;
+
+                if (!EVP_EncryptInit_ex(
+                        enc->ctx, enc->cipher, NULL, keybuf, ivbuf)) {
+                    err = INT_MIN;
+                }
+
+                if (!err && algo->len.tag && aadlen) {
+                    int outl;
+
+                    if (!EVP_EncryptUpdate(
+                            enc->ctx, NULL, &outl, aadbuf, aadlen)) {
+                        err = INT_MIN;
+                    }
+                }
+
+                if (err) {
+                    EVP_CIPHER_CTX_free(enc->ctx);
+                }
+            }
+
+            if (!err) {
+                *_enc = enc;
+            } else {
+                free(enc);
+            }
+        }
+    }
+
+    return err;
+}
+
+int
+ubiq_support_encryption_update(
+    struct ubiq_support_encryption_context * const enc,
+    const void * const ptbuf, const size_t ptlen,
+    void ** const ctbuf, size_t * const ctlen)
+{
+    unsigned int len;
+    void * buf;
+    int err;
+
+    err = -ENOMEM;
+    len = ptlen + EVP_CIPHER_CTX_block_size(enc->ctx);
+    buf = malloc(len);
+    if (buf) {
+        if (EVP_EncryptUpdate(enc->ctx, buf, &len, ptbuf, ptlen)) {
+            *ctbuf = buf;
+            *ctlen = len;
+
+            err = 0;
+        } else {
+            free(buf);
+            err = INT_MIN;
+        }
+    }
+
+    return err;
+}
+
+int
+ubiq_support_encryption_finalize(
+    struct ubiq_support_encryption_context * enc,
+    void ** const ctbuf, size_t * const ctlen,
+    void ** const tagbuf, size_t * const taglen)
+{
+    unsigned int len;
+    void * buf;
+    int err;
+
+    err = -ENOMEM;
+    len = EVP_CIPHER_CTX_block_size(enc->ctx);
+    buf = malloc(len);
+    if (buf) {
+        err = 0;
+
+        if (!EVP_EncryptFinal_ex(enc->ctx, buf, &len)) {
+            err = INT_MIN;
+        }
+
+        if (!err && enc->algo->len.tag) {
+            void * tag;
+
+            err = -ENOMEM;
+            tag = malloc(enc->algo->len.tag);
+            if (tag) {
+                EVP_CIPHER_CTX_ctrl(enc->ctx,
+                                    EVP_CTRL_AEAD_GET_TAG,
+                                    enc->algo->len.tag, (char *)tag);
+                *tagbuf = tag;
+                *taglen = enc->algo->len.tag;
+
+                err = 0;
+            }
+        }
+
+        if (!err) {
+            *ctbuf = buf;
+            *ctlen = len;
+
+            ubiq_support_encryption_destroy(enc);
+        } else {
+            free(buf);
+        }
+    }
+
+    return err;
+}
+
+void ubiq_support_encryption_destroy(
+    struct ubiq_support_encryption_context * const enc)
+{
+    EVP_CIPHER_CTX_free(enc->ctx);
+    free(enc);
 }

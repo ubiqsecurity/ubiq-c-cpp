@@ -48,6 +48,26 @@ void ubiq_support_hmac_update(
 int ubiq_support_hmac_finalize(
     struct ubiq_support_hmac_context *, void **, size_t *);
 
+int ubiq_support_getrandom(void *, size_t);
+
+struct ubiq_support_encryption_context;
+int ubiq_support_encryption_init(
+    const struct ubiq_platform_algorithm *,
+    const void *, size_t, /* key */
+    const void *, size_t, /* iv */
+    const void *, size_t, /* aad */
+    struct ubiq_support_encryption_context **);
+int ubiq_support_encryption_update(
+    struct ubiq_support_encryption_context *,
+    const void *, size_t, /* pt */
+    void **, size_t * /* ct */);
+int ubiq_support_encryption_finalize(
+    struct ubiq_support_encryption_context *,
+    void **, size_t *, /* ct */
+    void **, size_t * /* tag */);
+void ubiq_support_encryption_destroy(
+    struct ubiq_support_encryption_context *);
+
 int ubiq_support_base64_encode(char **, const void *, size_t);
 int ubiq_support_base64_decode(void **, const char *, size_t);
 
