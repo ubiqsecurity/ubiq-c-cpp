@@ -1,11 +1,10 @@
+#include "ubiq/platform/internal/support.h"
 #include "ubiq/platform/internal/credentials.h"
 #include "ubiq/platform.h"
 
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
-#include <pwd.h>
-#include <unistd.h>
 
 #include "inih/ini.h"
 
@@ -251,16 +250,20 @@ ubiq_platform_credentials_load_file(
     _path = path;
     if (!_path) {
         static const char * const cred_path = ".ubiq/credentials";
-        const struct passwd * const pw = getpwuid(geteuid());
+        char * homedir;
+        int err;
 
-        if (pw) {
+        err = ubiq_support_get_home_dir(&homedir);
+        if (!err) {
             int len;
 
-            len = snprintf(NULL, 0, "%s/%s", pw->pw_dir, cred_path) + 1;
+            len = snprintf(NULL, 0, "%s/%s", homedir, cred_path) + 1;
             _path = malloc(len);
             if (_path) {
-                snprintf((char *)_path, len, "%s/%s", pw->pw_dir, cred_path);
+                snprintf((char *)_path, len, "%s/%s", homedir, cred_path);
             }
+
+            free(homedir);
         }
     }
 

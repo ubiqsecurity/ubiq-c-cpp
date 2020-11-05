@@ -8,6 +8,8 @@
 
 __BEGIN_DECLS
 
+int ubiq_support_get_home_dir(char ** const);
+
 int ubiq_support_base64_encode(char **, const void *, size_t);
 int ubiq_support_base64_decode(void **, const char *, size_t);
 
