@@ -58,7 +58,7 @@ static
 void
 string_tolower(
     char * const str,
-    const ssize_t len, const char delim)
+    const int len, const char delim)
 {
     for (unsigned int i = 0;
          (len < 0 || i < len) && str[i] != delim;
@@ -282,7 +282,7 @@ ubiq_platform_rest_header_content(
     const http_request_method_t method, const struct ubiq_url * const url,
     const char * const content_type,
     const void * const content, const size_t length,
-    char * const val, ssize_t * len)
+    char * const val, int * len)
 {
     int err;
 
@@ -429,7 +429,7 @@ ubiq_platform_rest_request(
              i < sizeof(key) / sizeof(*key) && res == 0;
              i++) {
             char val[440];
-            ssize_t len = sizeof(val);
+            int len = sizeof(val);
 
             /* get the content for the designated header */
             res = ubiq_platform_rest_header_content(
