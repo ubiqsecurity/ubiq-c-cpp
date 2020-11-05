@@ -377,7 +377,7 @@ ubiq_platform_decryption_update(
          * has to assume that the last bytes are the tag.
          */
 
-        const ssize_t declen = dec->len - (off + dec->algo->len.tag);
+        const int declen = dec->len - (off + dec->algo->len.tag);
 
         if (declen > 0) {
             res = ubiq_support_decryption_update(
@@ -405,7 +405,7 @@ ubiq_platform_decryption_end(
 
     res = -ESRCH;
     if (dec->ctx) {
-        const ssize_t sz = dec->len - dec->algo->len.tag;
+        const int sz = dec->len - dec->algo->len.tag;
 
         if (sz != 0) {
             /*
