@@ -65,6 +65,11 @@ int ubiq_support_decryption_finalize(
     const void *, size_t, /* tag */
     void **, size_t * /* pt */);
 
+int ubiq_support_asymmetric_decrypt(
+    const char *, const char *, /* private key pem, password */
+    const void *, size_t, /* input */
+    void **, size_t * /* output */);
+
 extern const char * ubiq_support_user_agent;
 int ubiq_support_http_init(void);
 void ubiq_support_http_exit();

@@ -1,32 +1,11 @@
 #include <ubiq/platform/internal/common.h>
 #include <ubiq/platform/internal/support.h>
 
-#include <ubiq/platform/compat/sys/param.h>
 #include <string.h>
 #include <errno.h>
+#include <stdlib.h>
 
 #include "cJSON/cJSON.h"
-
-#include <openssl/evp.h>
-#include <openssl/pem.h>
-
-/*
- * openssl requires a callback to retrieve the password
- * for decrypting a private key. this function receives
- * the password in the void pointer and passes it through.
- */
-static
-int
-get_password_callback(char * const buf, const int size,
-                      const int rw,
-                      void * const udata)
-{
-    const char * const pwstr = udata;
-    const int pwlen = strlen(pwstr);
-    const int len = MIN(size, pwlen);
-    memcpy(buf, pwstr, len);
-    return len;
-}
 
 int
 ubiq_platform_common_parse_new_key(
@@ -37,11 +16,11 @@ ubiq_platform_common_parse_new_key(
 {
     const cJSON * j;
     const void * rsp;
+    const char * prvpem;
     size_t len;
     int res;
-    EVP_PKEY * prvkey;
 
-    prvkey = NULL;
+    prvpem = NULL;
     res = 0;
 
     if (res == 0) {
@@ -51,13 +30,7 @@ ubiq_platform_common_parse_new_key(
         j = cJSON_GetObjectItemCaseSensitive(
             json, "encrypted_private_key");
         if (cJSON_IsString(j) && j->valuestring != NULL) {
-            BIO * const bp = BIO_new_mem_buf(j->valuestring, -1);
-            prvkey = PEM_read_bio_PrivateKey(
-                bp, NULL, get_password_callback, (void *)srsa);
-            BIO_free(bp);
-            if (!prvkey) {
-                res = -EACCES;
-            }
+            prvpem = j->valuestring;
         } else {
             res = -EBADMSG;
         }
@@ -96,36 +69,19 @@ ubiq_platform_common_parse_new_key(
         j = cJSON_GetObjectItemCaseSensitive(
             json, "wrapped_data_key");
         if (cJSON_IsString(j) && j->valuestring != NULL) {
-            EVP_PKEY_CTX * pctx;
             void * buf;
             int len;
 
             len = ubiq_support_base64_decode(
                 &buf, j->valuestring, strlen(j->valuestring));
 
-            /*
-             * unwrap the data key using the private rsa key that
-             * was decrypted earlier
-             */
-            pctx = EVP_PKEY_CTX_new(prvkey, NULL);
-            EVP_PKEY_decrypt_init(pctx);
-            EVP_PKEY_CTX_set_rsa_padding(pctx, RSA_PKCS1_OAEP_PADDING);
-            EVP_PKEY_decrypt(pctx, NULL, keylen, NULL, 0);
-            *keybuf = malloc(*keylen);
-            if (EVP_PKEY_decrypt(
-                    pctx, *keybuf, keylen, buf, len) <= 0) {
-                res = -EACCES;
-            }
-            EVP_PKEY_CTX_free(pctx);
+            res = ubiq_support_asymmetric_decrypt(
+                prvpem, srsa, buf, len, keybuf, keylen);
 
             free(buf);
         } else {
             res = -EBADMSG;
         }
-    }
-
-    if (prvkey) {
-        EVP_PKEY_free(prvkey);
     }
 
     return res;

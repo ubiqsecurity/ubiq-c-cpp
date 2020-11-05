@@ -7,10 +7,6 @@
 static struct ubiq_platform_algorithm * ubiq_platform_algorithms = NULL;
 static size_t ubiq_platform_algorithms_n = 0;
 
-/*
- * maps the openssl ciphers to the numeric id's that are
- * used in the ubiq headers to identify them.
- */
 int
 ubiq_platform_algorithm_init(
     void)

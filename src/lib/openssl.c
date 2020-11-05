@@ -1,7 +1,11 @@
 #include <ubiq/platform/internal/support.h>
 
+#include <ubiq/platform/compat/sys/param.h>
 #include <errno.h>
+#include <string.h>
 
+#include <openssl/bio.h>
+#include <openssl/pem.h>
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
 #include <openssl/rand.h>
@@ -487,6 +491,78 @@ ubiq_support_decryption_finalize(
                 free(buf);
                 err = INT_MIN;
             }
+        }
+    }
+
+    return err;
+}
+
+/*
+ * openssl requires a callback to retrieve the password
+ * for decrypting a private key. this function receives
+ * the password in the void pointer and passes it through.
+ */
+static
+int
+get_password_callback(char * const buf, const int size,
+                      const int rw,
+                      void * const udata)
+{
+    const char * const pwstr = udata;
+    const int pwlen = strlen(pwstr);
+    const int len = MIN(size, pwlen);
+    memcpy(buf, pwstr, len);
+    return len;
+}
+
+int
+ubiq_support_asymmetric_decrypt(
+    const char * const prvpem, const char * const passwd,
+    const void * const ptbuf, const size_t ptlen,
+    void ** const ctbuf, size_t * const ctlen)
+{
+    EVP_PKEY * prvkey;
+    BIO * bp;
+    int err;
+
+    err = -ENOMEM;
+    bp = BIO_new_mem_buf(prvpem, -1);
+    if (bp) {
+        err = -EACCES;
+        prvkey = PEM_read_bio_PrivateKey(
+            bp, NULL, get_password_callback, (void *)passwd);
+        BIO_free(bp);
+
+        if (prvkey) {
+            EVP_PKEY_CTX * pctx;
+
+            err = -ENOMEM;
+            pctx = EVP_PKEY_CTX_new(prvkey, NULL);
+            if (pctx) {
+                void * buf;
+                size_t len;
+
+                EVP_PKEY_decrypt_init(pctx);
+                EVP_PKEY_CTX_set_rsa_padding(pctx, RSA_PKCS1_OAEP_PADDING);
+                EVP_PKEY_decrypt(pctx, NULL, &len, NULL, 0);
+
+                buf = malloc(len);
+                if (buf) {
+                    if (EVP_PKEY_decrypt(
+                            pctx, buf, &len, ptbuf, ptlen) <= 0) {
+                        free(buf);
+                        err = -EACCES;
+                    } else {
+                        *ctbuf = buf;
+                        *ctlen = len;
+                        err = 0;
+                    }
+                }
+
+                EVP_PKEY_CTX_free(pctx);
+            }
+
+            EVP_PKEY_free(prvkey);
         }
     }
 
