@@ -6,6 +6,12 @@
 #include <ubiq/platform/internal/algorithm.h>
 #include <ubiq/platform/internal/http.h>
 
+#if defined(_WIN32)
+#  include <winsock2.h>
+#else
+#  include <arpa/inet.h>
+#endif
+
 __BEGIN_DECLS
 
 int ubiq_support_get_home_dir(char ** const);
