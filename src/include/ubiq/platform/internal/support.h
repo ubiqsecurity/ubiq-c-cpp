@@ -24,22 +24,28 @@ int ubiq_support_base64_decode(void ** const, const char * const, const size_t);
 
 struct ubiq_support_digest_context;
 int ubiq_support_digest_init(
-    const char *, struct ubiq_support_digest_context **);
+    const char * const,
+    struct ubiq_support_digest_context ** const);
 void ubiq_support_digest_update(
-    struct ubiq_support_digest_context *, const void *, size_t);
+    struct ubiq_support_digest_context * const,
+    const void * const, const size_t);
 int ubiq_support_digest_finalize(
-    struct ubiq_support_digest_context *, void **, size_t *);
+    struct ubiq_support_digest_context * const,
+    void ** const, size_t * const);
 
 struct ubiq_support_hmac_context;
 int ubiq_support_hmac_init(
-    const char *, const void *, size_t,
-    struct ubiq_support_hmac_context **);
+    const char * const,
+    const void * const, const size_t,
+    struct ubiq_support_hmac_context ** const);
 void ubiq_support_hmac_update(
-    struct ubiq_support_hmac_context *, const void *, size_t);
+    struct ubiq_support_hmac_context * const,
+    const void * const, const size_t);
 int ubiq_support_hmac_finalize(
-    struct ubiq_support_hmac_context *, void **, size_t *);
+    struct ubiq_support_hmac_context * const,
+    void ** const, size_t * const);
 
-int ubiq_support_getrandom(void *, size_t);
+int ubiq_support_getrandom(void * const, const size_t);
 
 struct ubiq_support_cipher_context;
 
