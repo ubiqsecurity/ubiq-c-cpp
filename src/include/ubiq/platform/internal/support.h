@@ -19,8 +19,8 @@ __BEGIN_DECLS
 int ubiq_support_get_home_dir(char ** const);
 int ubiq_support_gmtime_r(const time_t * const, struct tm * const);
 
-int ubiq_support_base64_encode(char **, const void *, size_t);
-int ubiq_support_base64_decode(void **, const char *, size_t);
+int ubiq_support_base64_encode(char ** const, const void * const, const size_t);
+int ubiq_support_base64_decode(void ** const, const char * const, const size_t);
 
 struct ubiq_support_digest_context;
 int ubiq_support_digest_init(

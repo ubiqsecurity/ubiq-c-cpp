@@ -41,6 +41,7 @@ if(WIN32)
 
     PRIVATE
 
+    bcrypt.c
     winhttp.c)
 else()
   target_sources(
