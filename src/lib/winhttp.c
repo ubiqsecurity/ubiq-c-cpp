@@ -42,6 +42,7 @@ struct ubiq_support_http_handle
     } headers;
 
     http_response_code_t status;
+    char * ctype;
 };
 
 struct ubiq_support_http_handle *
@@ -56,6 +57,7 @@ ubiq_support_http_handle_create(void)
         hnd->headers.vec = NULL;
         hnd->headers.num = 0;
     }
+    hnd->ctype = NULL;
 
     return hnd;
 }
@@ -70,6 +72,8 @@ ubiq_support_http_handle_reset(
     }
     free(hnd->headers.vec);
     hnd->headers.vec = NULL;
+    free(hnd->ctype);
+    hnd->ctype = NULL;
 }
 
 void
@@ -85,6 +89,13 @@ ubiq_support_http_response_code(
     const struct ubiq_support_http_handle * const hnd)
 {
     return hnd->status;
+}
+
+const char *
+ubiq_support_http_response_content_type(
+    const struct ubiq_support_http_handle * const hnd)
+{
+    return hnd->ctype;
 }
 
 static
@@ -106,6 +117,37 @@ string_widen(
             if (MultiByteToWideChar(
                     CP_ACP, MB_PRECOMPOSED, str, -1, buf, n) == n) {
                 *wstr = buf;
+                err = 0;
+            } else {
+                free(buf);
+                err = INT_MIN;
+            }
+        }
+    }
+
+    return err;
+}
+
+static
+int
+wstring_narrow(
+    const wchar_t * const wstr, char ** const str)
+{
+    int err, n;
+
+    err = INT_MIN;
+    n = WideCharToMultiByte(
+        CP_ACP, 0, wstr, -1, NULL, 0, NULL, NULL);
+    if (n > 0) {
+        char * buf;
+
+        err = -ENOMEM;
+        buf = malloc(n * sizeof(*buf));
+        if (buf) {
+            if (WideCharToMultiByte(
+                    CP_ACP, 0, wstr, -1, buf, n, NULL, NULL) == n) {
+                *str = buf;
+                err = 0;
             } else {
                 free(buf);
                 err = INT_MIN;
@@ -141,9 +183,9 @@ ubiq_support_http_add_header(
 static
 int
 ubiq_support_http_exchange(
+    struct ubiq_support_http_handle * const hnd,
     const HINTERNET req,
     const void * const content, const size_t length,
-    http_response_code_t * code,
     void ** const rspbuf, size_t * const rsplen)
 {
     BOOL ret;
@@ -159,6 +201,7 @@ ubiq_support_http_exchange(
 
     res = INT_MIN;
     if (ret) {
+        wchar_t ctype[128];
         DWORD val, vlen;
         void * buf;
 
@@ -169,7 +212,17 @@ ubiq_support_http_exchange(
             WINHTTP_HEADER_NAME_BY_INDEX,
             &val, &vlen,
             WINHTTP_NO_HEADER_INDEX);
-        *code = val;
+        hnd->status = val;
+
+        WinHttpQueryHeaders(
+            req,
+            WINHTTP_QUERY_CONTENT_TYPE,
+            WINHTTP_HEADER_NAME_BY_INDEX,
+            ctype, &vlen,
+            WINHTTP_NO_HEADER_INDEX);
+        if (vlen) {
+            wstring_narrow(ctype, &hnd->ctype);
+        }
 
         vlen = sizeof(val);
         WinHttpQueryHeaders(
@@ -294,7 +347,7 @@ ubiq_support_http_request(
                     }
 
                     res = ubiq_support_http_exchange(
-                        req, content, length, &hnd->status, rspbuf, rsplen);
+                        hnd, req, content, length, rspbuf, rsplen);
 
                     WinHttpCloseHandle(req);
                 }
