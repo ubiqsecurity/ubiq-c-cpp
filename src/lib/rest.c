@@ -1,5 +1,6 @@
-#include "ubiq/platform/internal/assert.h"
 #include "ubiq/platform/internal/rest.h"
+#include "ubiq/platform/internal/assert.h"
+#include "ubiq/platform/internal/common.h"
 #include "ubiq/platform/internal/support.h"
 
 #include <ctype.h>
@@ -62,121 +63,6 @@ string_tolower(
     for (int i = 0;
          (len < 0 || i < len) && str[i] != delim;
          str[i] = tolower(str[i]), i++);
-}
-
-struct ubiq_url
-{
-    /*
-     * A full URL looks like:
-     * scheme://[user:pass@]host[:port]/path[?query][#frag]
-     *
-     * This structure supports:
-     * scheme://host[:port]/[path][?query]
-     *
-     * see ubiq_url_parse()
-     */
-    char * scheme;
-    char * hostname;
-    char * port;
-    char * path;
-    char * query;
-};
-
-static
-void
-ubiq_url_init(
-    struct ubiq_url * url)
-{
-    url->scheme = NULL;
-    url->hostname = NULL;
-    url->path = NULL;
-    url->port = NULL;
-    url->query = NULL;
-}
-
-static
-void
-ubiq_url_reset(
-    struct ubiq_url * url)
-{
-    free(url->scheme);
-    free(url->hostname);
-    free(url->path);
-    free(url->query);
-    ubiq_url_init(url);
-}
-
-/*
- * parse a url
- *
- * this function is not capable of parsing a fully featured url.
- * in particular the use of inline usernames and passwords is not
- * supported, nor are fragments.
- *
- * see the format documented in struct ubiq_url.
- */
-static
-int
-ubiq_url_parse(
-    struct ubiq_url * url, const char * str)
-{
-    char scheme[8];
-    char hostname[256];
-    char path[2048];
-    char query[1024];
-
-    int res, err;
-
-    ubiq_url_init(url);
-
-    err = INT_MIN;
-    res = sscanf(str, "%7[^:]://%255[^/]%2047[^?]?%1023s",
-                 scheme, hostname, path, query);
-    /*
-     * sscanf returns the number of elements parsed/set/returned by
-     * the call. if less than 3, then the call has failed to parse
-     * a meaningful amount of data from the URL. free any allocated
-     * data and reinitialize the url object.
-     *
-     * if 3 is returned, no query is present, which is ok.
-     * if 4, then all parts are present.
-     */
-    if (res >= 3) {
-        err = -ENOMEM;
-
-        url->scheme = strdup(scheme);
-        url->hostname = strdup(hostname);
-        url->path = strdup(path);
-        if (res > 3) {
-            url->query = strdup(query);
-        }
-
-        if (url->scheme && url->hostname && url->path &&
-            (res < 4 || url->query) ) {
-            char * chr;
-            /*
-             * if the port is present in the hostname, overwrite the ':'
-             * with a NUL and point the port pointer at the next character.
-             * therefore the port member is never freed. it's either NULL,
-             * or it points into the hostname string.
-             */
-            if ((chr = strchr(url->hostname, ':'))) {
-                url->port = chr + 1;
-                *chr = '\0';
-            }
-
-            err = 0;
-        } else {
-            free(url->query);
-            free(url->path);
-            free(url->hostname);
-            free(url->scheme);
-
-            ubiq_url_init(url);
-        }
-    }
-
-    return err;
 }
 
 struct ubiq_platform_rest_handle

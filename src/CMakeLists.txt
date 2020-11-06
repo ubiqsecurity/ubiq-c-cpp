@@ -59,7 +59,7 @@ target_include_directories(
 if(WIN32)
   target_link_libraries(
     ubiqclient
-    ws2_32 userenv)
+    ws2_32 userenv winhttp)
 else()
   target_link_libraries(
     ubiqclient
@@ -112,7 +112,7 @@ target_include_directories(
 if(WIN32)
   target_link_libraries(
     ubiqclient++
-    ws2_32 userenv)
+    ws2_32 userenv winhttp)
 else()
   target_link_libraries(
     ubiqclient++

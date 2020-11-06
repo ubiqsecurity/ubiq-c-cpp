@@ -87,25 +87,25 @@ void ubiq_support_http_exit();
 
 struct ubiq_support_http_handle;
 struct ubiq_support_http_handle * ubiq_support_http_handle_create(void);
-void ubiq_support_http_handle_reset(struct ubiq_support_http_handle *);
-void ubiq_support_http_handle_destroy(struct ubiq_support_http_handle *);
+void ubiq_support_http_handle_reset(struct ubiq_support_http_handle * const);
+void ubiq_support_http_handle_destroy(struct ubiq_support_http_handle * const);
 
 http_response_code_t
 ubiq_support_http_response_code(
-    const struct ubiq_support_http_handle *);
+    const struct ubiq_support_http_handle * const);
 const char *
 ubiq_support_http_response_content_type(
-    const struct ubiq_support_http_handle *);
+    const struct ubiq_support_http_handle * const);
 
 int
 ubiq_support_http_add_header(
-    struct ubiq_support_http_handle *, const char *);
+    struct ubiq_support_http_handle * const, const char * const);
 int
 ubiq_support_http_request(
-    struct ubiq_support_http_handle *,
-    http_request_method_t, const char *,
-    const char *, const void *, size_t,
-    void **, size_t *);
+    struct ubiq_support_http_handle * const,
+    const http_request_method_t, const char * const,
+    const char * const, const void * const, const size_t,
+    void ** const, size_t * const);
 
 __END_DECLS
 

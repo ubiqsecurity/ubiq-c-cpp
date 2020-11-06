@@ -36,6 +36,12 @@ if(WIN32)
     _CRT_SECURE_NO_WARNINGS
     strdup=_strdup
     strcasecmp=_stricmp)
+  target_sources(
+    c_objects
+
+    PRIVATE
+
+    winhttp.c)
 else()
   target_sources(
     c_objects

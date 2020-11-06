@@ -11,6 +11,8 @@
 #  include <string.h>
 #endif
 
+const char * ubiq_support_user_agent = NULL;
+
 int
 ubiq_support_gmtime_r(
     const time_t * const t, struct tm * const tm)

@@ -9,8 +9,6 @@
 
 #include <curl/curl.h>
 
-const char * ubiq_support_user_agent = NULL;
-
 struct ubiq_support_http_handle
 {
     CURL * ch;
@@ -98,7 +96,7 @@ ubiq_support_http_response_content_type(
 
 int
 ubiq_support_http_add_header(
-    struct ubiq_support_http_handle * hnd, const char * const s)
+    struct ubiq_support_http_handle * const hnd, const char * const s)
 {
     struct curl_slist * slist;
     int err;
@@ -169,7 +167,7 @@ ubiq_support_http_download(
 
 int
 ubiq_support_http_request(
-    struct ubiq_support_http_handle * hnd,
+    struct ubiq_support_http_handle * const hnd,
     const http_request_method_t method, const char * const urlstr,
     const char * const content_type,
     const void * const content, const size_t length,
