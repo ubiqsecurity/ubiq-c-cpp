@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "ubiq/platform/internal/request.h"
+#include "ubiq/platform/internal/rest.h"
 
 class request : public ::testing::Test
 {

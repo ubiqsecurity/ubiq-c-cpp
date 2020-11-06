@@ -1,5 +1,6 @@
 #include "ubiq/platform/internal/assert.h"
-#include "ubiq/platform/internal/request.h"
+#include "ubiq/platform/internal/rest.h"
+#include "ubiq/platform/internal/support.h"
 
 #include <ctype.h>
 #include <errno.h>
@@ -7,15 +8,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include <curl/curl.h>
-
-#include <openssl/evp.h>
-#include <openssl/hmac.h>
-
-#include <sys/param.h>
-
-const char * ubiq_platform_user_agent = NULL;
+#include <stdio.h>
+#include <time.h>
 
 int
 ubiq_platform_snprintf_api_url(
@@ -69,32 +63,6 @@ string_tolower(
     for (unsigned int i = 0;
          (len < 0 || i < len) && str[i] != delim;
          str[i] = tolower(str[i]), i++);
-}
-
-/*
- * returns a string representation of the http request method.
- * the returned string is uppercased as it would be in the request.
- */
-const char *
-http_request_method_string(
-    const http_request_method_t method)
-{
-    const char * res;
-
-    switch (method) {
-    case HTTP_RM_CONNECT:   res = "CONNECT";    break;
-    case HTTP_RM_DELETE:    res = "DELETE";     break;
-    case HTTP_RM_GET:       res = "GET";        break;
-    case HTTP_RM_HEAD:      res = "HEAD";       break;
-    case HTTP_RM_PATCH:     res = "PATCH";      break;
-    case HTTP_RM_POST:      res = "POST";       break;
-    case HTTP_RM_PUT:       res = "PUT";        break;
-    case HTTP_RM_OPTIONS:   res = "OPTIONS";    break;
-    case HTTP_RM_TRACE:     res = "TRACE";      break;
-    default:                res = "UNKNOWN";    break;
-    }
-
-    return res;
 }
 
 struct ubiq_url
@@ -200,13 +168,7 @@ struct ubiq_platform_rest_handle
 {
     const char * papi, * sapi;
 
-    CURL * ch;
-
-    /* content to be sent in an http request */
-    struct {
-        const void * buf;
-        size_t len, off;
-    } req;
+    struct ubiq_support_http_handle * hnd;
 
     /*
      * content received in an http response.
@@ -245,12 +207,8 @@ ubiq_platform_rest_handle_create(
         (*h)->sapi = (*h)->papi + papilen;
         strcpy((char *)(*h)->sapi, sapi);
 
-        /*
-         * initialize the curl handle for http requests
-         */
-
-        (*h)->ch = curl_easy_init();
-        if ((*h)->ch) {
+        (*h)->hnd = ubiq_support_http_handle_create();
+        if ((*h)->hnd) {
             res = 0;
         } else {
             free(*h);
@@ -265,10 +223,7 @@ void
 ubiq_platform_rest_handle_reset(
     struct ubiq_platform_rest_handle * h)
 {
-    curl_easy_reset(h->ch);
-
-    h->req.buf = NULL;
-    h->req.len = h->req.off = 0;
+    ubiq_support_http_handle_reset(h->hnd);
 
     /* handle is either NULL or malloc'd. */
     free(h->rsp.buf);
@@ -281,7 +236,7 @@ ubiq_platform_rest_handle_destroy(
     struct ubiq_platform_rest_handle * h)
 {
     ubiq_platform_rest_handle_reset(h);
-    curl_easy_cleanup(h->ch);
+    ubiq_support_http_handle_destroy(h->hnd);
     free(h);
 }
 
@@ -289,9 +244,7 @@ http_response_code_t
 ubiq_platform_rest_response_code(
     const struct ubiq_platform_rest_handle * const h)
 {
-    long st;
-    curl_easy_getinfo(h->ch, CURLINFO_RESPONSE_CODE, &st);
-    return st;
+    return ubiq_support_http_response_code(h->hnd);
 }
 
 const void *
@@ -310,9 +263,7 @@ const char *
 ubiq_platform_rest_response_content_type(
     const struct ubiq_platform_rest_handle * const h)
 {
-    char * type;
-    curl_easy_getinfo(h->ch, CURLINFO_CONTENT_TYPE, &type);
-    return type;
+    return ubiq_support_http_response_content_type(h->hnd);
 }
 
 /*
@@ -383,21 +334,25 @@ ubiq_platform_rest_header_content(
         *len = strftime(val, *len, "%a, %d %b %Y %H:%M:%S GMT", &tm);
         err = 0;
     } else if (strcmp(key, "Digest") == 0) {
-        unsigned char digest[EVP_MAX_MD_SIZE];
-        unsigned int digsiz;
-        EVP_MD_CTX * digctx;
+        /* hard-coded to sha512 */
+        struct ubiq_support_digest_context * ctx;
+        void * digest;
+        size_t digsiz;
+        char * digenc;
 
-        digctx = EVP_MD_CTX_create();
-        EVP_DigestInit(digctx, EVP_sha512());
+        ubiq_support_digest_init("sha512", &ctx);
         if (length != 0) {
-            EVP_DigestUpdate(digctx, content, length);
+            ubiq_support_digest_update(ctx, content, length);
         }
-        EVP_DigestFinal(digctx, digest, &digsiz);
-        EVP_MD_CTX_destroy(digctx);
+        ubiq_support_digest_finalize(ctx, &digest, &digsiz);
+
+        ubiq_support_base64_encode(&digenc, digest, digsiz);
+        free(digest);
 
         *len = snprintf(val, *len, "%s", "SHA-512=");
-        EVP_EncodeBlock(val + *len, digest, digsiz);
+        strcpy(val + *len, digenc);
         *len = strlen(val);
+        free(digenc);
 
         err = 0;
     } else if (strcmp(key, "Host") == 0) {
@@ -409,60 +364,6 @@ ubiq_platform_rest_header_content(
     }
 
     return err;
-}
-
-/*
- * this function is a callback from the curl http request.
- * it supplies the payload/body to be uploaded as part of
- * the request.
- */
-static
-size_t
-ubiq_platform_rest_upload(
-    char * const buffer,
-    const size_t size, const size_t nmemb,
-    void * const priv)
-{
-    struct ubiq_platform_rest_handle * const h = priv;
-    const size_t copy =
-        MIN(size * nmemb, h->req.len - h->req.off);
-
-    memcpy(buffer, (char *)h->req.buf + h->req.off, copy);
-    h->req.off += copy;
-
-    return copy;
-}
-
-/*
- * this function is a callback from the curl http request.
- * it copies data received from the server in the http response
- * to a buffer that it (re)allocates as data is received.
- */
-static
-size_t
-ubiq_platform_rest_download(
-    char * const buffer,
-    const size_t size, const size_t nmemb,
-    void * const priv)
-{
-    struct ubiq_platform_rest_handle * const h = priv;
-    size_t copy;
-
-    copy = size * nmemb;
-    if (copy > 0) {
-        const size_t len = h->rsp.len + copy;
-        void * const p = realloc(h->rsp.buf, len);
-
-        if (p) {
-            memcpy((char *)p + h->rsp.len, buffer, copy);
-            h->rsp.buf = p;
-            h->rsp.len = len;
-        } else {
-            copy = 0;
-        }
-    }
-
-    return copy;
 }
 
 int
@@ -482,13 +383,8 @@ ubiq_platform_rest_request(
     ubiq_platform_rest_handle_reset(h);
 
     ubiq_url_init(&url);
-    res = ubiq_url_parse(&url, urlstr);
-    if (res == 0) {
-        if (curl_easy_setopt(h->ch, CURLOPT_URL, urlstr) != CURLE_OK) {
-            res = INT_MIN;
-        }
-    }
 
+    res = ubiq_url_parse(&url, urlstr);
     if (res == 0) {
         static const char * const key[] = {
             "(created)", "(request-target)",
@@ -502,11 +398,11 @@ ubiq_platform_rest_request(
         char hdrs[256];
         int hdrslen;
 
-        HMAC_CTX * hctx;
-        unsigned char hdig[EVP_MAX_MD_SIZE];
-        unsigned int hlen;
+        struct ubiq_support_hmac_context * hctx;
+        void * hdig;
+        size_t hlen;
 
-        struct curl_slist * tlist, * slist;
+        char * enc;
 
         /*
          * the initial portion of the Signature header. the 'headers'
@@ -518,13 +414,6 @@ ubiq_platform_rest_request(
         hdrslen = snprintf(hdrs, sizeof(hdrs), "headers=\"");
 
         /*
-         * disable the expect header. otherwise curl will wait
-         * for a 100 Continue response from the server (for up to
-         * 1 second) before uploading any content.
-         */
-        slist = curl_slist_append(NULL, "Expect:");
-
-        /*
          * the following code, generates http headers necessary for
          * signing, signing them as it goes and adding the necessary
          * ones to a list of headers to be included in the request.
@@ -534,8 +423,7 @@ ubiq_platform_rest_request(
          * are ignored by the "header_content" function if length is 0
          */
 
-        hctx = HMAC_CTX_new();
-        HMAC_Init_ex(hctx, h->sapi, strlen(h->sapi), EVP_sha512(), NULL);
+        ubiq_support_hmac_init("sha512", h->sapi, strlen(h->sapi), &hctx);
 
         for (unsigned int i = 0;
              i < sizeof(key) / sizeof(*key) && res == 0;
@@ -569,19 +457,14 @@ ubiq_platform_rest_request(
                         sighdr + sighdrlen, sizeof(sighdr) - sighdrlen,
                         ", %1$s=%2$.*3$s", "created", val, (int)len);
                 } else if (!(key[i][0] == '(' &&
-                             key[i][strlen(key[i]) - 1] == ')')) {
+                             key[i][strlen(key[i]) - 1] == ')') &&
+                           strcmp(key[i], "Content-Type") != 0) {
                     /*
                      * all other headers not enclosed in parentheses
                      * are added to the list of headers to include
                      * in the http request
                      */
-                    tlist = curl_slist_append(slist, hdr);
-
-                    if (tlist) {
-                        slist = tlist;
-                    } else {
-                        res = -ENOMEM;
-                    }
+                    res = ubiq_support_http_add_header(h->hnd, hdr);
                 }
 
                 /*
@@ -599,7 +482,7 @@ ubiq_platform_rest_request(
                  */
                 string_tolower(hdr, n, ':');
                 n += snprintf(hdr + n, sizeof(hdr) - n,  "\n");
-                HMAC_Update(hctx, hdr, n);
+                ubiq_support_hmac_update(hctx, hdr, n);
             }
         }
 
@@ -620,81 +503,37 @@ ubiq_platform_rest_request(
          * header. then add the parameter to the header
          */
 
-        HMAC_Final(hctx, hdig, &hlen);
-        HMAC_CTX_free(hctx);
+        ubiq_support_hmac_finalize(hctx, &hdig, &hlen);
+
+        ubiq_support_base64_encode(&enc, hdig, hlen);
+        free(hdig);
 
         sighdrlen += snprintf(
             sighdr + sighdrlen, sizeof(sighdr) - sighdrlen,
             ", signature=\"");
-        EVP_EncodeBlock(sighdr + sighdrlen, hdig, hlen);
+        strcpy(sighdr + sighdrlen, enc);
         sighdrlen = strlen(sighdr);
         sighdrlen += snprintf(
             sighdr + sighdrlen, sizeof(sighdr) - sighdrlen,
             "\"");
 
+        free(enc);
+
         /*
          * add the Signature header to the list of headers
          * to send in the http request
          */
-
-        tlist = curl_slist_append(slist, sighdr);
-        if (tlist) {
-            slist = tlist;
-        } else {
-            res = -ENOMEM;
-        }
-
+        res = ubiq_support_http_add_header(h->hnd, sighdr);
         if (res == 0) {
-            CURLcode rc;
-
-            curl_easy_setopt(
-                h->ch, CURLOPT_USERAGENT, ubiq_platform_user_agent);
-
-            /* add headers to the request */
-            rc = curl_easy_setopt(h->ch, CURLOPT_HTTPHEADER, slist);
-            if (rc == CURLE_OK) {
-                if (length != 0) {
-                    /*
-                     * if content is supplied, then set up the
-                     * request to read the content for upload
-                     */
-                    h->req.buf = content;
-                    h->req.len = length;
-                    h->req.off = 0;
-
-                    curl_easy_setopt(
-                        h->ch, CURLOPT_UPLOAD, 1L);
-                    curl_easy_setopt(
-                        h->ch, CURLOPT_READDATA, h);
-                    curl_easy_setopt(
-                        h->ch, CURLOPT_READFUNCTION,
-                        &ubiq_platform_rest_upload);
-                    curl_easy_setopt(
-                        h->ch, CURLOPT_INFILESIZE, length);
-                }
-
-                /* set the request method: GET, POST, PUT, etc. */
-                curl_easy_setopt(
-                    h->ch, CURLOPT_CUSTOMREQUEST,
-                    http_request_method_string(method));
-
-                /* add callbacks for receiving the response payload */
-                curl_easy_setopt(
-                    h->ch, CURLOPT_WRITEDATA, h);
-                curl_easy_setopt(
-                    h->ch, CURLOPT_WRITEFUNCTION, &ubiq_platform_rest_download);
-
-                /* send it! */
-                rc = curl_easy_perform(h->ch);
-            }
-
-            res = (rc == CURLE_OK) ? 0 : INT_MIN;
+            res = ubiq_support_http_request(
+                h->hnd,
+                method, urlstr,
+                content_type, content, length,
+                &h->rsp.buf, &h->rsp.len);
         }
 
-        curl_slist_free_all(slist);
         ubiq_url_reset(&url);
     }
 
     return res;
 }
-

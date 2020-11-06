@@ -19,9 +19,18 @@ add_library(
   decrypt.c
   encrypt.c
   init.c
-  request.c
+  rest.c
   ${CMAKE_SOURCE_DIR}/src/ext/cJSON/cJSON.c
   ${CMAKE_SOURCE_DIR}/src/ext/inih/ini.c)
+
+target_sources(
+  c_objects
+
+  PRIVATE
+
+  openssl.c
+  curl.c)
+
 target_include_directories(
   c_objects
   PRIVATE
