@@ -44,7 +44,12 @@ ubiq_support_get_home_dir(
 
     token = GetCurrentProcessToken();
     len = 0;
-    GetUserProfileDirectoryA(token, NULL, &len);
+    /*
+     * windows documentation says NULL should work here, but
+     * it doesn't. the pointer doesn't really matter since
+     * the length says there are zero bytes there, anyway
+     */
+    GetUserProfileDirectoryA(token, (PUCHAR)1, &len);
     if (len > 0) {
         err = -ENOMEM;
         dir = malloc(sizeof(*dir) * len);
