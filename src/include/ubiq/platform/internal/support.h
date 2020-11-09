@@ -50,42 +50,42 @@ int ubiq_support_getrandom(void * const, const size_t);
 struct ubiq_support_cipher_context;
 
 void ubiq_support_cipher_destroy(
-    struct ubiq_support_cipher_context *);
+    struct ubiq_support_cipher_context * const);
 
 int ubiq_support_encryption_init(
-    const struct ubiq_platform_algorithm *,
-    const void *, size_t, /* key */
-    const void *, size_t, /* iv */
-    const void *, size_t, /* aad */
-    struct ubiq_support_cipher_context **);
+    const struct ubiq_platform_algorithm * const,
+    const void * const, const size_t, /* key */
+    const void * const, const size_t, /* iv */
+    const void * const, const size_t, /* aad */
+    struct ubiq_support_cipher_context ** const);
 int ubiq_support_encryption_update(
-    struct ubiq_support_cipher_context *,
-    const void *, size_t, /* pt */
-    void **, size_t * /* ct */);
+    struct ubiq_support_cipher_context * const,
+    const void * const, const size_t, /* pt */
+    void ** const, size_t * const /* ct */);
 int ubiq_support_encryption_finalize(
-    struct ubiq_support_cipher_context *,
-    void **, size_t *, /* ct */
-    void **, size_t * /* tag */);
+    struct ubiq_support_cipher_context * const,
+    void ** const, size_t * const, /* ct */
+    void ** const, size_t * const /* tag */);
 
 int ubiq_support_decryption_init(
-    const struct ubiq_platform_algorithm *,
-    const void *, size_t, /* key */
-    const void *, size_t, /* iv */
-    const void *, size_t, /* aad */
-    struct ubiq_support_cipher_context **);
+    const struct ubiq_platform_algorithm * const,
+    const void * const, const size_t, /* key */
+    const void * const, const size_t, /* iv */
+    const void * const, const size_t, /* aad */
+    struct ubiq_support_cipher_context ** const);
 int ubiq_support_decryption_update(
-    struct ubiq_support_cipher_context *,
-    const void *, size_t, /* ct */
-    void **, size_t * /* pt */);
+    struct ubiq_support_cipher_context * const,
+    const void * const, const size_t, /* ct */
+    void ** const, size_t * const /* pt */);
 int ubiq_support_decryption_finalize(
-    struct ubiq_support_cipher_context *,
-    const void *, size_t, /* tag */
-    void **, size_t * /* pt */);
+    struct ubiq_support_cipher_context * const,
+    const void * const, const size_t, /* tag */
+    void ** const, size_t * const /* pt */);
 
 int ubiq_support_asymmetric_decrypt(
-    const char *, const char *, /* private key pem, password */
-    const void *, size_t, /* input */
-    void **, size_t * /* output */);
+    const char * const, const char * const, /* private key pem, password */
+    const void * const, const size_t, /* input */
+    void ** const, size_t * const /* output */);
 
 extern const char * ubiq_support_user_agent;
 int ubiq_support_http_init(void);
