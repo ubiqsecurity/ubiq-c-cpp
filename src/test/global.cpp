@@ -1,12 +1,5 @@
 #include "ubiq/platform.h"
 
-#include <thread>
-#include <chrono>
-
-#include <arpa/inet.h>
-#include <sys/socket.h>
-#include <sys/time.h>
-
 #include <gtest/gtest.h>
 
 class UbiqPlatformLibraryEnvironment :
