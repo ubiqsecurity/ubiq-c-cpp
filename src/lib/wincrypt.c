@@ -153,7 +153,9 @@ ubiq_support_hash_init(
         }
     }
 
-    if (err) {
+    if (!err) {
+        *_ctx = ctx;
+    } else {
         if (ctx) {
             if (ctx->dig) {
                 BCryptDestroyHash(ctx->dig);
