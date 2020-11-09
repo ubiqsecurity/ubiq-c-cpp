@@ -19,6 +19,7 @@ struct ubiq_platform_credentials;
  * On success, `*creds` will be populated with a pointer to the created
  * object. This object must be destroyed to avoid resource leakage.
  */
+UBIQ_PLATFORM_API
 int
 ubiq_platform_credentials_create(
     struct ubiq_platform_credentials ** const creds);
@@ -39,6 +40,7 @@ ubiq_platform_credentials_create(
  * On success, `*creds` will be populated with a pointer to the created
  * object. This object must be destroyed to avoid resource leakage.
  */
+UBIQ_PLATFORM_API
 int
 ubiq_platform_credentials_create_specific(
     const char * const path, const char * const profile,
@@ -56,6 +58,7 @@ ubiq_platform_credentials_create_specific(
  * On success, `*creds` will be populated with a pointer to the created
  * object. This object must be destroyed to avoid resource leakage.
  */
+UBIQ_PLATFORM_API
 int
 ubiq_platform_credentials_create_explicit(
     const char * const papi, const char * const sapi,
@@ -66,6 +69,7 @@ ubiq_platform_credentials_create_explicit(
 /*
  * Destroy a previously created credentials object.
  */
+UBIQ_PLATFORM_API
 void
 ubiq_platform_credentials_destroy(
     struct ubiq_platform_credentials * const creds);
@@ -82,6 +86,7 @@ namespace ubiq {
         class credentials
         {
         public:
+            UBIQ_PLATFORM_API
             virtual ~credentials(void) = default;
 
             /*
@@ -90,6 +95,7 @@ namespace ubiq {
              * exception on failure and will leave the object in an
              * "invalid" state.
              */
+            UBIQ_PLATFORM_API
             credentials(void);
             /*
              * This constructor is equivalent to
@@ -100,6 +106,7 @@ namespace ubiq {
              * NULL for both parameters to
              * ubiq_platform_credentials_create_specific().
              */
+            UBIQ_PLATFORM_API
             credentials(
                 const std::string & path, const std::string & profile);
             /*
@@ -107,25 +114,32 @@ namespace ubiq {
              * ubiq_platform_credentials_create_explicit(). It will throw
              * an exception if the object cannot be properly constructed.
              */
+            UBIQ_PLATFORM_API
             credentials(
                 const std::string & papi, const std::string & sapi,
                 const std::string & srsa,
                 const std::string & host = std::string());
 
+            UBIQ_PLATFORM_API
             credentials(const credentials &) = default;
+            UBIQ_PLATFORM_API
             credentials(credentials &&) =  default;
 
+            UBIQ_PLATFORM_API
             credentials & operator =(const credentials &) = default;
+            UBIQ_PLATFORM_API
             credentials & operator =(credentials &&) = default;
 
             /*
              * Gives access to the underlying C object
              */
+            UBIQ_PLATFORM_API
             const ::ubiq_platform_credentials & operator *(void) const;
 
             /*
              * Determines if the object contains a set of credentials.
              */
+            UBIQ_PLATFORM_API
             operator bool(void) const;
 
         private:

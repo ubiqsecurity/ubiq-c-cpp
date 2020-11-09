@@ -23,6 +23,7 @@ __BEGIN_DECLS
  * malloc(3), and the caller is responsible for releasing the memory with
  * free(3).
  */
+UBIQ_PLATFORM_API
 int
 ubiq_platform_decrypt(
     const struct ubiq_platform_credentials * const creds,
@@ -41,6 +42,7 @@ struct ubiq_platform_decryption;
  * must be destroyed by ubiq_platform_decryption_destroy() to avoid leaking
  * resources.
  */
+UBIQ_PLATFORM_API
 int
 ubiq_platform_decryption_create(
     const struct ubiq_platform_credentials * const creds,
@@ -53,6 +55,7 @@ ubiq_platform_decryption_create(
  * decryption object. The most recent call on the object must either be
  * ubiq_platform_decryption_create() or ubiq_platform_decryption_end().
  */
+UBIQ_PLATFORM_API
 void
 ubiq_platform_decryption_destroy(
     struct ubiq_platform_decryption * const dec);
@@ -65,6 +68,7 @@ ubiq_platform_decryption_destroy(
  * returned in them and *ptbuf needed to be released with free(3); however,
  * in practice, the function returns NULL and 0 in these parameters.
  */
+UBIQ_PLATFORM_API
 int
 ubiq_platform_decryption_begin(
     struct ubiq_platform_decryption * const dec,
@@ -81,6 +85,7 @@ ubiq_platform_decryption_begin(
  * in *ptbuf and the number of bytes pointed to by that pointer in *ptlen.
  * The caller is responsible for freeing that pointer using free(3).
  */
+UBIQ_PLATFORM_API
 int
 ubiq_platform_decryption_update(
     struct ubiq_platform_decryption * const dec,
@@ -105,6 +110,7 @@ ubiq_platform_decryption_update(
  * an decryption a different cihper text or destroy() to release the decryption
  * object.
  */
+UBIQ_PLATFORM_API
 int
 ubiq_platform_decryption_end(
     struct ubiq_platform_decryption * const dec,
@@ -122,6 +128,7 @@ __END_DECLS
 
 namespace ubiq {
     namespace platform {
+        UBIQ_PLATFORM_API
         std::vector<std::uint8_t>
         decrypt(const credentials & creds,
                 const void * ctbuf, std::size_t ctlen);
@@ -129,6 +136,7 @@ namespace ubiq {
         class decryption : public transform
         {
         public:
+            UBIQ_PLATFORM_API
             virtual ~decryption(void) = default;
 
             /*
@@ -136,6 +144,7 @@ namespace ubiq {
              * This object cannot be used to perform a decryption, and
              * the constructor is provided for convenience.
              */
+            UBIQ_PLATFORM_API
             decryption(void) = default;
 
             /*
@@ -143,12 +152,15 @@ namespace ubiq {
              * ubiq_platform_decryption_create(), and the constructor throws
              * an exception if it fails to properly construct the object.
              */
+            UBIQ_PLATFORM_API
             decryption(const credentials & creds);
 
             decryption(const decryption &) = delete;
+            UBIQ_PLATFORM_API
             decryption(decryption &&) = default;
 
             decryption & operator =(const decryption &) = delete;
+            UBIQ_PLATFORM_API
             decryption & operator =(decryption &&) = default;
 
             /*
@@ -156,6 +168,7 @@ namespace ubiq {
              * however, it returns the generated cipher text in a vector and
              * throws an exception on failure.
              */
+            UBIQ_PLATFORM_API
             virtual
             std::vector<std::uint8_t>
             begin(void)
@@ -165,6 +178,7 @@ namespace ubiq {
              * however, it returns the generated cipher text in a vector and
              * throws an exception on failure.
              */
+            UBIQ_PLATFORM_API
             virtual
             std::vector<std::uint8_t>
             update(const void * ctbuf, std::size_t ctlen)
@@ -174,6 +188,7 @@ namespace ubiq {
              * however, it returns the generated cipher text in a vector and
              * throws an exception on failure.
              */
+            UBIQ_PLATFORM_API
             virtual
             std::vector<std::uint8_t>
             end(void)

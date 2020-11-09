@@ -33,6 +33,7 @@ if(WIN32)
   target_compile_definitions(
     c_objects
     PRIVATE
+    DLL_EXPORT
     _CRT_SECURE_NO_WARNINGS
     strdup=_strdup
     strcasecmp=_stricmp)
@@ -78,6 +79,12 @@ add_library(
   decrypt.cpp
   encrypt.cpp
   init.cpp)
+if(WIN32)
+  target_compile_definitions(
+    cxx_objects
+    PRIVATE
+    DLL_EXPORT)
+endif()
 target_include_directories(
   cxx_objects
   PRIVATE
