@@ -203,7 +203,7 @@ ubiq_support_http_exchange(
     res = INT_MIN;
     if (ret) {
         wchar_t ctype[128];
-        DWORD val, vlen;
+        DWORD val, vlen, off, got;
         void * buf;
 
         vlen = sizeof(val);
@@ -215,6 +215,7 @@ ubiq_support_http_exchange(
             WINHTTP_NO_HEADER_INDEX);
         hnd->status = val;
 
+        vlen = sizeof(ctype);
         WinHttpQueryHeaders(
             req,
             WINHTTP_QUERY_CONTENT_TYPE,
@@ -225,39 +226,41 @@ ubiq_support_http_exchange(
             wstring_narrow(ctype, &hnd->ctype);
         }
 
-        vlen = sizeof(val);
-        WinHttpQueryHeaders(
-            req,
-            WINHTTP_QUERY_CONTENT_LENGTH | WINHTTP_QUERY_FLAG_NUMBER,
-            WINHTTP_HEADER_NAME_BY_INDEX,
-            &val, &vlen,
-            WINHTTP_NO_HEADER_INDEX);
-
         res = 0;
-        if (val > 0) {
-            res = -ENOMEM;
-            buf = malloc(val);
-            if (buf) {
-                DWORD off, got;
+        buf = NULL;
+        off = 0;
+        do {
+            got = 0;
 
-                off = 0;
-                do {
+            ret = WinHttpQueryDataAvailable(req, &val);
+            if (!ret) {
+                res = INT_MIN;
+            } else if (val > 0) {
+                void * b;
+
+                b = realloc(buf, off + val);
+                if (b) {
+                    buf = b;
+
                     ret = WinHttpReadData(
                         req,
-                        (char *)buf + off, val - off,
+                        (char *)buf + off, val,
                         &got);
-                    off += got;
-                } while (ret && got > 0);
-
-                if (ret && got == 0) {
-                    *rspbuf = buf;
-                    *rsplen = val;
-                    res = 0;
+                    if (ret) {
+                        off += got;
+                    } else {
+                        res = INT_MIN;
+                    }
                 } else {
                     free(buf);
-                    res = INT_MIN;
+                    res = -ENOMEM;
                 }
             }
+        } while (res == 0 && val > 0);
+
+        if (res == 0) {
+            *rspbuf = buf;
+            *rsplen = off;
         }
     }
 
