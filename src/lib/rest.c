@@ -358,8 +358,7 @@ ubiq_platform_rest_request(
                         sighdr + sighdrlen, sizeof(sighdr) - sighdrlen,
                         ", created=%.*s", (int)len, val);
                 } else if (!(key[i][0] == '(' &&
-                             key[i][strlen(key[i]) - 1] == ')') &&
-                           strcmp(key[i], "Content-Type") != 0) {
+                             key[i][strlen(key[i]) - 1] == ')')) {
                     /*
                      * all other headers not enclosed in parentheses
                      * are added to the list of headers to include
@@ -429,7 +428,7 @@ ubiq_platform_rest_request(
             res = ubiq_support_http_request(
                 h->hnd,
                 method, urlstr,
-                content_type, content, length,
+                content, length,
                 &h->rsp.buf, &h->rsp.len);
         }
 

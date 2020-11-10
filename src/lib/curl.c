@@ -169,7 +169,6 @@ int
 ubiq_support_http_request(
     struct ubiq_support_http_handle * const hnd,
     const http_request_method_t method, const char * const urlstr,
-    const char * const content_type,
     const void * const content, const size_t length,
     void ** const rspbuf, size_t * const rsplen)
 {
@@ -190,8 +189,6 @@ ubiq_support_http_request(
                 hnd->ch, CURLOPT_USERAGENT, ubiq_support_user_agent);
 
             if (length != 0) {
-                char cthdr[128];
-
                 /*
                  * if content is supplied, then set up the
                  * request to read the content for upload
@@ -210,10 +207,6 @@ ubiq_support_http_request(
                     &ubiq_support_http_upload);
                 curl_easy_setopt(
                     hnd->ch, CURLOPT_INFILESIZE, length);
-
-                snprintf(cthdr, sizeof(cthdr),
-                         "Content-Type: %s", content_type);
-                ubiq_support_http_add_header(hnd, cthdr);
             }
 
             /* add headers to the request */

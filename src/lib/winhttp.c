@@ -49,15 +49,14 @@ struct ubiq_support_http_handle *
 ubiq_support_http_handle_create(void)
 {
     struct ubiq_support_http_handle * hnd;
-    int err;
 
-    err = -ENOMEM;
     hnd = malloc(sizeof(*hnd));
     if (hnd) {
         hnd->headers.vec = NULL;
         hnd->headers.num = 0;
+
+        hnd->ctype = NULL;
     }
-    hnd->ctype = NULL;
 
     return hnd;
 }
@@ -162,13 +161,15 @@ int
 ubiq_support_http_add_header(
     struct ubiq_support_http_handle *  const hnd, const char * const s)
 {
-    char ** vec;
+    wchar_t ** vec;
     int err;
 
     err = -ENOMEM;
     vec = realloc(hnd->headers.vec,
                   sizeof(*hnd->headers.vec) * (hnd->headers.num + 1));
     if (vec) {
+        hnd->headers.vec = vec;
+
         hnd->headers.vec[hnd->headers.num] = NULL;
         string_widen(s, &hnd->headers.vec[hnd->headers.num]);
         if (hnd->headers.vec[hnd->headers.num]) {
@@ -267,7 +268,6 @@ int
 ubiq_support_http_request(
     struct ubiq_support_http_handle * const hnd,
     const http_request_method_t method, const char * const urlstr,
-    const char * const content_type,
     const void * const content, const size_t length,
     void ** const rspbuf, size_t * const rsplen)
 {
@@ -331,14 +331,6 @@ ubiq_support_http_request(
                 free(wstr);
                 free(verb);
                 if (req) {
-                    if (content_type && length) {
-                        char cthdr[128];
-
-                        snprintf(cthdr, sizeof(cthdr),
-                                 "Content-Type: %s", content_type);
-                        ubiq_support_http_add_header(hnd, cthdr);
-                    }
-
                     for (unsigned int i = 0; i < hnd->headers.num; i++) {
                         WinHttpAddRequestHeaders(
                             req,

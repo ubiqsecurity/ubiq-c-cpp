@@ -110,7 +110,7 @@ int
 ubiq_support_http_request(
     struct ubiq_support_http_handle * const,
     const http_request_method_t, const char * const,
-    const char * const, const void * const, const size_t,
+    const void * const, const size_t,
     void ** const, size_t * const);
 
 __END_DECLS
