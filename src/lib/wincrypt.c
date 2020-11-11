@@ -410,7 +410,7 @@ ubiq_support_cipher_init(
         BCRYPT_AUTH_TAG_LENGTHS_STRUCT atl;
         err = INT_MIN;
         if (BCryptGetProperty(
-                ctx->hnd.alg, BCRYPT_BLOCK_LENGTH,
+                ctx->hnd.alg, BCRYPT_AUTH_TAG_LENGTH,
                 (PUCHAR)&atl, sizeof(atl), &len,
                 0) == STATUS_SUCCESS) {
             ctx->mac.len = atl.dwMaxLength;
@@ -441,12 +441,12 @@ ubiq_support_cipher_init(
                 memset(inf, 0, sizeof(*inf));
                 BCRYPT_INIT_AUTH_MODE_INFO(*inf);
 
-                inf->pbNonce        = NULL;
-                inf->cbNonce        = 0;
+                inf->pbNonce        = ctx->vec.buf;
+                inf->cbNonce        = veclen;
                 inf->pbAuthData     = NULL;
                 inf->cbAuthData     = 0;
                 inf->pbTag          = NULL;
-                inf->cbTag          = 0;
+                inf->cbTag          = alg->len.tag;
                 inf->pbMacContext   = ctx->mac.buf;
                 inf->cbMacContext   = ctx->mac.len;
                 inf->cbAAD          = 0;
@@ -510,33 +510,29 @@ ubiq_support_encryption_init(
     err = ubiq_support_cipher_init(
         alg, keybuf, keylen, vecbuf, veclen, &ctx);
     if (!err) {
-        BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO * const inf = ctx->aci.buf;
-        ULONG out;
+        if (ctx->aci.buf && aadlen) {
+            BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO * const inf = ctx->aci.buf;
+            ULONG out;
 
-        if (inf) {
-            inf->pbNonce    = (void *)vecbuf;
-            inf->cbNonce    = veclen;
             inf->pbAuthData = (void *)aadbuf;
             inf->cbAuthData = aadlen;
+
+            err = (BCryptEncrypt(
+                       ctx->hnd.key,
+                       NULL, 0,
+                       inf,
+                       ctx->vec.buf, ctx->vec.len,
+                       NULL, 0, &out,
+                       0) == STATUS_SUCCESS) ? 0 : INT_MIN;
+
+            inf->pbNonce    = NULL;
+            inf->cbNonce    = 0;
+            inf->pbAuthData = NULL;
+            inf->cbAuthData = 0;
         }
 
-        err = INT_MIN;
-        if (BCryptEncrypt(
-                ctx->hnd.key,
-                NULL, 0,
-                ctx->aci.buf,
-                ctx->vec.buf, ctx->vec.len,
-                NULL, 0, &out,
-                0) == STATUS_SUCCESS) {
-            if (inf) {
-                inf->pbNonce    = NULL;
-                inf->cbNonce    = 0;
-                inf->pbAuthData = NULL;
-                inf->cbAuthData = 0;
-            }
-
+        if (!err) {
             *_ctx = ctx;
-            err = 0;
         } else {
             ubiq_support_cipher_destroy(ctx);
         }
@@ -568,6 +564,14 @@ ubiq_support_encryption_update(
                 0) == STATUS_SUCCESS) {
             *ctbuf = buf;
             *ctlen = len;
+
+            if (ctx->aci.buf) {
+                BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO * const inf =
+                    ctx->aci.buf;
+
+                inf->pbNonce = NULL;
+                inf->cbNonce = 0;
+            }
 
             err = 0;
         } else {
