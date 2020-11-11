@@ -115,17 +115,16 @@ ubiq_support_hash_init(
 
         err = INT_MIN;
         if (BCryptOpenAlgorithmProvider(
-                &halg,
-                ident, NULL,
+                &halg, ident,
+                NULL,
                 flag) == STATUS_SUCCESS) {
             DWORD objlen;
             ULONG out;
 
-            if (BCryptGetProperty(halg,
-                                  BCRYPT_OBJECT_LENGTH,
-                                  (PUCHAR)&objlen, sizeof(objlen),
-                                  &out,
-                                  0) == STATUS_SUCCESS) {
+            if (BCryptGetProperty(
+                    halg, BCRYPT_OBJECT_LENGTH,
+                    (PUCHAR)&objlen, sizeof(objlen), &out,
+                    0) == STATUS_SUCCESS) {
                 err = -ENOMEM;
                 ctx = malloc(sizeof(*ctx) + objlen);
                 if (ctx) {
@@ -143,18 +142,26 @@ ubiq_support_hash_init(
         }
     }
 
-    if (ctx) {
-        if (BCryptCreateHash(ctx->hnd.alg,
-                             &ctx->hnd.dig,
-                             ctx->obj.buf, ctx->obj.len,
-                             (PUCHAR)keybuf, keylen,
-                             0) == STATUS_SUCCESS) {
-            *_ctx = ctx;
-        } else {
+    if (!err &&
+        BCryptCreateHash(
+            ctx->hnd.alg,
+            &ctx->hnd.dig,
+            ctx->obj.buf, ctx->obj.len,
+            (PUCHAR)keybuf, keylen,
+            0) != STATUS_SUCCESS) {
+        err = INT_MIN;
+    }
+
+    if (!err) {
+        *_ctx = ctx;
+    } else {
+        if (ctx) {
+            if (ctx->hnd.dig) {
+                BCryptDestroyHash(ctx->hnd.dig);
+            }
+
             BCryptCloseAlgorithmProvider(ctx->hnd.alg, 0);
             free(ctx);
-
-            err = INT_MIN;
         }
     }
 
@@ -319,145 +326,157 @@ ubiq_support_cipher_init(
     const struct wincipher * cipher;
 
     struct ubiq_support_cipher_context * ctx;
-    DWORD val, len;
+    DWORD out;
     int err;
 
-    cipher = NULL;
-    for (unsigned int i = 0;
-         i < sizeof(ciphers) / sizeof(*cipher);
-         i++) {
-        if (strcasecmp(alg->name, ciphers[i].name) == 0) {
-            cipher = &ciphers[i];
-            break;
-        }
-    }
-    err = (cipher && keylen == alg->len.key) ? 0 : -EINVAL;
-
     ctx = NULL;
+
+    err = -EINVAL;
+    if (keylen == alg->len.key) {
+        err = 0;
+    }
+
     if (!err) {
-        err = -ENOMEM;
-        ctx = malloc(sizeof(*ctx));
-        if (ctx) {
-            ctx->alg = alg;
-
-            ctx->hnd.alg = NULL;
-            ctx->hnd.key = NULL;
-
-            ctx->obj.buf =
-                ctx->blk.buf =
-                ctx->vec.buf =
-                ctx->aci.buf = NULL;
-            ctx->obj.len =
-                ctx->blk.len =
-                ctx->vec.len =
-                ctx->aci.len = 0;
-
-            err = 0;
+        err = -EINVAL;
+        cipher = NULL;
+        for (unsigned int i = 0;
+             i < sizeof(ciphers) / sizeof(*cipher);
+             i++) {
+            if (strcasecmp(alg->name, ciphers[i].name) == 0) {
+                cipher = &ciphers[i];
+                err = 0;
+                break;
+            }
         }
     }
 
     if (!err) {
+        BCRYPT_ALG_HANDLE halg;
+        DWORD objsz, blksz, acisz;
+
+        halg = NULL;
         if (BCryptOpenAlgorithmProvider(
-                &ctx->hnd.alg, cipher->algo, NULL, 0) != STATUS_SUCCESS) {
+                &halg, cipher->algo, NULL, 0) != STATUS_SUCCESS) {
             err = INT_MIN;
         }
-    }
 
-    if (!err) {
-        if (BCryptSetProperty(
-                ctx->hnd.alg, BCRYPT_CHAINING_MODE,
+        if (!err &&
+            BCryptSetProperty(
+                halg, BCRYPT_CHAINING_MODE,
                 (PUCHAR)cipher->mode, wcslen(cipher->mode) * *cipher->mode,
                 0) != STATUS_SUCCESS) {
             err = INT_MIN;
         }
-    }
 
-    if (!err) {
-        err = INT_MIN;
-        if (BCryptGetProperty(
-                ctx->hnd.alg, BCRYPT_OBJECT_LENGTH,
-                (PUCHAR)&val, sizeof(val), &len,
-                0) == STATUS_SUCCESS) {
-            ctx->obj.len = val;
-            err = 0;
+        if (!err &&
+            BCryptGetProperty(
+                halg, BCRYPT_OBJECT_LENGTH,
+                (PUCHAR)&objsz, sizeof(objsz), &out,
+                0) != STATUS_SUCCESS) {
+            err = INT_MIN;
         }
-    }
 
-    if (!err) {
-        err = INT_MIN;
-        if (BCryptGetProperty(
-                ctx->hnd.alg, BCRYPT_BLOCK_LENGTH,
-                (PUCHAR)&val, sizeof(val), &len,
-                0) == STATUS_SUCCESS) {
-            ctx->blksz = val;
-            err = (veclen <= ctx->blksz) ? 0 : -EINVAL;
-        }
-    }
-
-    if (!err && alg->len.tag) {
-        BCRYPT_AUTH_TAG_LENGTHS_STRUCT atl;
-        err = INT_MIN;
-        if (BCryptGetProperty(
-                ctx->hnd.alg, BCRYPT_AUTH_TAG_LENGTH,
-                (PUCHAR)&atl, sizeof(atl), &len,
-                0) == STATUS_SUCCESS) {
-            ctx->aci.len = atl.dwMaxLength +
-                sizeof(BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO);
-
-            err = 0;
-        }
-    }
-
-    if (!err) {
-        err = -ENOMEM;
-        ctx->obj.buf = malloc(
-            ctx->obj.len + 2 * ctx->blksz + ctx->aci.len);
-        if (ctx->obj.buf) {
-            size_t off = ctx->obj.len;
-
-            if (ctx->blksz) {
-                ctx->blk.buf = (char *)ctx->obj.buf + off;
-                off += ctx->blksz;
-
-                ctx->vec.buf = (char *)ctx->obj.buf + off;
-                off += ctx->blksz;
-
-                memcpy(ctx->vec.buf, vecbuf, veclen);
-                ctx->vec.len = veclen;
+        if (!err) {
+            if (BCryptGetProperty(
+                    halg, BCRYPT_BLOCK_LENGTH,
+                    (PUCHAR)&blksz, sizeof(blksz), &out,
+                    0) == STATUS_SUCCESS) {
+                if (veclen > blksz) {
+                    err = -EINVAL;
+                }
+            } else {
+                err = INT_MIN;
             }
-            if (ctx->aci.len) {
-                BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO * inf;
+        }
 
-                ctx->aci.buf = (char *)ctx->obj.buf + off;
-                off += ctx->aci.len;
+        if (!err) {
+            acisz = 0;
 
-                inf = ctx->aci.buf;
-                memset(inf, 0, sizeof(*inf));
-                BCRYPT_INIT_AUTH_MODE_INFO(*inf);
+            if (alg->len.tag) {
+                BCRYPT_AUTH_TAG_LENGTHS_STRUCT atl;
 
-                inf->pbNonce        = ctx->vec.buf;
-                inf->cbNonce        = ctx->vec.len;
-
-                ctx->vec.len        = ctx->blksz;
-
-                inf->pbAuthData     = NULL;
-                inf->cbAuthData     = 0;
-                inf->pbTag          = NULL;
-                inf->cbTag          = alg->len.tag;
-                inf->pbMacContext   = (void *)(inf + 1);
-                inf->cbMacContext   = ctx->aci.len - sizeof(*inf);
-                inf->cbAAD          = 0;
-                inf->cbData         = 0;
-                inf->dwFlags        = BCRYPT_AUTH_MODE_CHAIN_CALLS_FLAG;
+                if (BCryptGetProperty(
+                        halg, BCRYPT_AUTH_TAG_LENGTH,
+                        (PUCHAR)&atl, sizeof(atl), &out,
+                        0) == STATUS_SUCCESS) {
+                    acisz = atl.dwMaxLength +
+                        sizeof(BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO);
+                } else {
+                    err = INT_MIN;
+                }
             }
+        }
 
-            err = 0;
+        if (!err) {
+            err = -ENOMEM;
+            ctx = malloc(sizeof(*ctx) + objsz + 2 * blksz + acisz);
+            if (ctx) {
+                size_t off;
+
+                ctx->alg     = alg;
+
+                ctx->hnd.alg = halg;
+                ctx->hnd.key = NULL;
+
+                ctx->obj.buf = ctx + 1;
+                ctx->obj.len = objsz;
+
+                off = ctx->obj.len;
+
+                if (blksz) {
+                    ctx->blksz = blksz;
+
+                    ctx->blk.buf = (char *)ctx->obj.buf + off;
+                    ctx->blk.len = 0;
+                    off += ctx->blksz;
+
+                    ctx->vec.buf = (char *)ctx->obj.buf + off;
+                    ctx->vec.len = 0;
+                    off += ctx->blksz;
+
+                    memcpy(ctx->vec.buf, vecbuf, veclen);
+                    ctx->vec.len = veclen;
+                }
+                if (acisz) {
+                    BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO * inf;
+
+                    ctx->aci.buf = (char *)ctx->obj.buf + off;
+                    ctx->aci.len = acisz;
+                    off += ctx->aci.len;
+
+                    inf = ctx->aci.buf;
+                    memset(inf, 0, sizeof(*inf));
+                    BCRYPT_INIT_AUTH_MODE_INFO(*inf);
+
+                    inf->pbNonce        = ctx->vec.buf;
+                    inf->cbNonce        = ctx->vec.len;
+
+                    ctx->vec.len        = ctx->blksz;
+
+                    inf->pbAuthData     = NULL;
+                    inf->cbAuthData     = 0;
+                    inf->pbTag          = NULL;
+                    inf->cbTag          = alg->len.tag;
+                    inf->pbMacContext   = (void *)(inf + 1);
+                    inf->cbMacContext   = ctx->aci.len - sizeof(*inf);
+                    inf->cbAAD          = 0;
+                    inf->cbData         = 0;
+                    inf->dwFlags        = BCRYPT_AUTH_MODE_CHAIN_CALLS_FLAG;
+                }
+
+                err = 0;
+            }
+        }
+
+        if (err && halg) {
+            BCryptCloseAlgorithmProvider(halg, 0);
         }
     }
 
     if (!err) {
         if (BCryptGenerateSymmetricKey(
-                ctx->hnd.alg, &ctx->hnd.key,
+                ctx->hnd.alg,
+                &ctx->hnd.key,
                 ctx->obj.buf, ctx->obj.len,
                 (PUCHAR)keybuf, keylen,
                 0) != STATUS_SUCCESS) {
@@ -467,17 +486,15 @@ ubiq_support_cipher_init(
 
     if (!err) {
         *_ctx = ctx;
-    } else if (ctx) {
-        if (ctx->hnd.key) {
-            BCryptDestroyKey(ctx->hnd.key);
-        }
-        if (ctx->obj.buf) {
-            free(ctx->obj.buf);
-        }
-        if (ctx->hnd.alg) {
+    } else {
+        if (ctx) {
+            if (ctx->hnd.key) {
+                BCryptDestroyKey(ctx->hnd.key);
+            }
+
             BCryptCloseAlgorithmProvider(ctx->hnd.alg, 0);
+            free(ctx);
         }
-        free(ctx);
     }
 
     return err;
@@ -488,12 +505,11 @@ ubiq_support_cipher_destroy(
     struct ubiq_support_cipher_context * const ctx)
 {
     BCryptDestroyKey(ctx->hnd.key);
-    if (ctx->blksz) {
-        memset(ctx->blk.buf, 0, ctx->blksz);
-        memset(ctx->vec.buf, 0, ctx->blksz);
-    }
-    free(ctx->obj.buf);
     BCryptCloseAlgorithmProvider(ctx->hnd.alg, 0);
+    memset(ctx, 0, (sizeof(*ctx) +
+                    ctx->obj.len +
+                    2 * ctx->blksz +
+                    ctx->aci.len));
     free(ctx);
 }
 
@@ -637,7 +653,6 @@ ubiq_support_encryption_finalize(
         BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO * const inf = ctx->aci.buf;
 
         if (inf) {
-            inf->cbTag          = ctx->alg->len.tag;
             inf->pbTag          = malloc(inf->cbTag);
 
             if (inf->pbTag) {
