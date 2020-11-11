@@ -527,8 +527,8 @@ get_password_callback(char * const buf, const int size,
 int
 ubiq_support_asymmetric_decrypt(
     const char * const prvpem, const char * const passwd,
-    const void * const ptbuf, const size_t ptlen,
-    void ** const ctbuf, size_t * const ctlen)
+    const void * const ctbuf, const size_t ctlen,
+    void ** const ptbuf, size_t * const ptlen)
 {
     EVP_PKEY * prvkey;
     BIO * bp;
@@ -558,12 +558,12 @@ ubiq_support_asymmetric_decrypt(
                 buf = malloc(len);
                 if (buf) {
                     if (EVP_PKEY_decrypt(
-                            pctx, buf, &len, ptbuf, ptlen) <= 0) {
+                            pctx, buf, &len, ctbuf, ctlen) <= 0) {
                         free(buf);
                         err = -EACCES;
                     } else {
-                        *ctbuf = buf;
-                        *ctlen = len;
+                        *ptbuf = buf;
+                        *ptlen = len;
                         err = 0;
                     }
                 }
