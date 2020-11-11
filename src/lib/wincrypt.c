@@ -3,6 +3,8 @@
 #include <bcrypt.h>
 #define STATUS_SUCCESS                  ((NTSTATUS)0L)
 
+#include <stdint.h>
+
 int
 ubiq_support_base64_encode(
     char ** const _str,
@@ -25,7 +27,7 @@ ubiq_support_base64_encode(
                              CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF,
                              str, &out);
         *_str = str;
-        res = 0;
+        res = out;
     }
 
     return res;
@@ -54,7 +56,7 @@ ubiq_support_base64_decode(
                              buf, &out,
                              NULL, NULL);
         *_buf = buf;
-        res = 0;
+        res = out;
     }
 
     return res;
@@ -765,11 +767,566 @@ ubiq_support_decryption_finalize(
     return err;
 }
 
+struct asn1vector
+{
+    const void * buf;
+    unsigned int len;
+};
+
+static
+int
+asn1scanf_preamble(
+    const uint8_t ** const buf, size_t * const len,
+    const char ** const fmt,
+    const char exfmt, const uint8_t exbuf,
+    size_t * const vlen)
+{
+    if (**fmt != exfmt) {
+        return -EINVAL;
+    }
+    (*fmt)++;
+    if (*len < 2) {
+        return -EINVAL;
+    }
+    if (**buf != exbuf) {
+        return -EINVAL;
+    }
+    (*buf)++; (*len)--;
+    if ((**buf & 0x80)) {
+        return -ENOTSUP;
+    }
+    if (**buf > *len - 1) {
+        return -EINVAL;
+    }
+    *vlen = **buf;
+    (*buf)++; (*len)--;
+
+    return 0;
+}
+
+static
+int
+asn1scanf_octetstring(
+    const uint8_t ** const buf, size_t * const len,
+    const char ** const fmt, va_list * const ap)
+{
+    size_t vlen;
+    int res;
+
+    res = asn1scanf_preamble(buf, len, fmt, 'x', 0x04, &vlen);
+    if (res == 0) {
+        struct asn1vector * const s = va_arg(*ap, struct asn1vector *);
+
+        s->len = vlen;
+        s->buf = *buf;
+
+        *buf += vlen;
+        *len -= vlen;
+    }
+
+    return res;
+}
+
+static
+int
+asn1scanf_objectid(
+    const uint8_t ** const buf, size_t * const len,
+    const char ** const fmt, va_list * const ap)
+{
+    size_t vlen;
+    int res;
+
+    res = asn1scanf_preamble(buf, len, fmt, 'o', 0x06, &vlen);
+    if (res == 0) {
+        struct asn1vector * const s = va_arg(*ap, struct asn1vector *);
+
+        s->len = vlen;
+        s->buf = *buf;
+
+        *buf += vlen;
+        *len -= vlen;
+    }
+
+    return res;
+}
+
+static
+int
+asn1scanf_integer(
+    const uint8_t ** const buf, size_t * const len,
+    const char ** const fmt, va_list * const ap)
+{
+    size_t vlen;
+    int res;
+
+    res = asn1scanf_preamble(buf, len, fmt, 'i', 0x02, &vlen);
+    if (res == 0) {
+        int * const i = va_arg(*ap, int *);
+        int j, l;
+
+        for (j = 0, l = vlen - 1, *i = 0; l >= 0; l--, j++) {
+            *i |= (*buf)[l] << (j * 8);
+        }
+
+        *buf += j;
+        *len -= j;
+    }
+
+    return 0;
+}
+
+static
+int
+asn1scanf_sequence(
+    const uint8_t ** const buf, size_t * const len,
+    const char ** const fmt, va_list * const ap)
+{
+    size_t vlen;
+    int res;
+
+    res = asn1scanf_preamble(buf, len, fmt, '(', 0x30, &vlen);
+    if (res == 0) {
+        while (res == 0 && **fmt != ')' && **fmt != '\0') {
+            switch (**fmt) {
+            case '(':
+                res = asn1scanf_sequence(buf, len, fmt, ap);
+                break;
+            case 'x':
+                res = asn1scanf_octetstring(buf, len, fmt, ap);
+                break;
+            case 'o':
+                res = asn1scanf_objectid(buf, len, fmt, ap);
+                break;
+            case 'i':
+                res = asn1scanf_integer(buf, len, fmt, ap);
+                break;
+            default:
+                res = -EINVAL;
+                break;
+            }
+        }
+
+        if (res == 0) {
+            if (**fmt == ')') {
+                (*fmt)++;
+            } else {
+                res = -EINVAL;
+            }
+        }
+    }
+
+    return res;
+}
+
+static
+int
+asn1scanf(
+    const void * buf, size_t len,
+    const char * fmt, ...)
+{
+    va_list ap;
+    int res;
+
+    va_start(ap, fmt);
+
+    res = 0;
+    while (res == 0 && *fmt != '\0') {
+        switch (*fmt) {
+        case '(':
+            res = asn1scanf_sequence((const uint8_t **)&buf, &len, &fmt, &ap);
+            break;
+        default:
+            res = -EINVAL;
+            break;
+        }
+    }
+
+    va_end(ap);
+
+    return res;
+}
+
+#define pbOID_PKCS_5_PBKDF2                     \
+    (uint8_t[]){0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x05, 0x0c}
+#define pbOID_NIST_AES256_CBC                   \
+    (uint8_t[]){0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x01, 0x2a}
+
+/*
+ * base64 decode private key
+ * decode der object
+ * decode parameters
+ * derive key
+ * decrypt private key
+ * use private key to decrypt ctbuf
+ */
+
+static
+int
+asymmetric_decrypt(const wchar_t * const prvblbtyp,
+                   const void * const prvblbbuf, const size_t prvblblen,
+                   const void * const ctbuf, const size_t ctlen,
+                   void ** const ptbuf, size_t * const ptlen)
+{
+    BCRYPT_ALG_HANDLE halg;
+    int res;
+
+    res = INT_MIN;
+    if (BCryptOpenAlgorithmProvider(
+            &halg, BCRYPT_RSA_ALGORITHM, NULL, 0) == STATUS_SUCCESS) {
+        BCRYPT_KEY_HANDLE hkey;
+
+        if (BCryptImportKeyPair(
+                halg,
+                NULL, prvblbtyp, &hkey,
+                (void *)prvblbbuf, prvblblen,
+                0) == STATUS_SUCCESS) {
+            BCRYPT_OAEP_PADDING_INFO inf;
+            ULONG len;
+
+            inf.pszAlgId = BCRYPT_SHA1_ALGORITHM;
+            inf.pbLabel = NULL;
+            inf.cbLabel = 0;
+
+            if (BCryptDecrypt(
+                    hkey,
+                    (void *)ctbuf, ctlen,
+                    &inf,
+                    NULL, 0,
+                    NULL, 0, &len,
+                    BCRYPT_PAD_OAEP) == STATUS_SUCCESS) {
+                void * buf;
+
+                res = -ENOMEM;
+                buf = malloc(len);
+                if (buf) {
+                    res = INT_MIN;
+                    if (BCryptDecrypt(
+                            hkey,
+                            (void *)ctbuf, ctlen,
+                            &inf,
+                            NULL, 0,
+                            buf, len, &len,
+                            BCRYPT_PAD_OAEP) == STATUS_SUCCESS) {
+                        *ptbuf = buf;
+                        *ptlen = len;
+                        res = 0;
+                    } else {
+                        free(buf);
+                    }
+                }
+            }
+
+            BCryptDestroyKey(hkey);
+        }
+
+        BCryptCloseAlgorithmProvider(halg, 0);
+    }
+
+    return res;
+}
+
+static
+int
+decode_prvkey(const void * const prvkeybuf, const size_t prvkeylen,
+              const wchar_t ** const prvblbtyp,
+              void ** const prvblbbuf, size_t * const prvblblen)
+{
+    CRYPT_PRIVATE_KEY_INFO * inf;
+    DWORD len;
+    int res;
+
+    res = INT_MIN;
+    if (CryptDecodeObjectEx(
+            X509_ASN_ENCODING | PKCS_7_ASN_ENCODING,
+            PKCS_PRIVATE_KEY_INFO,
+            prvkeybuf, prvkeylen,
+            CRYPT_DECODE_ALLOC_FLAG | CRYPT_DECODE_NOCOPY_FLAG,
+            NULL,
+            &inf, &len)) {
+        if (CryptDecodeObject(
+                X509_ASN_ENCODING | PKCS_7_ASN_ENCODING,
+                PKCS_RSA_PRIVATE_KEY,
+                inf->PrivateKey.pbData, inf->PrivateKey.cbData,
+                0,
+                NULL, &len)) {
+            void * blb;
+
+            res = -ENOMEM;
+            blb = malloc(len);
+            if (blb) {
+                res = INT_MIN;
+                if (CryptDecodeObject(
+                        X509_ASN_ENCODING | PKCS_7_ASN_ENCODING,
+                        PKCS_RSA_PRIVATE_KEY,
+                        inf->PrivateKey.pbData, inf->PrivateKey.cbData,
+                        0,
+                        blb, &len)) {
+                    *prvblbtyp = LEGACY_RSAPRIVATE_BLOB;
+                    *prvblbbuf = blb;
+                    *prvblblen = len;
+                    res = 0;
+                } else {
+                    free(blb);
+                }
+            }
+        }
+
+        LocalFree(inf);
+    }
+
+    return res;
+}
+
+static
+int
+decrypt_der(const void * const enckeybuf, const size_t enckeylen,
+            const char * const passwd,
+            const char * const kdfoid,
+            const void * const saltbuf, const size_t saltlen,
+            const unsigned int iter,
+            const char *algoid,
+            const void * ivbuf, const size_t ivlen,
+            void ** const prvkeybuf, size_t * const prvkeylen)
+{
+    BCRYPT_ALG_HANDLE halg;
+    uint8_t key[32];
+    uint8_t iv[16];
+    int res;
+
+    res = -EINVAL;
+    if (strcmp(kdfoid, szOID_PKCS_5_PBKDF2) == 0 &&
+        strcmp(algoid, szOID_NIST_AES256_CBC) == 0 &&
+        ivlen == sizeof(iv)) {
+        memcpy(iv, ivbuf, ivlen);
+
+        res = INT_MIN;
+        if (BCryptOpenAlgorithmProvider(
+                &halg,
+                BCRYPT_SHA1_ALGORITHM,
+                NULL,
+                BCRYPT_ALG_HANDLE_HMAC_FLAG) == STATUS_SUCCESS) {
+            if (BCryptDeriveKeyPBKDF2(
+                    halg,
+                    (char *)passwd, strlen(passwd),
+                    (void *)saltbuf, saltlen,
+                    iter,
+                    key, sizeof(key),
+                    0) == STATUS_SUCCESS) {
+                res = 0;
+            }
+
+            BCryptCloseAlgorithmProvider(halg, 0);
+        }
+    }
+
+    if (res == 0) {
+        res = INT_MIN;
+        if (BCryptOpenAlgorithmProvider(
+                &halg, BCRYPT_AES_ALGORITHM, NULL, 0) == STATUS_SUCCESS) {
+            BCRYPT_KEY_HANDLE hkey;
+            void * objbuf;
+            DWORD objlen;
+            ULONG v;
+
+            hkey = NULL;
+            objbuf = NULL;
+
+            if (BCryptSetProperty(
+                    halg,
+                    BCRYPT_CHAINING_MODE,
+                    (PUCHAR)BCRYPT_CHAIN_MODE_CBC,
+                    wcslen(BCRYPT_CHAIN_MODE_CBC) * sizeof(wchar_t),
+                    0) == STATUS_SUCCESS &&
+                BCryptGetProperty(
+                    halg, BCRYPT_OBJECT_LENGTH,
+                    (PUCHAR)&objlen, sizeof(objlen), &v,
+                    0) == STATUS_SUCCESS) {
+                res = -ENOMEM;
+                objbuf = malloc(objlen);
+            }
+
+            if (objbuf &&
+                BCryptGenerateSymmetricKey(
+                    halg, &hkey,
+                    objbuf, objlen,
+                    (PUCHAR)key, sizeof(key),
+                    0) == STATUS_SUCCESS) {
+                void * obuf;
+
+                res = -ENOMEM;
+                obuf = malloc(enckeylen);
+                if (obuf) {
+                    res = INT_MIN;
+                    if (BCryptDecrypt(
+                            hkey,
+                            (void *)enckeybuf, enckeylen,
+                            NULL,
+                            iv, sizeof(iv),
+                            obuf, enckeylen, &v,
+                            BCRYPT_BLOCK_PADDING) == STATUS_SUCCESS) {
+                        *prvkeybuf = obuf;
+                        *prvkeylen = v;
+                        res = 0;
+                    } else {
+                        free(obuf);
+                    }
+                }
+            }
+
+            if (hkey) {
+                BCryptDestroyKey(hkey);
+            }
+            if (objbuf) {
+                free(objbuf);
+            }
+            BCryptCloseAlgorithmProvider(halg, 0);
+        }
+    }
+
+    return res;
+}
+
+static
+int
+decode_der(const void * const derbuf, const size_t derlen,
+           const char ** const kdfoid,
+           const void ** const saltbuf, size_t * const saltlen,
+           unsigned int * const iter,
+           const char ** const algoid,
+           const void ** const ivbuf, size_t * const ivlen,
+           const void ** const enckeybuf, size_t * const enckeylen)
+{
+    CRYPT_ENCRYPTED_PRIVATE_KEY_INFO *inf;
+    DWORD len;
+    BOOL ret;
+    int res;
+
+    res = INT_MIN;
+    ret = CryptDecodeObjectEx(
+        X509_ASN_ENCODING | PKCS_7_ASN_ENCODING,
+        PKCS_ENCRYPTED_PRIVATE_KEY_INFO,
+        derbuf, derlen,
+        CRYPT_DECODE_ALLOC_FLAG | CRYPT_DECODE_NOCOPY_FLAG,
+        NULL,
+        &inf, &len);
+    if (ret) {
+        struct asn1vector kdf, alg, salt, iv;
+        int _iter;
+
+        res = asn1scanf(inf->EncryptionAlgorithm.Parameters.pbData,
+                        inf->EncryptionAlgorithm.Parameters.cbData,
+                        "((o(xi))(ox))",
+                        &kdf, &salt, &_iter, &alg, &iv);
+        if (res == 0 &&
+            sizeof(pbOID_PKCS_5_PBKDF2) == kdf.len &&
+            memcmp(pbOID_PKCS_5_PBKDF2, kdf.buf, kdf.len) == 0 &&
+            sizeof(pbOID_NIST_AES256_CBC) == alg.len &&
+            memcmp(pbOID_NIST_AES256_CBC, alg.buf, alg.len) == 0) {
+            *kdfoid = szOID_PKCS_5_PBKDF2;
+            *saltbuf = salt.buf;
+            *saltlen = salt.len;
+            *iter = _iter;
+            *algoid = szOID_NIST_AES256_CBC;
+            *ivbuf = iv.buf;
+            *ivlen = iv.len;
+            *enckeybuf = inf->EncryptedPrivateKey.pbData;
+            *enckeylen = inf->EncryptedPrivateKey.cbData;
+        }
+
+        LocalFree(inf);
+    }
+
+    return res;
+}
+
+static
+int
+decode_pem(const char * const pemstr,
+           void ** const derbuf, size_t * const derlen)
+{
+    DWORD prvlen;
+    BOOL ret;
+    int res;
+
+    res = INT_MIN;
+    prvlen = 0;
+    ret = CryptStringToBinaryA(pemstr, strlen(pemstr),
+                               CRYPT_STRING_BASE64HEADER,
+                               NULL, &prvlen,
+                               NULL, NULL);
+    if (ret) {
+        BYTE * prvdec;
+
+        res = -ENOMEM;
+        prvdec = malloc(prvlen);
+        if (prvdec) {
+            ret = CryptStringToBinaryA(pemstr, strlen(pemstr),
+                                       CRYPT_STRING_BASE64HEADER,
+                                       prvdec, &prvlen,
+                                       NULL, NULL);
+            if (ret) {
+                res = 0;
+                *derbuf = prvdec;
+                *derlen = prvlen;
+            } else {
+                free(prvdec);
+            }
+        }
+    }
+
+    return res;
+}
+
 int
 ubiq_support_asymmetric_decrypt(
     const char * const prvpem, const char * const passwd,
-    const void * const ptbuf, const size_t ptlen,
-    void ** const ctbuf, size_t * const ctlen)
+    const void * const ctbuf, const size_t ctlen,
+    void ** const ptbuf, size_t * const ptlen)
 {
-    return -ENOTSUP;
+    void * derbuf;
+    size_t derlen;
+    int res;
+
+    res = decode_pem(prvpem, &derbuf, &derlen);
+    if (res == 0) {
+        const char * kdf, * alg;
+        const void * enckeybuf, * saltbuf, * ivbuf;
+        void * prvkeybuf;
+        size_t enckeylen, saltlen, ivlen, prvkeylen;
+        unsigned int iter;
+
+        res = decode_der(derbuf, derlen,
+                         &kdf, &saltbuf, &saltlen, &iter,
+                         &alg, &ivbuf, &ivlen,
+                         &enckeybuf, &enckeylen);
+        if (res == 0) {
+            res = decrypt_der(enckeybuf, enckeylen,
+                              passwd,
+                              kdf, saltbuf, saltlen, iter,
+                              alg, ivbuf, ivlen,
+                              &prvkeybuf, &prvkeylen);
+            if (res == 0) {
+                wchar_t * prvblbtyp;
+                void * prvblbbuf;
+                size_t prvblblen;
+
+                res = decode_prvkey(prvkeybuf, prvkeylen,
+                                    &prvblbtyp, &prvblbbuf, &prvblblen);
+                if (res == 0) {
+                    res = asymmetric_decrypt(
+                        prvblbtyp, prvblbbuf, prvblblen,
+                        ctbuf, ctlen,
+                        ptbuf, ptlen);
+
+                    free(prvblbbuf);
+                }
+
+                free(prvkeybuf);
+            }
+        }
+
+        free(derbuf);
+    }
+
+    return res;
 }
