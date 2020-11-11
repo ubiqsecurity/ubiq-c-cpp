@@ -66,8 +66,10 @@ ubiq_support_base64_decode(
 
 struct ubiq_support_digest_context
 {
-    BCRYPT_ALG_HANDLE alg;
-    BCRYPT_HASH_HANDLE dig;
+    struct {
+        BCRYPT_ALG_HANDLE alg;
+        BCRYPT_HASH_HANDLE dig;
+    } hnd;
     struct {
         void * buf;
         size_t len;
@@ -94,7 +96,6 @@ ubiq_support_hash_init(
     struct ubiq_support_digest_context * ctx;
     int err;
 
-    err = -EINVAL;
     ident = NULL;
     for (unsigned int i = 0;
          i < sizeof(digests) / sizeof(*digests);
@@ -106,71 +107,54 @@ ubiq_support_hash_init(
         }
     }
 
-    ctx = NULL;
-    if (!err) {
-        ctx = malloc(sizeof(*ctx));
-        if (ctx) {
-            ctx->alg = NULL;
-            ctx->dig = NULL;
-            ctx->obj.buf = NULL;
-            ctx->obj.len = 0;
-        } else {
-            err = -ENOMEM;
-        }
-    }
+    err = -EINVAL;
+    if (ident) {
+        const DWORD flag = keylen ? BCRYPT_ALG_HANDLE_HMAC_FLAG : 0;
 
-    if (!err) {
+        BCRYPT_ALG_HANDLE halg;
+
+        err = INT_MIN;
         if (BCryptOpenAlgorithmProvider(
-                &ctx->alg, ident,
-                NULL,
-                keylen ? BCRYPT_ALG_HANDLE_HMAC_FLAG : 0) != STATUS_SUCCESS) {
-            err = INT_MIN;
-        }
-    }
+                &halg,
+                ident, NULL,
+                flag) == STATUS_SUCCESS) {
+            DWORD objlen;
+            ULONG out;
 
-    if (!err) {
-        ULONG copied;
-        DWORD len;
-
-        if (BCryptGetProperty(ctx->alg,
-                              BCRYPT_OBJECT_LENGTH,
-                              (PUCHAR)&len, sizeof(len),
-                              &copied,
-                              0) == STATUS_SUCCESS) {
-            ctx->obj.len = len;
-            ctx->obj.buf = malloc(len);
-            if (!ctx->obj.buf) {
+            if (BCryptGetProperty(halg,
+                                  BCRYPT_OBJECT_LENGTH,
+                                  (PUCHAR)&objlen, sizeof(objlen),
+                                  &out,
+                                  0) == STATUS_SUCCESS) {
                 err = -ENOMEM;
+                ctx = malloc(sizeof(*ctx) + objlen);
+                if (ctx) {
+                    ctx->hnd.alg = halg;
+                    ctx->hnd.dig = NULL;
+
+                    ctx->obj.buf = ctx + 1;
+                    ctx->obj.len = objlen;
+
+                    err = 0;
+                } else {
+                    BCryptCloseAlgorithmProvider(halg, 0);
+                }
             }
-        } else {
-            err = INT_MIN;
         }
     }
 
-    if (!err) {
-        if (BCryptCreateHash(ctx->alg,
-                             &ctx->dig,
+    if (ctx) {
+        if (BCryptCreateHash(ctx->hnd.alg,
+                             &ctx->hnd.dig,
                              ctx->obj.buf, ctx->obj.len,
                              (PUCHAR)keybuf, keylen,
-                             0) != STATUS_SUCCESS) {
-            err = INT_MIN;
-        }
-    }
-
-    if (!err) {
-        *_ctx = ctx;
-    } else {
-        if (ctx) {
-            if (ctx->dig) {
-                BCryptDestroyHash(ctx->dig);
-            }
-            if (ctx->obj.buf) {
-                free(ctx->obj.buf);
-            }
-            if (ctx->alg) {
-                BCryptCloseAlgorithmProvider(ctx->alg, 0);
-            }
+                             0) == STATUS_SUCCESS) {
+            *_ctx = ctx;
+        } else {
+            BCryptCloseAlgorithmProvider(ctx->hnd.alg, 0);
             free(ctx);
+
+            err = INT_MIN;
         }
     }
 
@@ -190,7 +174,7 @@ ubiq_support_digest_update(
     struct ubiq_support_digest_context * const ctx,
     const void * const buf, const size_t len)
 {
-    BCryptHashData(ctx->dig, (PUCHAR)buf, len, 0);
+    BCryptHashData(ctx->hnd.dig, (PUCHAR)buf, len, 0);
 }
 
 int
@@ -204,7 +188,7 @@ ubiq_support_digest_finalize(
     DWORD len;
 
     err = 0;
-    if (BCryptGetProperty(ctx->alg,
+    if (BCryptGetProperty(ctx->hnd.alg,
                           BCRYPT_HASH_LENGTH,
                           (PUCHAR)&len, sizeof(len),
                           &copied,
@@ -219,13 +203,14 @@ ubiq_support_digest_finalize(
         buf = malloc(len);
         if (buf) {
             err = INT_MIN;
-            if (BCryptFinishHash(ctx->dig, buf, len, 0) == STATUS_SUCCESS) {
+            if (BCryptFinishHash(
+                    ctx->hnd.dig, buf, len, 0) == STATUS_SUCCESS) {
                 *_buf = buf;
                 *_len = len;
 
-                BCryptDestroyHash(ctx->dig);
-                free(ctx->obj.buf);
-                BCryptCloseAlgorithmProvider(ctx->alg, 0);
+                BCryptDestroyHash(ctx->hnd.dig);
+                BCryptCloseAlgorithmProvider(ctx->hnd.alg, 0);
+                memset(ctx, 0, sizeof(ctx) + ctx->obj.len);
                 free(ctx);
 
                 err = 0;
