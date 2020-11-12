@@ -93,25 +93,37 @@ void ubiq_support_http_exit();
 
 struct ubiq_support_http_handle;
 struct ubiq_support_http_handle * ubiq_support_http_handle_create(void);
+/* reset a handle for reuse with another request */
 void ubiq_support_http_handle_reset(struct ubiq_support_http_handle * const);
 void ubiq_support_http_handle_destroy(struct ubiq_support_http_handle * const);
 
+/* response code sent by the server */
 http_response_code_t
 ubiq_support_http_response_code(
     const struct ubiq_support_http_handle * const);
+/*
+ * content type sent by the server
+ * contains only the value, not the header name
+ */
 const char *
 ubiq_support_http_response_content_type(
     const struct ubiq_support_http_handle * const);
 
+/*
+ * supplied header must be fully formed, i.e:
+ * Header-Name: value
+ */
 int
 ubiq_support_http_add_header(
     struct ubiq_support_http_handle * const, const char * const);
 int
 ubiq_support_http_request(
     struct ubiq_support_http_handle * const,
-    const http_request_method_t, const char * const,
-    const void * const, const size_t,
-    void ** const, size_t * const);
+    const http_request_method_t, const char * const /* url */,
+    const void * const /* request content */,
+    const size_t /* request content length */,
+    void ** const /* response content */,
+    size_t * const /* response content length */);
 
 __END_DECLS
 

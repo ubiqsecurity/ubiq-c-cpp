@@ -6,6 +6,12 @@
 #include <stdint.h>
 #include <stdio.h>
 
+/*
+ * convert normal string to wide
+ * returns 0 on success or a negative value, otherwise
+ * the result is returned in wstr and is not modified
+ * unless the function is successful
+ */
 static
 int
 string_widen(
@@ -13,12 +19,14 @@ string_widen(
 {
     int err, n;
 
+    /* call with NULL to determine the number of bytes needed */
     err = INT_MIN;
     n = MultiByteToWideChar(
         CP_ACP, MB_PRECOMPOSED, str, -1, NULL, 0);
     if (n > 0) {
         wchar_t * buf;
 
+        /* allocate memory and do the conversion for real */
         err = -ENOMEM;
         buf = malloc(n * sizeof(*buf));
         if (buf) {
@@ -36,6 +44,15 @@ string_widen(
     return err;
 }
 
+/*
+ * convert wide string to narrow. this assumes all the
+ * wide characters have a corresponding value in the narrowed
+ * output. that should be true for use in this library
+ * but probably not, more generally.
+ *
+ * function follows the same rules/conventions and procedure as
+ * its widen counterpart
+ */
 static
 int
 wstring_narrow(
@@ -66,28 +83,49 @@ wstring_narrow(
     return err;
 }
 
+/*
+ * single session for the entire library. documentation states
+ * that different sessions should be used for different users
+ * so that cookies and the like are kept separate. this library
+ * assumes a single user and uses a single session
+ */
 static HINTERNET winhttp_session = NULL;
 
 int
 ubiq_support_http_init(void)
 {
     wchar_t * user_agent;
+    int err;
 
+    err = 0;
+
+    /* widen the user agent string, if present */
     user_agent = NULL;
     if (ubiq_support_user_agent) {
-        string_widen(ubiq_support_user_agent, &user_agent);
+        err = string_widen(ubiq_support_user_agent, &user_agent);
     }
 
-    winhttp_session = WinHttpOpen(
-        user_agent,
-        WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
-        WINHTTP_NO_PROXY_NAME,
-        WINHTTP_NO_PROXY_BYPASS,
-        0);
+    /*
+     * since user agent was set to NULL prior to the widen call,
+     * it's either NULL or a malloc'd value. Both values are legal
+     * to pass to both WinHttpOpen() and free()
+     */
 
-    free(user_agent);
+    if (!err) {
+        winhttp_session = WinHttpOpen(
+            user_agent,
+            WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+            WINHTTP_NO_PROXY_NAME,
+            WINHTTP_NO_PROXY_BYPASS,
+            0);
+        if (!winhttp_session) {
+            err = INT_MIN;
+        }
 
-    return winhttp_session ? 0 : INT_MIN;
+        free(user_agent);
+    }
+
+    return err;
 }
 
 void
@@ -103,13 +141,20 @@ struct ubiq_support_http_handle
      * headers require a request which require
      * a connection which isn't available until
      * a request is actually made, so headers
-     * must be stored until that time.
+     * must be stored in the handle until that time.
      */
     struct {
         wchar_t ** vec;
         unsigned int num;
     } headers;
 
+    /*
+     * status is not available until after a successful
+     * http request/response
+     *
+     * ctype is the content-type of the response. the value
+     * is allocated on the heap and must be freed
+     */
     http_response_code_t status;
     char * ctype;
 };
@@ -124,6 +169,10 @@ ubiq_support_http_handle_create(void)
         hnd->headers.vec = NULL;
         hnd->headers.num = 0;
 
+        /*
+         * there is no "unknown" status code,
+         * so it's just not initialized
+         */
         hnd->ctype = NULL;
     }
 
@@ -138,8 +187,10 @@ ubiq_support_http_handle_reset(
         hnd->headers.num--;
         free(hnd->headers.vec[hnd->headers.num]);
     }
+
     free(hnd->headers.vec);
     hnd->headers.vec = NULL;
+
     free(hnd->ctype);
     hnd->ctype = NULL;
 }
@@ -173,12 +224,23 @@ ubiq_support_http_add_header(
     wchar_t ** vec;
     int err;
 
+    /*
+     * headers are stored as an array of pointers to strings.
+     * first, resize the array; then, store the header in the
+     * newly allocated space.
+     */
+
     err = -ENOMEM;
     vec = realloc(hnd->headers.vec,
                   sizeof(*hnd->headers.vec) * (hnd->headers.num + 1));
     if (vec) {
         hnd->headers.vec = vec;
 
+        /*
+         * widen allocates the memory for the string. if it fails,
+         * the array is left at the increased size, but the number of
+         * elements is not increased.
+         */
         hnd->headers.vec[hnd->headers.num] = NULL;
         string_widen(s, &hnd->headers.vec[hnd->headers.num]);
         if (hnd->headers.vec[hnd->headers.num]) {
@@ -190,6 +252,13 @@ ubiq_support_http_add_header(
     return err;
 }
 
+/*
+ * do the actual sending of the request and reception of the response.
+ * the HINTERNET request handle must already be initialized prior
+ * to calling this function. that means not only that it must be valid
+ * but also that any headers or other setup necessary has already been
+ * performed.
+ */
 static
 int
 ubiq_support_http_exchange(
@@ -201,6 +270,9 @@ ubiq_support_http_exchange(
     BOOL ret;
     int res;
 
+    res = INT_MIN;
+
+    /* send the request and wait for the (beginning of the) response */
     ret = WinHttpSendRequest(req,
                              WINHTTP_NO_ADDITIONAL_HEADERS, -1,
                              (void *)content, length, length,
@@ -209,12 +281,12 @@ ubiq_support_http_exchange(
         ret = WinHttpReceiveResponse(req, NULL);
     }
 
-    res = INT_MIN;
     if (ret) {
         wchar_t ctype[128];
         DWORD val, vlen, off, got;
         void * buf;
 
+        /* get the http response code */
         vlen = sizeof(val);
         WinHttpQueryHeaders(
             req,
@@ -224,6 +296,7 @@ ubiq_support_http_exchange(
             WINHTTP_NO_HEADER_INDEX);
         hnd->status = val;
 
+        /* get the response content type */
         vlen = sizeof(ctype);
         WinHttpQueryHeaders(
             req,
@@ -235,18 +308,36 @@ ubiq_support_http_exchange(
             wstring_narrow(ctype, &hnd->ctype);
         }
 
+        /*
+         * this code used to look for the content-length
+         * header to determine how much data to read, but
+         * the header is not always present
+         */
+
+        /*
+         * depending on the size of the transfer and network
+         * conditions, all of the response may not be available
+         * at once. run a loop, waiting for data and reading it
+         */
+
         res = 0;
         buf = NULL;
         off = 0;
         do {
             got = 0;
 
+            /*
+             * wait for data and determine how much is available.
+             * `val` will be 0 when the end-of-file is reached and
+             * the loop will terminate
+             */
             ret = WinHttpQueryDataAvailable(req, &val);
             if (!ret) {
                 res = INT_MIN;
             } else if (val > 0) {
                 void * b;
 
+                /* extend the response buffer and read the data */
                 b = realloc(buf, off + val);
                 if (b) {
                     buf = b;
@@ -261,7 +352,6 @@ ubiq_support_http_exchange(
                         res = INT_MIN;
                     }
                 } else {
-                    free(buf);
                     res = -ENOMEM;
                 }
             }
@@ -270,6 +360,8 @@ ubiq_support_http_exchange(
         if (res == 0) {
             *rspbuf = buf;
             *rsplen = off;
+        } else {
+            free(buf);
         }
     }
 
@@ -286,10 +378,22 @@ ubiq_support_http_request(
     struct ubiq_url url;
     int res;
 
+    /*
+     * winhttp (unlike curl) requires that the URL be
+     * specified in its constituent pieces instead of
+     * just a long string
+     */
+
     res = ubiq_url_parse(&url, urlstr);
     if (res == 0) {
         HINTERNET con;
         uint16_t port;
+
+        /*
+         * note: wstr is repeatedly reused throughout the
+         * code below to briefly store widened strings before
+         * immediately freeing them again
+         */
         wchar_t * wstr;
 
         port = INTERNET_DEFAULT_PORT;
@@ -303,35 +407,50 @@ ubiq_support_http_request(
         free(wstr);
 
         if (con) {
-            char * object;
+            wchar_t * verb;
 
             res = -ENOMEM;
-            if (url.query) {
+
+            /* verb is GET, POST, PATCH, etc. */
+            verb = NULL;
+            string_widen(http_request_method_string(method), &verb);
+
+            /*
+             * if no query is present, just widen the url path.
+             * if a query is present, concatenate the path and the
+             * query and then widen.
+             */
+            wstr = NULL;
+            if (!url.query) {
+                string_widen(url.path, &wstr);
+            } else {
+                char * object;
                 object = malloc(strlen(url.path) + 1 +
                                 strlen(url.query) + 1);
                 if (object) {
                     strcpy(object, url.path);
                     strcat(object, "?");
                     strcat(object, url.query);
+
+                    string_widen(object, &wstr);
+                    free(object);
                 }
-            } else {
-                object = strdup(url.path);
             }
 
-            if (object) {
+            if (verb && wstr) {
                 HINTERNET req;
                 DWORD flags;
-                wchar_t * verb;
 
+                /*
+                 * if traveling through a proxy, don't get
+                 * a cached version of a previous request
+                 */
                 flags = WINHTTP_FLAG_REFRESH;
                 if (strcmp(url.scheme, "https") == 0) {
                     flags |= WINHTTP_FLAG_SECURE;
                 }
 
                 res = INT_MIN;
-                string_widen(http_request_method_string(method), &verb);
-                string_widen(object, &wstr);
-                free(object);
                 req = WinHttpOpenRequest(
                     con,
                     verb,
@@ -340,22 +459,34 @@ ubiq_support_http_request(
                     WINHTTP_NO_REFERER,
                     WINHTTP_DEFAULT_ACCEPT_TYPES,
                     flags);
-                free(wstr);
-                free(verb);
                 if (req) {
-                    for (unsigned int i = 0; i < hnd->headers.num; i++) {
-                        WinHttpAddRequestHeaders(
+                    BOOL ret;
+
+                    ret = TRUE;
+                    for (unsigned int i = 0;
+                         ret && i < hnd->headers.num;
+                         i++) {
+                        ret = WinHttpAddRequestHeaders(
                             req,
                             hnd->headers.vec[i], -1,
                             WINHTTP_ADDREQ_FLAG_ADD);
                     }
 
-                    res = ubiq_support_http_exchange(
-                        hnd, req, content, length, rspbuf, rsplen);
+                    if (ret) {
+                        res = ubiq_support_http_exchange(
+                            hnd, req, content, length, rspbuf, rsplen);
+                    }
 
                     WinHttpCloseHandle(req);
                 }
             }
+
+            /*
+             * unconditionally call free as
+             * freeing a NULL pointer is legal
+             */
+            free(wstr);
+            free(verb);
 
             WinHttpCloseHandle(con);
         }
