@@ -1069,14 +1069,14 @@ decode_prvkey(const void * const prvkeybuf, const size_t prvkeylen,
 
     res = INT_MIN;
     if (CryptDecodeObjectEx(
-            X509_ASN_ENCODING | PKCS_7_ASN_ENCODING,
+            PKCS_7_ASN_ENCODING,
             PKCS_PRIVATE_KEY_INFO,
             prvkeybuf, prvkeylen,
             CRYPT_DECODE_ALLOC_FLAG | CRYPT_DECODE_NOCOPY_FLAG,
             NULL,
             &inf, &len)) {
         if (CryptDecodeObject(
-                X509_ASN_ENCODING | PKCS_7_ASN_ENCODING,
+                PKCS_7_ASN_ENCODING,
                 PKCS_RSA_PRIVATE_KEY,
                 inf->PrivateKey.pbData, inf->PrivateKey.cbData,
                 0,
@@ -1088,7 +1088,7 @@ decode_prvkey(const void * const prvkeybuf, const size_t prvkeylen,
             if (blb) {
                 res = INT_MIN;
                 if (CryptDecodeObject(
-                        X509_ASN_ENCODING | PKCS_7_ASN_ENCODING,
+                        PKCS_7_ASN_ENCODING,
                         PKCS_RSA_PRIVATE_KEY,
                         inf->PrivateKey.pbData, inf->PrivateKey.cbData,
                         0,
@@ -1235,7 +1235,7 @@ decode_der(const void * const derbuf, const size_t derlen,
 
     res = INT_MIN;
     ret = CryptDecodeObjectEx(
-        X509_ASN_ENCODING | PKCS_7_ASN_ENCODING,
+        PKCS_7_ASN_ENCODING,
         PKCS_ENCRYPTED_PRIVATE_KEY_INFO,
         derbuf, derlen,
         CRYPT_DECODE_ALLOC_FLAG | CRYPT_DECODE_NOCOPY_FLAG,
