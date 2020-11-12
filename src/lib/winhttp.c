@@ -6,17 +6,86 @@
 #include <stdint.h>
 #include <stdio.h>
 
+static
+int
+string_widen(
+    const char * const str, wchar_t ** const wstr)
+{
+    int err, n;
+
+    err = INT_MIN;
+    n = MultiByteToWideChar(
+        CP_ACP, MB_PRECOMPOSED, str, -1, NULL, 0);
+    if (n > 0) {
+        wchar_t * buf;
+
+        err = -ENOMEM;
+        buf = malloc(n * sizeof(*buf));
+        if (buf) {
+            if (MultiByteToWideChar(
+                    CP_ACP, MB_PRECOMPOSED, str, -1, buf, n) == n) {
+                *wstr = buf;
+                err = 0;
+            } else {
+                free(buf);
+                err = INT_MIN;
+            }
+        }
+    }
+
+    return err;
+}
+
+static
+int
+wstring_narrow(
+    const wchar_t * const wstr, char ** const str)
+{
+    int err, n;
+
+    err = INT_MIN;
+    n = WideCharToMultiByte(
+        CP_ACP, 0, wstr, -1, NULL, 0, NULL, NULL);
+    if (n > 0) {
+        char * buf;
+
+        err = -ENOMEM;
+        buf = malloc(n * sizeof(*buf));
+        if (buf) {
+            if (WideCharToMultiByte(
+                    CP_ACP, 0, wstr, -1, buf, n, NULL, NULL) == n) {
+                *str = buf;
+                err = 0;
+            } else {
+                free(buf);
+                err = INT_MIN;
+            }
+        }
+    }
+
+    return err;
+}
+
 static HINTERNET winhttp_session = NULL;
 
 int
 ubiq_support_http_init(void)
 {
+    wchar_t * user_agent;
+
+    user_agent = NULL;
+    if (ubiq_support_user_agent) {
+        string_widen(ubiq_support_user_agent, &user_agent);
+    }
+
     winhttp_session = WinHttpOpen(
-        NULL,
+        user_agent,
         WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
         WINHTTP_NO_PROXY_NAME,
         WINHTTP_NO_PROXY_BYPASS,
         0);
+
+    free(user_agent);
 
     return winhttp_session ? 0 : INT_MIN;
 }
@@ -95,66 +164,6 @@ ubiq_support_http_response_content_type(
     const struct ubiq_support_http_handle * const hnd)
 {
     return hnd->ctype;
-}
-
-static
-int
-string_widen(
-    const char * const str, wchar_t ** const wstr)
-{
-    int err, n;
-
-    err = INT_MIN;
-    n = MultiByteToWideChar(
-        CP_ACP, MB_PRECOMPOSED, str, -1, NULL, 0);
-    if (n > 0) {
-        wchar_t * buf;
-
-        err = -ENOMEM;
-        buf = malloc(n * sizeof(*buf));
-        if (buf) {
-            if (MultiByteToWideChar(
-                    CP_ACP, MB_PRECOMPOSED, str, -1, buf, n) == n) {
-                *wstr = buf;
-                err = 0;
-            } else {
-                free(buf);
-                err = INT_MIN;
-            }
-        }
-    }
-
-    return err;
-}
-
-static
-int
-wstring_narrow(
-    const wchar_t * const wstr, char ** const str)
-{
-    int err, n;
-
-    err = INT_MIN;
-    n = WideCharToMultiByte(
-        CP_ACP, 0, wstr, -1, NULL, 0, NULL, NULL);
-    if (n > 0) {
-        char * buf;
-
-        err = -ENOMEM;
-        buf = malloc(n * sizeof(*buf));
-        if (buf) {
-            if (WideCharToMultiByte(
-                    CP_ACP, 0, wstr, -1, buf, n, NULL, NULL) == n) {
-                *str = buf;
-                err = 0;
-            } else {
-                free(buf);
-                err = INT_MIN;
-            }
-        }
-    }
-
-    return err;
 }
 
 int
