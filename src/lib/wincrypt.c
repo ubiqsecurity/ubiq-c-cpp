@@ -282,6 +282,14 @@ ubiq_support_getrandom(
     return 0;
 }
 
+typedef
+NTSTATUS (__stdcall BCryptXxcryptFunc)(BCRYPT_KEY_HANDLE,
+                                       PUCHAR, ULONG,
+                                       VOID *,
+                                       PUCHAR, ULONG,
+                                       PUCHAR, ULONG, ULONG *,
+                                       ULONG);
+
 struct ubiq_support_cipher_context
 {
     const struct ubiq_platform_algorithm * alg;
@@ -298,12 +306,27 @@ struct ubiq_support_cipher_context
     } obj, blk, vec, aci;
 };
 
+void
+ubiq_support_cipher_destroy(
+    struct ubiq_support_cipher_context * const ctx)
+{
+    BCryptDestroyKey(ctx->hnd.key);
+    BCryptCloseAlgorithmProvider(ctx->hnd.alg, 0);
+    memset(ctx, 0, (sizeof(*ctx) +
+                    ctx->obj.len +
+                    2 * ctx->blksz +
+                    ctx->aci.len));
+    free(ctx);
+}
+
 static
 int
 ubiq_support_cipher_init(
     const struct ubiq_platform_algorithm * const alg,
     const void * const keybuf, const size_t keylen,
     const void * const vecbuf, const size_t veclen,
+    const void * const aadbuf, const size_t aadlen,
+    BCryptXxcryptFunc * const crypt,
     struct ubiq_support_cipher_context ** const _ctx)
 {
     static const
@@ -485,6 +508,26 @@ ubiq_support_cipher_init(
     }
 
     if (!err) {
+        if (ctx->aci.buf && aadlen) {
+            BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO * const inf = ctx->aci.buf;
+            ULONG out;
+
+            inf->pbAuthData = (void *)aadbuf;
+            inf->cbAuthData = aadlen;
+
+            err = ((*crypt)(ctx->hnd.key,
+                            NULL, 0,
+                            ctx->aci.buf,
+                            ctx->vec.buf, ctx->vec.len,
+                            NULL, 0, &out,
+                            0) == STATUS_SUCCESS) ? 0 : INT_MIN;
+
+            inf->pbAuthData = NULL;
+            inf->cbAuthData = 0;
+        }
+    }
+
+    if (!err) {
         *_ctx = ctx;
     } else {
         if (ctx) {
@@ -493,24 +536,15 @@ ubiq_support_cipher_init(
             }
 
             BCryptCloseAlgorithmProvider(ctx->hnd.alg, 0);
+            memset(ctx, 0, (sizeof(*ctx) +
+                            ctx->obj.len +
+                            2 * ctx->blksz +
+                            ctx->aci.len));
             free(ctx);
         }
     }
 
     return err;
-}
-
-void
-ubiq_support_cipher_destroy(
-    struct ubiq_support_cipher_context * const ctx)
-{
-    BCryptDestroyKey(ctx->hnd.key);
-    BCryptCloseAlgorithmProvider(ctx->hnd.alg, 0);
-    memset(ctx, 0, (sizeof(*ctx) +
-                    ctx->obj.len +
-                    2 * ctx->blksz +
-                    ctx->aci.len));
-    free(ctx);
 }
 
 int
@@ -519,41 +553,13 @@ ubiq_support_encryption_init(
     const void * const keybuf, const size_t keylen,
     const void * const vecbuf, const size_t veclen,
     const void * const aadbuf, const size_t aadlen,
-    struct ubiq_support_cipher_context ** const _ctx)
+    struct ubiq_support_cipher_context ** const ctx)
 {
-    struct ubiq_support_cipher_context * ctx;
-    int err;
-
-    err = ubiq_support_cipher_init(
-        alg, keybuf, keylen, vecbuf, veclen, &ctx);
-    if (!err) {
-        if (ctx->aci.buf && aadlen) {
-            BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO * const inf = ctx->aci.buf;
-            ULONG out;
-
-            inf->pbAuthData = (void *)aadbuf;
-            inf->cbAuthData = aadlen;
-
-            err = (BCryptEncrypt(
-                       ctx->hnd.key,
-                       NULL, 0,
-                       ctx->aci.buf,
-                       ctx->vec.buf, ctx->vec.len,
-                       NULL, 0, &out,
-                       0) == STATUS_SUCCESS) ? 0 : INT_MIN;
-
-            inf->pbAuthData = NULL;
-            inf->cbAuthData = 0;
-        }
-
-        if (!err) {
-            *_ctx = ctx;
-        } else {
-            ubiq_support_cipher_destroy(ctx);
-        }
-    }
-
-    return err;
+    return ubiq_support_cipher_init(
+        alg,
+        keybuf, keylen, vecbuf, veclen, aadbuf, aadlen,
+        &BCryptEncrypt,
+        ctx);
 }
 
 int
@@ -696,41 +702,13 @@ ubiq_support_decryption_init(
     const void * const keybuf, const size_t keylen,
     const void * const vecbuf, const size_t veclen,
     const void * const aadbuf, const size_t aadlen,
-    struct ubiq_support_cipher_context ** const _ctx)
+    struct ubiq_support_cipher_context ** const ctx)
 {
-    struct ubiq_support_cipher_context * ctx;
-    int err;
-
-    err = ubiq_support_cipher_init(
-        alg, keybuf, keylen, vecbuf, veclen, &ctx);
-    if (!err) {
-        if (ctx->aci.buf && aadlen) {
-            BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO * const inf = ctx->aci.buf;
-            ULONG out;
-
-            inf->pbAuthData = (void *)aadbuf;
-            inf->cbAuthData = aadlen;
-
-            err = (BCryptDecrypt(
-                       ctx->hnd.key,
-                       NULL, 0,
-                       ctx->aci.buf,
-                       ctx->vec.buf, ctx->vec.len,
-                       NULL, 0, &out,
-                       0) == STATUS_SUCCESS) ? 0 : INT_MIN;
-
-            inf->pbAuthData = NULL;
-            inf->cbAuthData = 0;
-        }
-
-        if (!err) {
-            *_ctx = ctx;
-        } else {
-            ubiq_support_cipher_destroy(ctx);
-        }
-    }
-
-    return err;
+    return ubiq_support_cipher_init(
+        alg,
+        keybuf, keylen, vecbuf, veclen, aadbuf, aadlen,
+        &BCryptDecrypt,
+        ctx);
 }
 
 int
