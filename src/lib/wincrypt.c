@@ -629,6 +629,47 @@ ubiq_support_cipher_update(
 }
 
 int
+ubiq_support_cipher_finalize(
+    struct ubiq_support_cipher_context * const ctx,
+    BCryptXxcryptFunc * const crypt,
+    void ** const obuf, size_t * const olen)
+{
+    DWORD len;
+    void * buf;
+    int err;
+
+    err = -ENOMEM;
+    len = ctx->blksz;
+    buf = malloc(len);
+    if (buf) {
+        if (ctx->aci.buf) {
+            ((BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO *)
+             ctx->aci.buf)->dwFlags &= ~BCRYPT_AUTH_MODE_CHAIN_CALLS_FLAG;
+        }
+
+        if ((*crypt)(
+                ctx->hnd.key,
+                ctx->blk.buf, ctx->blk.len,
+                ctx->aci.buf,
+                ctx->vec.buf, ctx->vec.len,
+                buf, len, &len,
+                0) == STATUS_SUCCESS) {
+            *obuf = buf;
+            *olen = len;
+
+            ubiq_support_cipher_destroy(ctx);
+
+            err = 0;
+        } else {
+            free(buf);
+            err = INT_MIN;
+        }
+    }
+
+    return err;
+}
+
+int
 ubiq_support_encryption_init(
     const struct ubiq_platform_algorithm * const alg,
     const void * const keybuf, const size_t keylen,
@@ -659,48 +700,37 @@ ubiq_support_encryption_finalize(
     void ** const ctbuf, size_t * const ctlen,
     void ** const tagbuf, size_t * const taglen)
 {
-    DWORD len;
-    void * buf;
+    void * tbuf;
+    size_t tlen;
+
     int err;
 
-    err = -ENOMEM;
-    len = ctx->blksz;
-    buf = malloc(len);
-    if (buf) {
+    tbuf = NULL;
+    tlen = 0;
+
+    err = 0;
+    if (ctx->aci.buf) {
         BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO * const inf = ctx->aci.buf;
 
-        if (inf) {
-            inf->pbTag          = malloc(inf->cbTag);
-            if (inf->pbTag) {
-                inf->dwFlags   &= ~BCRYPT_AUTH_MODE_CHAIN_CALLS_FLAG;
-                err = 0;
-            }
+        tlen = inf->cbTag;
+        tbuf = malloc(tlen);
+        inf->pbTag = tbuf;
+        if (!tbuf) {
+            err = -ENOMEM;
         }
+    }
 
-        if (!err &&
-            BCryptEncrypt(
-                ctx->hnd.key,
-                ctx->blk.buf, ctx->blk.len,
-                ctx->aci.buf,
-                ctx->vec.buf, ctx->vec.len,
-                buf, len, &len,
-                0) == STATUS_SUCCESS) {
-            *ctbuf = buf;
-            *ctlen = len;
+    if (!err) {
+        err = ubiq_support_cipher_finalize(
+            ctx, &BCryptEncrypt, ctbuf, ctlen);
+    }
 
-            *tagbuf = inf->pbTag;
-            *taglen = inf->cbTag;
-
-            ubiq_support_cipher_destroy(ctx);
-
-            err = 0;
+    if (!err) {
+        if (tbuf) {
+            *tagbuf = tbuf;
+            *taglen = tlen;
         } else {
-            if (inf && inf->pbTag) {
-                free(inf->pbTag);
-            }
-
-            free(buf);
-            err = INT_MIN;
+            free(tbuf);
         }
     }
 
@@ -738,43 +768,21 @@ ubiq_support_decryption_finalize(
     const void * const tagbuf, const size_t taglen,
     void ** const ptbuf, size_t * const ptlen)
 {
-    DWORD len;
-    void * buf;
     int err;
 
-    err = -ENOMEM;
-    len = ctx->blksz;
-    buf = malloc(len);
-    if (buf) {
-        if (ctx->aci.buf) {
-            BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO * const inf = ctx->aci.buf;
+    err = 0;
+    if (ctx->aci.buf) {
+        BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO * const inf = ctx->aci.buf;
 
+        inf->pbTag = (PUCHAR)tagbuf;
+        if (inf->cbTag != taglen) {
             err = -EINVAL;
-            if (inf->cbTag == taglen) {
-                inf->pbTag      = (PUCHAR)tagbuf;
-                inf->dwFlags   &= ~BCRYPT_AUTH_MODE_CHAIN_CALLS_FLAG;
-                err = 0;
-            }
         }
+    }
 
-        if (!err &&
-            BCryptDecrypt(
-                ctx->hnd.key,
-                ctx->blk.buf, ctx->blk.len,
-                ctx->aci.buf,
-                ctx->vec.buf, ctx->vec.len,
-                buf, len, &len,
-                0) == STATUS_SUCCESS) {
-            *ptbuf = buf;
-            *ptlen = len;
-
-            ubiq_support_cipher_destroy(ctx);
-
-            err = 0;
-        } else {
-            free(buf);
-            err = INT_MIN;
-        }
+    if (!err) {
+        err = ubiq_support_cipher_finalize(
+            ctx, &BCryptDecrypt, ptbuf, ptlen);
     }
 
     return err;
