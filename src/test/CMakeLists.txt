@@ -24,6 +24,10 @@ if(WIN32)
   target_link_libraries(
     unittests
     ws2_32 userenv winhttp bcrypt crypt32)
+else()
+  target_link_libraries(
+    unittests
+    curl crypto)
 endif()
 
 add_custom_target(
