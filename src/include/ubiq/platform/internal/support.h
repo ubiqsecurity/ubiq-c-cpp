@@ -22,27 +22,27 @@ int ubiq_support_gmtime_r(const time_t * const, struct tm * const);
 int ubiq_support_base64_encode(char ** const, const void * const, const size_t);
 int ubiq_support_base64_decode(void ** const, const char * const, const size_t);
 
-struct ubiq_support_digest_context;
+struct ubiq_support_hash_context;
+
 int ubiq_support_digest_init(
     const char * const,
-    struct ubiq_support_digest_context ** const);
+    struct ubiq_support_hash_context ** const);
 void ubiq_support_digest_update(
-    struct ubiq_support_digest_context * const,
+    struct ubiq_support_hash_context * const,
     const void * const, const size_t);
 int ubiq_support_digest_finalize(
-    struct ubiq_support_digest_context * const,
+    struct ubiq_support_hash_context * const,
     void ** const, size_t * const);
 
-struct ubiq_support_hmac_context;
 int ubiq_support_hmac_init(
     const char * const,
     const void * const, const size_t,
-    struct ubiq_support_hmac_context ** const);
+    struct ubiq_support_hash_context ** const);
 void ubiq_support_hmac_update(
-    struct ubiq_support_hmac_context * const,
+    struct ubiq_support_hash_context * const,
     const void * const, const size_t);
 int ubiq_support_hmac_finalize(
-    struct ubiq_support_hmac_context * const,
+    struct ubiq_support_hash_context * const,
     void ** const, size_t * const);
 
 int ubiq_support_getrandom(void * const, const size_t);

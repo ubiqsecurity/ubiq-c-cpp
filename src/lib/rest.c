@@ -236,7 +236,7 @@ ubiq_platform_rest_header_content(
         err = 0;
     } else if (strcmp(key, "Digest") == 0) {
         /* hard-coded to sha512 */
-        struct ubiq_support_digest_context * ctx;
+        struct ubiq_support_hash_context * ctx;
         void * digest;
         size_t digsiz;
         char * digenc;
@@ -299,7 +299,7 @@ ubiq_platform_rest_request(
         char hdrs[256];
         int hdrslen;
 
-        struct ubiq_support_hmac_context * hctx;
+        struct ubiq_support_hash_context * hctx;
         void * hdig;
         size_t hlen;
 

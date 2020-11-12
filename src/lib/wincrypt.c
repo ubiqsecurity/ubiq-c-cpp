@@ -64,7 +64,7 @@ ubiq_support_base64_decode(
     return res;
 }
 
-struct ubiq_support_digest_context
+struct ubiq_support_hash_context
 {
     struct {
         BCRYPT_ALG_HANDLE alg;
@@ -81,7 +81,7 @@ int
 ubiq_support_hash_init(
     const char * const name,
     const void * const keybuf, const size_t keylen,
-    struct ubiq_support_digest_context ** const _ctx)
+    struct ubiq_support_hash_context ** const _ctx)
 {
     static const
         struct {
@@ -93,7 +93,7 @@ ubiq_support_hash_init(
 
     const wchar_t * ident;
 
-    struct ubiq_support_digest_context * ctx;
+    struct ubiq_support_hash_context * ctx;
     int err;
 
     ident = NULL;
@@ -168,25 +168,19 @@ ubiq_support_hash_init(
     return err;
 }
 
-int
-ubiq_support_digest_init(
-    const char * const name,
-    struct ubiq_support_digest_context ** const ctx)
-{
-    return ubiq_support_hash_init(name, NULL, 0, ctx);
-}
-
+static
 void
-ubiq_support_digest_update(
-    struct ubiq_support_digest_context * const ctx,
+ubiq_support_hash_update(
+    struct ubiq_support_hash_context * const ctx,
     const void * const buf, const size_t len)
 {
     BCryptHashData(ctx->hnd.dig, (PUCHAR)buf, len, 0);
 }
 
+static
 int
-ubiq_support_digest_finalize(
-    struct ubiq_support_digest_context * const ctx,
+ubiq_support_hash_finalize(
+    struct ubiq_support_hash_context * const ctx,
     void ** const _buf, size_t * const _len)
 {
     int err;
@@ -231,35 +225,52 @@ ubiq_support_digest_finalize(
 }
 
 int
+ubiq_support_digest_init(
+    const char * const name,
+    struct ubiq_support_hash_context ** const ctx)
+{
+    return ubiq_support_hash_init(name, NULL, 0, ctx);
+}
+
+void
+ubiq_support_digest_update(
+    struct ubiq_support_hash_context * const ctx,
+    const void * const buf, const size_t len)
+{
+    ubiq_support_hash_update(ctx, buf, len);
+}
+
+int
+ubiq_support_digest_finalize(
+    struct ubiq_support_hash_context * const ctx,
+    void ** const buf, size_t * const len)
+{
+    return ubiq_support_hash_finalize(ctx, buf, len);
+}
+
+int
 ubiq_support_hmac_init(
     const char * const name,
     const void * const keybuf, const size_t keylen,
-    struct ubiq_support_hmac_context ** const ctx)
+    struct ubiq_support_hash_context ** const ctx)
 {
-    return ubiq_support_hash_init(
-        name,
-        keybuf, keylen,
-        (struct ubiq_support_digest_context **)ctx);
+    return ubiq_support_hash_init(name, keybuf, keylen, ctx);
 }
 
 void
 ubiq_support_hmac_update(
-    struct ubiq_support_hmac_context * const ctx,
+    struct ubiq_support_hash_context * const ctx,
     const void * const buf, const size_t len)
 {
-    ubiq_support_digest_update(
-        (struct ubiq_support_digest_context *)ctx,
-        buf, len);
+    ubiq_support_hash_update(ctx, buf, len);
 }
 
 int
 ubiq_support_hmac_finalize(
-    struct ubiq_support_hmac_context * const ctx,
+    struct ubiq_support_hash_context * const ctx,
     void ** const buf, size_t * const len)
 {
-    return ubiq_support_digest_finalize(
-        (struct ubiq_support_digest_context *)ctx,
-        buf, len);
+    return ubiq_support_hash_finalize(ctx, buf, len);
 }
 
 int
