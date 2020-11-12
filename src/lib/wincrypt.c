@@ -547,6 +547,87 @@ ubiq_support_cipher_init(
     return err;
 }
 
+static
+ubiq_support_cipher_update(
+    struct ubiq_support_cipher_context * const ctx,
+    BCryptXxcryptFunc * const crypt,
+    const void * const ibuf, const size_t ilen,
+    void ** const obuf, size_t * const olen)
+{
+    ULONG len, out;
+    void * buf;
+    int err;
+
+    err = -ENOMEM;
+    len = ilen + ctx->blksz;
+    buf = malloc(len);
+    if (buf) {
+        struct {
+            size_t i, o;
+        } off;
+
+        off.i = off.o = 0;
+        err = 0;
+
+        if (ctx->blk.len) {
+            const size_t copy = MIN(ctx->blksz - ctx->blk.len, ilen);
+            memcpy((char *)ctx->blk.buf + ctx->blk.len, ibuf, copy);
+            ctx->blk.len += copy;
+            off.i += copy;
+
+            if (ctx->blk.len == ctx->blksz) {
+                ULONG out;
+
+                if ((*crypt)(
+                        ctx->hnd.key,
+                        ctx->blk.buf, ctx->blk.len,
+                        ctx->aci.buf,
+                        ctx->vec.buf, ctx->vec.len,
+                        (char *)buf + off.o, len - off.o, &out,
+                        0) != STATUS_SUCCESS) {
+                    err = INT_MIN;
+                }
+
+                memset(ctx->blk.buf, 0, ctx->blksz);
+                ctx->blk.len = 0;
+
+                off.o += out;
+            }
+        }
+
+        if (!err && (ilen - off.i) >= ctx->blksz) {
+            const size_t clen = ((ilen - off.i) / ctx->blksz) * ctx->blksz;
+
+            if ((*crypt)(
+                    ctx->hnd.key,
+                    (char *)ibuf + off.i, clen,
+                    ctx->aci.buf,
+                    ctx->vec.buf, ctx->vec.len,
+                    (char *)buf + off.o, len - off.o, &out,
+                    0) != STATUS_SUCCESS) {
+                err = INT_MIN;
+            }
+
+            off.i += clen;
+            off.o += clen;
+        }
+
+        if (!err) {
+            if (off.i < ilen) {
+                ctx->blk.len = ilen - off.i;
+                memcpy(ctx->blk.buf, (char *)ibuf + off.i, ctx->blk.len);
+            }
+
+            *obuf = buf;
+            *olen = off.o;
+        } else {
+            free(buf);
+        }
+    }
+
+    return err;
+}
+
 int
 ubiq_support_encryption_init(
     const struct ubiq_platform_algorithm * const alg,
@@ -568,78 +649,8 @@ ubiq_support_encryption_update(
     const void * const ptbuf, const size_t ptlen,
     void ** const ctbuf, size_t * const ctlen)
 {
-    ULONG len, out;
-    void * buf;
-    int err;
-
-    err = -ENOMEM;
-    len = ptlen + ctx->blksz;
-    buf = malloc(len);
-    if (buf) {
-        struct {
-            size_t pt, ct;
-        } off;
-
-        off.pt = off.ct = 0;
-        err = 0;
-
-        if (ctx->blk.len) {
-            const size_t copy = MIN(ctx->blksz - ctx->blk.len, ptlen);
-            memcpy((char *)ctx->blk.buf + ctx->blk.len, ptbuf, copy);
-            ctx->blk.len += copy;
-            off.pt += copy;
-
-            if (ctx->blk.len == ctx->blksz) {
-                ULONG out;
-
-                if (BCryptEncrypt(
-                        ctx->hnd.key,
-                        ctx->blk.buf, ctx->blk.len,
-                        ctx->aci.buf,
-                        ctx->vec.buf, ctx->vec.len,
-                        (char *)buf + off.ct, len - off.ct, &out,
-                        0) != STATUS_SUCCESS) {
-                    err = INT_MIN;
-                }
-
-                memset(ctx->blk.buf, 0, ctx->blksz);
-                ctx->blk.len = 0;
-
-                off.ct += out;
-            }
-        }
-
-        if (!err && (ptlen - off.pt) >= ctx->blksz) {
-            const size_t enclen = ((ptlen - off.pt) / ctx->blksz) * ctx->blksz;
-
-            if (BCryptEncrypt(
-                    ctx->hnd.key,
-                    (char *)ptbuf + off.pt, enclen,
-                    ctx->aci.buf,
-                    ctx->vec.buf, ctx->vec.len,
-                    (char *)buf + off.ct, len - off.ct, &out,
-                    0) != STATUS_SUCCESS) {
-                err = INT_MIN;
-            }
-
-            off.pt += enclen;
-            off.ct += enclen;
-        }
-
-        if (!err) {
-            if (off.pt < ptlen) {
-                ctx->blk.len = ptlen - off.pt;
-                memcpy(ctx->blk.buf, (char *)ptbuf + off.pt, ctx->blk.len);
-            }
-
-            *ctbuf = buf;
-            *ctlen = off.ct;
-        } else {
-            free(buf);
-        }
-    }
-
-    return err;
+    return ubiq_support_cipher_update(
+        ctx, &BCryptEncrypt, ptbuf, ptlen, ctbuf, ctlen);
 }
 
 int
@@ -717,78 +728,8 @@ ubiq_support_decryption_update(
     const void * const ctbuf, const size_t ctlen,
     void ** const ptbuf, size_t * const ptlen)
 {
-    ULONG len, out;
-    void * buf;
-    int err;
-
-    err = -ENOMEM;
-    len = ctlen + ctx->blksz;
-    buf = malloc(len);
-    if (buf) {
-        struct {
-            size_t i, o;
-        } off;
-
-        off.i = off.o = 0;
-        err = 0;
-
-        if (ctx->blk.len) {
-            const size_t copy = MIN(ctx->blksz - ctx->blk.len, ctlen);
-            memcpy((char *)ctx->blk.buf + ctx->blk.len, ctbuf, copy);
-            ctx->blk.len += copy;
-            off.i += copy;
-
-            if (ctx->blk.len == ctx->blksz) {
-                ULONG out;
-
-                if (BCryptDecrypt(
-                        ctx->hnd.key,
-                        ctx->blk.buf, ctx->blk.len,
-                        ctx->aci.buf,
-                        ctx->vec.buf, ctx->vec.len,
-                        (char *)buf + off.o, len - off.o, &out,
-                        0) != STATUS_SUCCESS) {
-                    err = INT_MIN;
-                }
-
-                memset(ctx->blk.buf, 0, ctx->blksz);
-                ctx->blk.len = 0;
-
-                off.o += out;
-            }
-        }
-
-        if (!err && (ctlen - off.i) >= ctx->blksz) {
-            const size_t clen = ((ctlen - off.i) / ctx->blksz) * ctx->blksz;
-
-            if (BCryptDecrypt(
-                    ctx->hnd.key,
-                    (char *)ctbuf + off.i, clen,
-                    ctx->aci.buf,
-                    ctx->vec.buf, ctx->vec.len,
-                    (char *)buf + off.o, len - off.o, &out,
-                    0) != STATUS_SUCCESS) {
-                err = INT_MIN;
-            }
-
-            off.i += clen;
-            off.o += clen;
-        }
-
-        if (!err) {
-            if (off.i < ctlen) {
-                ctx->blk.len = ctlen - off.i;
-                memcpy(ctx->blk.buf, (char *)ctbuf + off.i, ctx->blk.len);
-            }
-
-            *ptbuf = buf;
-            *ptlen = off.o;
-        } else {
-            free(buf);
-        }
-    }
-
-    return err;
+    return ubiq_support_cipher_update(
+        ctx, &BCryptDecrypt, ctbuf, ctlen, ptbuf, ptlen);
 }
 
 int
