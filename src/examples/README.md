@@ -1,6 +1,7 @@
 # Ubiq Security Sample Application using C/C++ Library
 
-This sample application will demonstrate how to encrypt and decrypt data using the different APIs.
+This sample application will demonstrate how to encrypt and decrypt data using
+the different APIs.
 
 ### Documentation
 
@@ -8,16 +9,12 @@ See the [C/C++ API docs](https://dev.ubiqsecurity.com/docs/api).
 
 ## Installation
 
-Make sure to first install the ubiq-security library and development headers from [Releases](https://gitlab.com/ubiqsecurity/ubiq-c-cpp/-/releases)
-
-```sh
-$ sudo apt install ./libubiqclient_<version>_<arch>.deb
-$ sudo apt install ./libubiqclient-dev_<version>_<arch>.deb
-```
+Install or build the software as described [here](/README.md#installation).
 
 ## Credentials file
 
-Edit the credentials file with your account credentials created using the Ubiq dashboard
+Edit the credentials file with your account credentials created using the Ubiq
+dashboard
 
 <pre>
 [default]
@@ -28,7 +25,8 @@ SECRET_CRYPTO_ACCESS_KEY = ...
 
 ## Build the examples
 
-Create a local directory and compile the example application
+If you installed the libraries and development headers via the `.deb`
+packages, then you can build the examples directly from the installation:
 
 ```sh
 $ mkdir ~/ubiq_sample
@@ -37,9 +35,26 @@ $ cmake /usr/share/doc/libubiqclient-dev/examples
 $ cmake --build . --target all
 ```
 
+If you built the software yourself, the examples are built automatically as
+part of a complete build.
+
+On Windows, the DLL files can be found in `build\src\Debug` or
+`build\src\Release`, depending on your CMake configuration. The sample
+executables can be found in `build\src\examples\Debug` or
+`build\src\examples\Release`, again depending on your CMake configuration.
+Move the DLL's and executables into the same directory (of your choosing) as
+this will enable the executable to find the library at runtime.
+
+On Unix-like systems, the libraries and executables are produced in
+`build/src` and `build/src/examples`, respectively. You may need to set the
+`LD_LIBRARY_PATH` environment variable to include the directory where your
+libraries are located in order for the executables to work properly.
+
 ## View Program Options
 
-From within the examples directory
+From within the directory where your executables are located, you can
+execute/test the following commands. The examples below all use a Unix-like
+syntax and path scheme; however, they are easily modified to work in Windows.
 
 ```sh
 $ ./ubiq_sample-c -h
