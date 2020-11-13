@@ -54,4 +54,4 @@ target_link_libraries(
 # target directory if necessary. Do not copy the file if the
 # file has been updated by the user.
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/credentials credentials COPYONLY)
-
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/README.md README.md COPYONLY)
