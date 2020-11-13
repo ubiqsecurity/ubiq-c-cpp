@@ -56,9 +56,15 @@ set_target_properties(
 target_include_directories(
   ubiqclient
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(
-  ubiqclient
-  curl crypto)
+if(WIN32)
+  target_link_libraries(
+    ubiqclient
+    ws2_32 userenv winhttp bcrypt crypt32)
+else()
+  target_link_libraries(
+    ubiqclient
+    curl crypto)
+endif()
 strip_target(ubiqclient)
 install(
   TARGETS ubiqclient
@@ -103,9 +109,15 @@ set_target_properties(
 target_include_directories(
   ubiqclient++
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(
-  ubiqclient++
-  curl crypto)
+if(WIN32)
+  target_link_libraries(
+    ubiqclient++
+    ws2_32 userenv winhttp bcrypt crypt32)
+else()
+  target_link_libraries(
+    ubiqclient++
+    curl crypto)
+endif()
 strip_target(ubiqclient++)
 install(
   TARGETS ubiqclient++

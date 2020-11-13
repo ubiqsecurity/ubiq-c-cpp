@@ -22,11 +22,12 @@ __BEGIN_DECLS
  * malloc(3), and the caller is responsible for releasing the memory with
  * free(3).
  */
+UBIQ_PLATFORM_API
 int
 ubiq_platform_encrypt(
-    const struct ubiq_platform_credentials * creds,
-    const void * ptbuf, const size_t ptlen,
-    void ** ctbuf, size_t * ctlen);
+    const struct ubiq_platform_credentials * const creds,
+    const void * const ptbuf, const size_t ptlen,
+    void ** const ctbuf, size_t * const ctlen);
 
 /* Opaque encryption object */
 struct ubiq_platform_encryption;
@@ -46,11 +47,12 @@ struct ubiq_platform_encryption;
  * must be destroyed by ubiq_platform_encryption_destroy() to avoid leaking
  * resources.
  */
+UBIQ_PLATFORM_API
 int
 ubiq_platform_encryption_create(
-    const struct ubiq_platform_credentials * creds,
-    unsigned int uses,
-    struct ubiq_platform_encryption ** enc);
+    const struct ubiq_platform_credentials * const creds,
+    const unsigned int uses,
+    struct ubiq_platform_encryption ** const enc);
 
 /*
  * Destroy an encryption object.
@@ -59,9 +61,10 @@ ubiq_platform_encryption_create(
  * encryption object. The most recent call on the object must either be
  * ubiq_platform_encryption_create() or ubiq_platform_encryption_end().
  */
+UBIQ_PLATFORM_API
 void
 ubiq_platform_encryption_destroy(
-    struct ubiq_platform_encryption * enc);
+    struct ubiq_platform_encryption * const enc);
 
 /*
  * Begin encryption of a plain text using the specified encryption object.
@@ -72,10 +75,11 @@ ubiq_platform_encryption_destroy(
  * in *ctlen. The caller is responsible for freeing that pointer using
  * free(3).
  */
+UBIQ_PLATFORM_API
 int
 ubiq_platform_encryption_begin(
-    struct ubiq_platform_encryption * enc,
-    void ** ctbuf, size_t * ctlen);
+    struct ubiq_platform_encryption * const enc,
+    void ** const ctbuf, size_t * const ctlen);
 
 /*
  * Encrypt a portion of plain text.
@@ -88,11 +92,12 @@ ubiq_platform_encryption_begin(
  * in *ctbuf and the number of bytes pointed to by that pointer in *ctlen.
  * The caller is responsible for freeing that pointer using free(3).
  */
+UBIQ_PLATFORM_API
 int
 ubiq_platform_encryption_update(
-    struct ubiq_platform_encryption * enc,
+    struct ubiq_platform_encryption * const enc,
     const void * ptbuf, const size_t ptlen,
-    void ** ctbuf, size_t * ctlen);
+    void ** const ctbuf, size_t * const ctlen);
 
 /*
  * Complete an encryption of a plain text.
@@ -109,10 +114,11 @@ ubiq_platform_encryption_update(
  * an encryption a different plain text under the same key or destroy() to
  * release the encryption object.
  */
+UBIQ_PLATFORM_API
 int
 ubiq_platform_encryption_end(
-    struct ubiq_platform_encryption * enc,
-    void ** ctbuf, size_t * ctlen);
+    struct ubiq_platform_encryption * const enc,
+    void ** const ctbuf, size_t * const ctlen);
 
 __END_DECLS
 
@@ -126,6 +132,7 @@ __END_DECLS
 
 namespace ubiq {
     namespace platform {
+        UBIQ_PLATFORM_API
         std::vector<std::uint8_t>
         encrypt(const credentials & creds,
                 const void * ptbuf, std::size_t ptlen);
@@ -133,6 +140,7 @@ namespace ubiq {
         class encryption : public transform
         {
         public:
+            UBIQ_PLATFORM_API
             virtual ~encryption(void) = default;
 
             /*
@@ -140,6 +148,7 @@ namespace ubiq {
              * This object cannot be used to perform an encryption, and
              * the constructor is provided for convenience.
              */
+            UBIQ_PLATFORM_API
             encryption(void) = default;
 
             /*
@@ -147,12 +156,15 @@ namespace ubiq {
              * ubiq_platform_encryption_create(), and the constructor throws
              * an exception if it fails to properly construct the object.
              */
+            UBIQ_PLATFORM_API
             encryption(const credentials & creds, unsigned int uses);
 
             encryption(const encryption &) = delete;
+            UBIQ_PLATFORM_API
             encryption(encryption &&) = default;
 
             encryption & operator =(const encryption &) = delete;
+            UBIQ_PLATFORM_API
             encryption & operator =(encryption &&) = default;
 
             /*
@@ -160,6 +172,7 @@ namespace ubiq {
              * however, it returns the generated cipher text in a vector and
              * throws an exception on failure.
              */
+            UBIQ_PLATFORM_API
             virtual
             std::vector<std::uint8_t>
             begin(void)
@@ -169,6 +182,7 @@ namespace ubiq {
              * however, it returns the generated cipher text in a vector and
              * throws an exception on failure.
              */
+            UBIQ_PLATFORM_API
             virtual
             std::vector<std::uint8_t>
             update(const void * ptbuf, std::size_t ptlen)
@@ -178,6 +192,7 @@ namespace ubiq {
              * however, it returns the generated cipher text in a vector and
              * throws an exception on failure.
              */
+            UBIQ_PLATFORM_API
             virtual
             std::vector<std::uint8_t>
             end(void)

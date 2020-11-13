@@ -3,7 +3,10 @@
 
 int ubiq_platform_init(void)
 {
-    ubiq_support_user_agent = UBIQ_PLATFORM_USER_AGENT;
+    if (!ubiq_support_user_agent) {
+        ubiq_support_user_agent = UBIQ_PLATFORM_USER_AGENT;
+    }
+
     return ubiq_support_http_init();
 }
 

@@ -27,13 +27,13 @@ struct ubiq_platform_rest_handle;
 int
 ubiq_platform_rest_handle_create(
     const char * const papi, const char * const sapi,
-    struct ubiq_platform_rest_handle ** h);
+    struct ubiq_platform_rest_handle ** const h);
 /*
  * dispose of a rest handle
  */
 void
 ubiq_platform_rest_handle_destroy(
-    struct ubiq_platform_rest_handle * h);
+    struct ubiq_platform_rest_handle * const h);
 
 /*
  * make a request to the ubiq platform (using an already created handle)
@@ -56,10 +56,10 @@ ubiq_platform_rest_handle_destroy(
  */
 int
 ubiq_platform_rest_request(
-    struct ubiq_platform_rest_handle * h,
-    http_request_method_t method, const char * url,
-    const char * content_type,
-    const void * content, size_t length);
+    struct ubiq_platform_rest_handle * const h,
+    const http_request_method_t method, const char * const url,
+    const char * const content_type,
+    const void * const content, const size_t length);
 
 /*
  * after a successful request, this function can be used to
@@ -70,7 +70,7 @@ ubiq_platform_rest_request(
  */
 http_response_code_t
 ubiq_platform_rest_response_code(
-    const struct ubiq_platform_rest_handle * h);
+    const struct ubiq_platform_rest_handle * const h);
 /*
  * obtain the content type of the response, if any
  *

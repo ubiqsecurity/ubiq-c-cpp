@@ -1,6 +1,7 @@
 #include <ubiq/platform/internal/support.h>
 
-#include <ubiq/platform/compat/sys/param.h>
+#include <sys/param.h>
+
 #include <errno.h>
 #include <string.h>
 
@@ -89,16 +90,19 @@ ubiq_support_base64_decode(
     return res;
 }
 
-struct ubiq_support_digest_context
+struct ubiq_support_hash_context
 {
     const EVP_MD * dig;
-    EVP_MD_CTX * ctx;
+    union {
+        HMAC_CTX * hmac;
+        EVP_MD_CTX * mdig;
+    } ctx;
 };
 
 int
 ubiq_support_digest_init(
     const char * const name,
-    struct ubiq_support_digest_context ** const _ctx)
+    struct ubiq_support_hash_context ** const _ctx)
 {
     const EVP_MD * const dig = EVP_get_digestbyname(name);
 
@@ -106,16 +110,16 @@ ubiq_support_digest_init(
 
     err = -EINVAL;
     if (dig) {
-        struct ubiq_support_digest_context * ctx;
+        struct ubiq_support_hash_context * ctx;
 
         err = -ENOMEM;
         ctx = malloc(sizeof(*ctx));
         if (ctx) {
             ctx->dig = dig;
-            ctx->ctx = EVP_MD_CTX_new();
+            ctx->ctx.mdig = EVP_MD_CTX_new();
 
-            if (ctx->ctx) {
-                EVP_DigestInit_ex(ctx->ctx, ctx->dig, NULL);
+            if (ctx->ctx.mdig) {
+                EVP_DigestInit_ex(ctx->ctx.mdig, ctx->dig, NULL);
                 *_ctx = ctx;
                 err = 0;
             } else {
@@ -129,15 +133,15 @@ ubiq_support_digest_init(
 
 void
 ubiq_support_digest_update(
-    struct ubiq_support_digest_context * const ctx,
+    struct ubiq_support_hash_context * const ctx,
     const void * const buf, const size_t len)
 {
-    EVP_DigestUpdate(ctx->ctx, buf, len);
+    EVP_DigestUpdate(ctx->ctx.mdig, buf, len);
 }
 
 int
 ubiq_support_digest_finalize(
-    struct ubiq_support_digest_context * const ctx,
+    struct ubiq_support_hash_context * const ctx,
     void ** _buf, size_t * const _len)
 {
     void * buf;
@@ -148,8 +152,8 @@ ubiq_support_digest_finalize(
     len = EVP_MD_size(ctx->dig);
     buf = malloc(len);
     if (buf) {
-        EVP_DigestFinal_ex(ctx->ctx, buf, &len);
-        EVP_MD_CTX_destroy(ctx->ctx);
+        EVP_DigestFinal_ex(ctx->ctx.mdig, buf, &len);
+        EVP_MD_CTX_destroy(ctx->ctx.mdig);
         free(ctx);
 
         *_buf = buf;
@@ -160,17 +164,11 @@ ubiq_support_digest_finalize(
     return err;
 }
 
-struct ubiq_support_hmac_context
-{
-    const EVP_MD * dig;
-    HMAC_CTX * ctx;
-};
-
 int
 ubiq_support_hmac_init(
     const char * const name,
     const void * const key, const size_t len,
-    struct ubiq_support_hmac_context ** const _ctx)
+    struct ubiq_support_hash_context ** const _ctx)
 {
     const EVP_MD * const dig = EVP_get_digestbyname(name);
 
@@ -178,16 +176,16 @@ ubiq_support_hmac_init(
 
     err = -EINVAL;
     if (dig) {
-        struct ubiq_support_hmac_context * ctx;
+        struct ubiq_support_hash_context * ctx;
 
         err = -ENOMEM;
         ctx = malloc(sizeof(*ctx));
         if (ctx) {
             ctx->dig = dig;
-            ctx->ctx = HMAC_CTX_new();
+            ctx->ctx.hmac = HMAC_CTX_new();
 
-            if (ctx->ctx) {
-                HMAC_Init_ex(ctx->ctx, key, len, ctx->dig, NULL);
+            if (ctx->ctx.hmac) {
+                HMAC_Init_ex(ctx->ctx.hmac, key, len, ctx->dig, NULL);
                 *_ctx = ctx;
                 err = 0;
             } else {
@@ -201,15 +199,15 @@ ubiq_support_hmac_init(
 
 void
 ubiq_support_hmac_update(
-    struct ubiq_support_hmac_context * const ctx,
+    struct ubiq_support_hash_context * const ctx,
     const void * const buf, const size_t len)
 {
-    HMAC_Update(ctx->ctx, buf, len);
+    HMAC_Update(ctx->ctx.hmac, buf, len);
 }
 
 int
 ubiq_support_hmac_finalize(
-    struct ubiq_support_hmac_context * const ctx,
+    struct ubiq_support_hash_context * const ctx,
     void ** _buf, size_t * const _len)
 {
     void * buf;
@@ -220,8 +218,8 @@ ubiq_support_hmac_finalize(
     len = EVP_MD_size(ctx->dig);
     buf = malloc(len);
     if (buf) {
-        HMAC_Final(ctx->ctx, buf, &len);
-        HMAC_CTX_free(ctx->ctx);
+        HMAC_Final(ctx->ctx.hmac, buf, &len);
+        HMAC_CTX_free(ctx->ctx.hmac);
         free(ctx);
 
         *_buf = buf;
@@ -526,8 +524,8 @@ get_password_callback(char * const buf, const int size,
 int
 ubiq_support_asymmetric_decrypt(
     const char * const prvpem, const char * const passwd,
-    const void * const ptbuf, const size_t ptlen,
-    void ** const ctbuf, size_t * const ctlen)
+    const void * const ctbuf, const size_t ctlen,
+    void ** const ptbuf, size_t * const ptlen)
 {
     EVP_PKEY * prvkey;
     BIO * bp;
@@ -557,12 +555,12 @@ ubiq_support_asymmetric_decrypt(
                 buf = malloc(len);
                 if (buf) {
                     if (EVP_PKEY_decrypt(
-                            pctx, buf, &len, ptbuf, ptlen) <= 0) {
+                            pctx, buf, &len, ctbuf, ctlen) <= 0) {
                         free(buf);
                         err = -EACCES;
                     } else {
-                        *ctbuf = buf;
-                        *ctlen = len;
+                        *ptbuf = buf;
+                        *ptlen = len;
                         err = 0;
                     }
                 }

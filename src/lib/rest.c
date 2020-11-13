@@ -1,5 +1,6 @@
-#include "ubiq/platform/internal/assert.h"
 #include "ubiq/platform/internal/rest.h"
+#include "ubiq/platform/internal/assert.h"
+#include "ubiq/platform/internal/common.h"
 #include "ubiq/platform/internal/support.h"
 
 #include <ctype.h>
@@ -9,7 +10,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <time.h>
 
 int
 ubiq_platform_snprintf_api_url(
@@ -58,110 +58,11 @@ static
 void
 string_tolower(
     char * const str,
-    const ssize_t len, const char delim)
+    const int len, const char delim)
 {
-    for (unsigned int i = 0;
+    for (int i = 0;
          (len < 0 || i < len) && str[i] != delim;
          str[i] = tolower(str[i]), i++);
-}
-
-struct ubiq_url
-{
-    /*
-     * A full URL looks like:
-     * scheme://[user:pass@]host[:port]/path[?query][#frag]
-     *
-     * This structure supports:
-     * scheme://host[:port]/[path][?query]
-     *
-     * see ubiq_url_parse()
-     */
-    char * scheme;
-    char * hostname;
-    char * port;
-    char * path;
-    char * query;
-};
-
-static
-void
-ubiq_url_init(
-    struct ubiq_url * url)
-{
-    url->scheme = NULL;
-    url->hostname = NULL;
-    url->path = NULL;
-    url->port = NULL;
-    url->query = NULL;
-}
-
-static
-void
-ubiq_url_reset(
-    struct ubiq_url * url)
-{
-    free(url->scheme);
-    free(url->hostname);
-    free(url->path);
-    free(url->query);
-    ubiq_url_init(url);
-}
-
-/*
- * parse a url
- *
- * this function is not capable of parsing a fully featured url.
- * in particular the use of inline usernames and passwords is not
- * supported, nor are fragments.
- *
- * see the format documented in struct ubiq_url.
- */
-static
-int
-ubiq_url_parse(
-    struct ubiq_url * url, const char * str)
-{
-    char * host, * chr;
-    int res;
-
-    ubiq_url_init(url);
-
-    errno = 0;
-    res = sscanf(str, "%m[^:]://%m[^/]%m[^?]?%ms",
-                 &url->scheme, &url->hostname, &url->path, &url->query);
-    /*
-     * sscanf returns the number of elements parsed/set/returned by
-     * the call. if less than 3, then the call has failed to parse
-     * a meaningful amount of data from the URL. free any allocated
-     * data and reinitialize the url object.
-     *
-     * if 3 is returned, no query is present, which is ok.
-     * if 4, then all parts are present.
-     */
-    if (res < 3) {
-        switch (res) {
-        case 2: free(url->hostname);
-        case 1: free(url->scheme);
-        default: break;
-        }
-
-        ubiq_url_init(url);
-
-        return INT_MIN;
-    }
-
-    /*
-     * if the port is present in the hostname, overwrite the ':'
-     * with a NUL and point the port pointer at the next character.
-     * therefore the port member is never freed. it's either NULL,
-     * or it points into the hostname string.
-     */
-    if ((chr = strchr(url->hostname, ':'))) {
-        url->port = chr + 1;
-        *chr = '\0';
-    }
-
-    return 0;
 }
 
 struct ubiq_platform_rest_handle
@@ -183,7 +84,7 @@ struct ubiq_platform_rest_handle
 int
 ubiq_platform_rest_handle_create(
     const char * const papi, const char * const sapi,
-    struct ubiq_platform_rest_handle ** h)
+    struct ubiq_platform_rest_handle ** const h)
 {
     const int papilen = strlen(papi) + 1;
     const int sapilen = strlen(sapi) + 1;
@@ -233,7 +134,7 @@ ubiq_platform_rest_handle_reset(
 
 void
 ubiq_platform_rest_handle_destroy(
-    struct ubiq_platform_rest_handle * h)
+    struct ubiq_platform_rest_handle * const h)
 {
     ubiq_platform_rest_handle_reset(h);
     ubiq_support_http_handle_destroy(h->hnd);
@@ -282,7 +183,7 @@ ubiq_platform_rest_header_content(
     const http_request_method_t method, const struct ubiq_url * const url,
     const char * const content_type,
     const void * const content, const size_t length,
-    char * const val, ssize_t * len)
+    char * const val, int * len)
 {
     int err;
 
@@ -330,12 +231,12 @@ ubiq_platform_rest_header_content(
         const time_t now = time(NULL);
         struct tm tm;
 
-        gmtime_r(&now, &tm);
+        ubiq_support_gmtime_r(&now, &tm);
         *len = strftime(val, *len, "%a, %d %b %Y %H:%M:%S GMT", &tm);
         err = 0;
     } else if (strcmp(key, "Digest") == 0) {
         /* hard-coded to sha512 */
-        struct ubiq_support_digest_context * ctx;
+        struct ubiq_support_hash_context * ctx;
         void * digest;
         size_t digsiz;
         char * digenc;
@@ -368,7 +269,7 @@ ubiq_platform_rest_header_content(
 
 int
 ubiq_platform_rest_request(
-    struct ubiq_platform_rest_handle * h,
+    struct ubiq_platform_rest_handle * const h,
     const http_request_method_t method, const char * const urlstr,
     const char * const content_type,
     const void * const content, const size_t length)
@@ -398,7 +299,7 @@ ubiq_platform_rest_request(
         char hdrs[256];
         int hdrslen;
 
-        struct ubiq_support_hmac_context * hctx;
+        struct ubiq_support_hash_context * hctx;
         void * hdig;
         size_t hlen;
 
@@ -429,7 +330,7 @@ ubiq_platform_rest_request(
              i < sizeof(key) / sizeof(*key) && res == 0;
              i++) {
             char val[440];
-            ssize_t len = sizeof(val);
+            int len = sizeof(val);
 
             /* get the content for the designated header */
             res = ubiq_platform_rest_header_content(
@@ -446,7 +347,7 @@ ubiq_platform_rest_request(
                  * http header -> "key: value"
                  */
                 n = snprintf(hdr, sizeof(hdr),
-                             "%1$s: %2$.*3$s", key[i], val, (int)len);
+                             "%s: %.*s", key[i], (int)len, val);
 
                 if (strcmp(key[i], "(created)") == 0) {
                     /*
@@ -455,10 +356,9 @@ ubiq_platform_rest_request(
                      */
                     sighdrlen += snprintf(
                         sighdr + sighdrlen, sizeof(sighdr) - sighdrlen,
-                        ", %1$s=%2$.*3$s", "created", val, (int)len);
+                        ", created=%.*s", (int)len, val);
                 } else if (!(key[i][0] == '(' &&
-                             key[i][strlen(key[i]) - 1] == ')') &&
-                           strcmp(key[i], "Content-Type") != 0) {
+                             key[i][strlen(key[i]) - 1] == ')')) {
                     /*
                      * all other headers not enclosed in parentheses
                      * are added to the list of headers to include
@@ -528,7 +428,7 @@ ubiq_platform_rest_request(
             res = ubiq_support_http_request(
                 h->hnd,
                 method, urlstr,
-                content_type, content, length,
+                content, length,
                 &h->rsp.buf, &h->rsp.len);
         }
 

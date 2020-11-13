@@ -21,32 +21,33 @@ Individual interfaces are documented in greater detail in:
 
 #### Using the package manager:
 
-You don't need this source code unless you want to modify the libraries. If you
+Packages are available for systems that can use `.deb` files. In that case,
+you don't need this source code unless you want to modify the libraries. If you
 just want to use the libraries, install the pre-built packages available from
 [Releases](https://gitlab.com/ubiqsecurity/ubiq-c-cpp/-/releases):
 
-```sh
+```console
 # installs the runtime libraries, needed for running existing clients
 $ sudo apt install ./libubiqclient_<version>_<arch>.deb
 # installs the development headers, needed for building or modifying clients
 $ sudo apt install ./libubiqclient-dev_<version>_<arch>.deb
 ```
 
-When building clients, use `-lubiqclient` to link against the C library and
-`-lubiqclient++` to link against the C++ library.
+When building clients with `gcc`, use `-lubiqclient` to link against the C
+library and `-lubiqclient++` to link against the C++ library.
 
 #### Building from source:
 
-Clone this repository, initialize the submodules, and build the packages:
-
-```bash
+Clone this repository, initialize the submodules, and build the client. The
+commands are the same on both Windows and Unix-like systems:
+```console
 $ git clone https://gitlab.com/ubiqsecurity/ubiq-c-cpp.git
 $ cd ubiq-c-cpp
 $ git submodule update --init --recursive
 $ mkdir build
 $ cd build
 $ cmake ..
-$ cmake --build . --target package
+$ cmake --build .
 ```
 
 The package manager can be used to install the built packages using the
@@ -54,10 +55,20 @@ commands described above.
 
 ### Requirements
 
--   [CMake 3.10+](https://cmake.org/files/)
+[CMake 3.10+](https://cmake.org/files/) is required for building on both
+Windows and Unix-like systems.
+
+On Windows, the library has been tested to build with the
+[Visual Studio 2017 CE](https://visualstudio.microsoft.com/downloads/)
+compiler.
+
+On Unix-like systems, the following libraries and development headers are
+required:
 -   cURL 7.68+
 -   OpenSSL 1.1+
 
+On Debian-like systems, those packages can be installed with the following
+commands:
 ```sh
 # for runtime libraries needed to use the library
 $ sudo apt install cmake libcurl4 libssl1.1
@@ -188,9 +199,6 @@ common errors include:
     be caused by failure to decrypt keys from the server
 * `-EAGAIN`:
     The library has not been initialized
-* `-EBADFD`:
-    The functions associated with a piecewise encryption or decryption have
-    been called in an incorrect order
 * `-EBADMSG`:
     The server rejected a message from the client or vice versa. This is
     usually an incompatibility betweer the client and server, but can also
@@ -199,8 +207,6 @@ common errors include:
     invalid or unsupported data format during decryption
 * `-ECONNABORTED`:
     An error occurred on the server side
-* `-EDQUOT`:
-    The encryption key has already been used the maximum number of times
 * `-EINPROGRESS`:
     A piecewise encryption or decryption has already been started when one of
     the encryption or decryption begin() functions is called
@@ -213,9 +219,14 @@ common errors include:
     The specified or default credentials could not be found or were incomplete
 * `-ENOMEM`:
     The system was unable to allocate memory from the heap
+* `-ENOSPC`, formerly `-EDQUOT`:
+    The encryption key has already been used the maximum number of times
 * `-EPROTO`:
     A response from the server was not understood. This is a problem with the
     library and should be reported.
+* `-ESRCH`, formerly `-EBADFD`:
+    The functions associated with a piecewise encryption or decryption have
+    been called in an incorrect order
 
 Errors returned from external libraries are converted to `INT_MIN` where the
 failure is not specific or can't be converted to an error number. While it is

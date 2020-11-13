@@ -7,16 +7,16 @@ __BEGIN_DECLS
 
 const char *
 ubiq_platform_credentials_get_host(
-    const struct ubiq_platform_credentials * creds);
+    const struct ubiq_platform_credentials * const creds);
 const char *
 ubiq_platform_credentials_get_papi(
-    const struct ubiq_platform_credentials * creds);
+    const struct ubiq_platform_credentials * const creds);
 const char *
 ubiq_platform_credentials_get_sapi(
-    const struct ubiq_platform_credentials * creds);
+    const struct ubiq_platform_credentials * const creds);
 const char *
 ubiq_platform_credentials_get_srsa(
-    const struct ubiq_platform_credentials * creds);
+    const struct ubiq_platform_credentials * const creds);
 
 __END_DECLS
 

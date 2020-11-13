@@ -5,16 +5,18 @@
 
 void ubiq::platform::init(void)
 {
+    /*
+     * override the name set by the C initialization function
+     * defined as a compiler parameter in CMakeLists.txt
+     */
+    if (!ubiq_support_user_agent) {
+        ubiq_support_user_agent = UBIQ_PLATFORM_USER_AGENT;
+    }
+
     if (ubiq_platform_init() != 0) {
         throw std::runtime_error("platform initialization failed");
     }
 
-    /*
-     * override the name set by the C initialization function
-     *
-     * defined as a compiler parameter in CMakeLists.txt
-     */
-    ubiq_support_user_agent = UBIQ_PLATFORM_USER_AGENT;
 }
 
 void ubiq::platform::exit(void)

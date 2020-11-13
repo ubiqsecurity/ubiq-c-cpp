@@ -11,7 +11,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <arpa/inet.h>
 #include <assert.h>
 
 #include "cJSON/cJSON.h"
@@ -44,7 +43,7 @@ struct ubiq_platform_encryption
 
 void
 ubiq_platform_encryption_destroy(
-    struct ubiq_platform_encryption * e)
+    struct ubiq_platform_encryption * const e)
 {
     /*
      * if there is a session and a fingerprint
@@ -311,7 +310,7 @@ ubiq_platform_encryption_begin(
         res = -EINPROGRESS;
     } else if (enc->key.uses.cur >= enc->key.uses.max) {
         /* key is all used up */
-        res = -EDQUOT;
+        res = -ENOSPC;
     } else {
         /*
          * good to go, build a header; create the context
@@ -328,8 +327,8 @@ ubiq_platform_encryption_begin(
         hdr->pre.version = 0;
         hdr->v0.flags = enc->algo->len.tag ? UBIQ_HEADER_V0_FLAG_AAD : 0;
         hdr->v0.algorithm = enc->algo->id;
-        hdr->v0.ivlen = ivlen;
-        hdr->v0.keylen = htons(enc->key.enc.len);
+        hdr->v0.ivlen = (uint8_t)ivlen;
+        hdr->v0.keylen = htons((uint16_t)enc->key.enc.len);
 
         /* add on the initialization vector */
         res = ubiq_support_getrandom(hdr + 1, ivlen);
@@ -366,13 +365,13 @@ ubiq_platform_encryption_begin(
 
 int
 ubiq_platform_encryption_update(
-    struct ubiq_platform_encryption * enc,
-    const void * const ptbuf, const size_t const ptlen,
+    struct ubiq_platform_encryption * const enc,
+    const void * const ptbuf, const size_t ptlen,
     void ** const ctbuf, size_t * const ctlen)
 {
     int res;
 
-    res = -EBADFD;
+    res = -ESRCH;
     if (enc->ctx) {
         res = ubiq_support_encryption_update(
             enc->ctx, ptbuf, ptlen, ctbuf, ctlen);
@@ -383,12 +382,12 @@ ubiq_platform_encryption_update(
 
 int
 ubiq_platform_encryption_end(
-    struct ubiq_platform_encryption * enc,
+    struct ubiq_platform_encryption * const enc,
     void ** const ctbuf, size_t * const ctlen)
 {
     int res;
 
-    res = -EBADFD;
+    res = -ESRCH;
     if (enc->ctx) {
         void * tagbuf;
         size_t taglen;
@@ -426,7 +425,7 @@ int
 ubiq_platform_encrypt(
     const struct ubiq_platform_credentials * const creds,
     const void * ptbuf, const size_t ptlen,
-    void ** ctbuf, size_t * ctlen)
+    void ** const ctbuf, size_t * const ctlen)
 {
     struct ubiq_platform_encryption * enc;
     int res;

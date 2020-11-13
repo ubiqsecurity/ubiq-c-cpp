@@ -19,12 +19,12 @@ struct ubiq_platform_algorithm
 
 int
 ubiq_platform_algorithm_get_byid(
-    unsigned int,
-    const struct ubiq_platform_algorithm **);
+    const unsigned int,
+    const struct ubiq_platform_algorithm ** const);
 int
 ubiq_platform_algorithm_get_byname(
-    const char *,
-    const struct ubiq_platform_algorithm **);
+    const char * const,
+    const struct ubiq_platform_algorithm ** const);
 
 __END_DECLS
 
