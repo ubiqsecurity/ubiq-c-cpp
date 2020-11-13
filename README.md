@@ -21,7 +21,8 @@ Individual interfaces are documented in greater detail in:
 
 #### Using the package manager:
 
-You don't need this source code unless you want to modify the libraries. If you
+Packages are available for systems that can use `.deb` files. In that case,
+you don't need this source code unless you want to modify the libraries. If you
 just want to use the libraries, install the pre-built packages available from
 [Releases](https://gitlab.com/ubiqsecurity/ubiq-c-cpp/-/releases):
 
@@ -32,21 +33,21 @@ $ sudo apt install ./libubiqclient_<version>_<arch>.deb
 $ sudo apt install ./libubiqclient-dev_<version>_<arch>.deb
 ```
 
-When building clients, use `-lubiqclient` to link against the C library and
-`-lubiqclient++` to link against the C++ library.
+When building clients with `gcc`, use `-lubiqclient` to link against the C
+library and `-lubiqclient++` to link against the C++ library.
 
 #### Building from source:
 
-Clone this repository, initialize the submodules, and build the packages:
-
-```bash
+Clone this repository, initialize the submodules, and build the client. The
+commands are the same on both Windows and Unix-like systems:
+```console
 $ git clone https://gitlab.com/ubiqsecurity/ubiq-c-cpp.git
 $ cd ubiq-c-cpp
 $ git submodule update --init --recursive
 $ mkdir build
 $ cd build
 $ cmake ..
-$ cmake --build . --target package
+$ cmake --build .
 ```
 
 The package manager can be used to install the built packages using the
@@ -54,10 +55,19 @@ commands described above.
 
 ### Requirements
 
--   [CMake 3.10+](https://cmake.org/files/)
+[CMake 3.10+](https://cmake.org/files/) are required for building on both
+Windows and Unix-like systems.
+
+On Windows, the client builds against the native libraries; however your
+system will need to have the [Windows SDK][windows-sdk] installed.
+
+On Unix-like systems, the following libraries and the development headers are
+required:
 -   cURL 7.68+
 -   OpenSSL 1.1+
 
+On Debian-like systems, those packages can be installed with the following
+commands:
 ```sh
 # for runtime libraries needed to use the library
 $ sudo apt install cmake libcurl4 libssl1.1
@@ -461,3 +471,4 @@ ptbuf.insert(ptbuf.end(), buf.begin(), buf.end());
 
 [dashboard]:https://dashboard.ubiqsecurity.com/
 [credentials]:https://dev.ubiqsecurity.com/docs/how-to-create-api-keys
+[windows-sdk]:https://developer.microsoft.com/en-us/windows/downloads/sdk-archive/
