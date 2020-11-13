@@ -24,7 +24,7 @@ static char *optarg   = NULL; /* argument associated with option */
  */
 static
 int
-local_getopt(int nargc, char * const nargv[], const char *ostr)
+getopt(int nargc, char * const nargv[], const char *ostr)
 {
     char empty[] = EMSG;
     static char *place = NULL;      /* option letter processing */
@@ -153,7 +153,7 @@ ubiq_sample_getopt(
     *method = UBIQ_SAMPLE_METHOD_UNSPEC;
     *infile = *outfile = *credfile = *profile = NULL;
 
-    while ((opt = local_getopt(argc, argv, "+:hVedspi:o:c:P:")) != -1) {
+    while ((opt = getopt(argc, argv, "+:hVedspi:o:c:P:")) != -1) {
         switch (opt) {
         case 'h':
             ubiq_sample_usage(argv[0], NULL);
