@@ -67,7 +67,7 @@ ubiq_sample_piecewise_encrypt(
         std::vector<char> ibuf(128 * 1024);
 
         ifs.read(ibuf.data(), ibuf.size());
-        ibuf.resize(ifs.gcount());
+        ibuf.resize((std::size_t)ifs.gcount());
         obuf = enc.update(ibuf.data(), ibuf.size());
         ofs.write((const char *)obuf.data(), obuf.size());
     }
@@ -105,7 +105,7 @@ ubiq_sample_piecewise_decrypt(
         std::vector<char> ibuf(128 * 1024);
 
         ifs.read(ibuf.data(), ibuf.size());
-        ibuf.resize(ifs.gcount());
+        ibuf.resize((std::size_t)ifs.gcount());
         obuf = dec.update(ibuf.data(), ibuf.size());
         ofs.write((const char *)obuf.data(), obuf.size());
     }
@@ -185,7 +185,7 @@ int main(const int argc, char * const argv[])
      * method.
      */
     ifs.seekg(0, std::ios::end);
-    size = ifs.tellg();
+    size = (std::size_t)ifs.tellg();
     ifs.seekg(0);
 
     if (method == UBIQ_SAMPLE_METHOD_SIMPLE &&
