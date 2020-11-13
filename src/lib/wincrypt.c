@@ -414,8 +414,8 @@ ubiq_support_cipher_init(
         const wchar_t * const mode;
     } ciphers[] = {
         /*
-         * more algorithms can be added here. they're order
-         * is not important. however, they're names must match
+         * more algorithms can be added here. their order
+         * is not important. however, their names must match
          * other supported crypto libraries, in particular
          * openssl
          *
@@ -1320,11 +1320,11 @@ asn1scanf(
  * the private key is specified by the prvblbbuf and prvblblen
  * parameters and prvblbbuf is in a format described by prvblbtyp.
  *
- * ctbuf and ctlen described the data to be decrypted and the
+ * ctbuf and ctlen describe the data to be decrypted and the
  * plain text and its size are returned it ptbuf and ptlen on success.
  * the caller is responsible for freeing ptbuf.
  *
- * the function returns 0 on succes and a negative value on failure.
+ * the function returns 0 on success and a negative value on failure.
  */
 static
 int
