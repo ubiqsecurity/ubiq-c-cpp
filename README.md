@@ -26,7 +26,7 @@ you don't need this source code unless you want to modify the libraries. If you
 just want to use the libraries, install the pre-built packages available from
 [Releases](https://gitlab.com/ubiqsecurity/ubiq-c-cpp/-/releases):
 
-```sh
+```console
 # installs the runtime libraries, needed for running existing clients
 $ sudo apt install ./libubiqclient_<version>_<arch>.deb
 # installs the development headers, needed for building or modifying clients
@@ -55,11 +55,8 @@ commands described above.
 
 ### Requirements
 
-[CMake 3.10+](https://cmake.org/files/) are required for building on both
+[CMake 3.10+](https://cmake.org/files/) is required for building on both
 Windows and Unix-like systems.
-
-On Windows, the client builds against the native libraries; however your
-system will need to have the [Windows SDK][windows-sdk] installed.
 
 On Unix-like systems, the following libraries and the development headers are
 required:
