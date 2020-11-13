@@ -1051,7 +1051,7 @@ ubiq_support_decryption_finalize(
  */
 
 /*
- * when the asn1scanf function parses/returns an array of
+ * when the asn1sscanf function parses/returns an array of
  * bytes/characters/etc., it is returned in this structure
  */
 struct asn1vector
@@ -1073,7 +1073,7 @@ struct asn1vector
  */
 static
 int
-asn1scanf_preamble(
+asn1sscanf_preamble(
     const uint8_t ** const buf, size_t * const len,
     const char ** const fmt,
     const char exfmt, const uint8_t exbuf,
@@ -1136,14 +1136,14 @@ asn1scanf_preamble(
 
 static
 int
-asn1scanf_octetstring(
+asn1sscanf_octetstring(
     const uint8_t ** const buf, size_t * const len,
     const char ** const fmt, va_list * const ap)
 {
     size_t vlen;
     int res;
 
-    res = asn1scanf_preamble(buf, len, fmt, 'x', 0x04, &vlen);
+    res = asn1sscanf_preamble(buf, len, fmt, 'x', 0x04, &vlen);
     if (res == 0) {
         struct asn1vector * const s = va_arg(*ap, struct asn1vector *);
 
@@ -1159,14 +1159,14 @@ asn1scanf_octetstring(
 
 static
 int
-asn1scanf_objectid(
+asn1sscanf_objectid(
     const uint8_t ** const buf, size_t * const len,
     const char ** const fmt, va_list * const ap)
 {
     size_t vlen;
     int res;
 
-    res = asn1scanf_preamble(buf, len, fmt, 'o', 0x06, &vlen);
+    res = asn1sscanf_preamble(buf, len, fmt, 'o', 0x06, &vlen);
     if (res == 0) {
         struct asn1vector * const s = va_arg(*ap, struct asn1vector *);
 
@@ -1182,14 +1182,14 @@ asn1scanf_objectid(
 
 static
 int
-asn1scanf_integer(
+asn1sscanf_integer(
     const uint8_t ** const buf, size_t * const len,
     const char ** const fmt, va_list * const ap)
 {
     size_t vlen;
     int res;
 
-    res = asn1scanf_preamble(buf, len, fmt, 'i', 0x02, &vlen);
+    res = asn1sscanf_preamble(buf, len, fmt, 'i', 0x02, &vlen);
     if (res == 0) {
         res = -ENOTSUP;
         /*
@@ -1223,28 +1223,28 @@ asn1scanf_integer(
  */
 static
 int
-asn1scanf_sequence(
+asn1sscanf_sequence(
     const uint8_t ** const buf, size_t * const len,
     const char ** const fmt, va_list * const ap)
 {
     size_t vlen;
     int res;
 
-    res = asn1scanf_preamble(buf, len, fmt, '(', 0x30, &vlen);
+    res = asn1sscanf_preamble(buf, len, fmt, '(', 0x30, &vlen);
     if (res == 0) {
         while (res == 0 && **fmt != ')' && **fmt != '\0') {
             switch (**fmt) {
             case '(':
-                res = asn1scanf_sequence(buf, len, fmt, ap);
+                res = asn1sscanf_sequence(buf, len, fmt, ap);
                 break;
             case 'x':
-                res = asn1scanf_octetstring(buf, len, fmt, ap);
+                res = asn1sscanf_octetstring(buf, len, fmt, ap);
                 break;
             case 'o':
-                res = asn1scanf_objectid(buf, len, fmt, ap);
+                res = asn1sscanf_objectid(buf, len, fmt, ap);
                 break;
             case 'i':
-                res = asn1scanf_integer(buf, len, fmt, ap);
+                res = asn1sscanf_integer(buf, len, fmt, ap);
                 break;
             default:
                 res = -EINVAL;
@@ -1287,7 +1287,7 @@ asn1scanf_sequence(
  */
 static
 int
-asn1scanf(
+asn1sscanf(
     const void * buf, size_t len,
     const char * fmt, ...)
 {
@@ -1300,7 +1300,7 @@ asn1scanf(
     while (res == 0 && *fmt != '\0') {
         switch (*fmt) {
         case '(':
-            res = asn1scanf_sequence((const uint8_t **)&buf, &len, &fmt, &ap);
+            res = asn1sscanf_sequence((const uint8_t **)&buf, &len, &fmt, &ap);
             break;
         default:
             res = -EINVAL;
@@ -1673,10 +1673,10 @@ decode_enckey(
             int _iter;
 
             /* extract the key derivation and encryption parameters */
-            res = asn1scanf(inf->EncryptionAlgorithm.Parameters.pbData,
-                            inf->EncryptionAlgorithm.Parameters.cbData,
-                            "((o(xi))(ox))",
-                            &kdf, &salt, &_iter, &alg, &iv);
+            res = asn1sscanf(inf->EncryptionAlgorithm.Parameters.pbData,
+                             inf->EncryptionAlgorithm.Parameters.cbData,
+                             "((o(xi))(ox))",
+                             &kdf, &salt, &_iter, &alg, &iv);
             /*
              * verify that the parameters match what this code supports,
              * and then save them into the various parameters to be
@@ -1689,7 +1689,7 @@ decode_enckey(
                 memcmp(pbOID_NIST_AES256_CBC, alg.buf, alg.len) == 0) {
                 /*
                  * the DECODE_NOCOPY_FLAG above means that all the pointers
-                 * returned from the asn1scanf function actually point into
+                 * returned from the asn1sscanf function actually point into
                  * the derbuf memory area. the pointers are valid as long
                  * as derbuf is valid and don't need to be individually freed
                  */
