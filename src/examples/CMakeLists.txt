@@ -17,6 +17,10 @@ add_library(
   ubiq_sample-common
   OBJECT
   common.c)
+target_compile_definitions(
+  ubiq_sample-common
+  PRIVATE
+  _CRT_SECURE_NO_WARNINGS)
 
 add_executable(
   ubiq_sample-c
@@ -24,6 +28,10 @@ add_executable(
   ubiq_sample.c
   $<TARGET_OBJECTS:ubiq_sample-common>
 )
+target_compile_definitions(
+  ubiq_sample-c
+  PRIVATE
+  _CRT_SECURE_NO_WARNINGS)
 target_link_libraries(
   ubiq_sample-c
   ubiqclient)
@@ -34,12 +42,16 @@ add_executable(
   ubiq_sample.cpp
   $<TARGET_OBJECTS:ubiq_sample-common>
 )
+target_compile_definitions(
+  ubiq_sample-c++
+  PRIVATE
+  _CRT_SECURE_NO_WARNINGS)
 target_link_libraries(
   ubiq_sample-c++
   ubiqclient++)
 
-# Copy the Credentials file from the source 
-# directory to the target directory if necessary.
-# Do not copy the file if the file has been updated by the user.
+# Copy the Credentials file from the source directory to the
+# target directory if necessary. Do not copy the file if the
+# file has been updated by the user.
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/credentials credentials COPYONLY)
 
