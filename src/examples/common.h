@@ -1,8 +1,8 @@
 #pragma once
 
-#include <sys/cdefs.h>
-
-__BEGIN_DECLS
+#if defined(__cplusplus)
+extern "C" {
+#endif
 
 #define UBIQ_SAMPLE_MAX_SIMPLE_SIZE     (50 * 1024 * 1024)
 
@@ -28,4 +28,6 @@ ubiq_sample_getopt(
     const char ** const infile, const char ** const outfile,
     const char ** const credfile, const char ** const profile);
 
-__END_DECLS
+#if defined(__cplusplus)
+}
+#endif

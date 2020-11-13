@@ -1,15 +1,13 @@
 #include <ubiq/platform/internal/support.h>
 #include <ubiq/platform/internal/http.h>
 
-#include <ubiq/platform/compat/sys/param.h>
+#include <sys/param.h>
 
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
 
 #include <curl/curl.h>
-
-const char * ubiq_support_user_agent = NULL;
 
 struct ubiq_support_http_handle
 {
@@ -98,7 +96,7 @@ ubiq_support_http_response_content_type(
 
 int
 ubiq_support_http_add_header(
-    struct ubiq_support_http_handle * hnd, const char * const s)
+    struct ubiq_support_http_handle * const hnd, const char * const s)
 {
     struct curl_slist * slist;
     int err;
@@ -169,9 +167,8 @@ ubiq_support_http_download(
 
 int
 ubiq_support_http_request(
-    struct ubiq_support_http_handle * hnd,
+    struct ubiq_support_http_handle * const hnd,
     const http_request_method_t method, const char * const urlstr,
-    const char * const content_type,
     const void * const content, const size_t length,
     void ** const rspbuf, size_t * const rsplen)
 {
@@ -192,8 +189,6 @@ ubiq_support_http_request(
                 hnd->ch, CURLOPT_USERAGENT, ubiq_support_user_agent);
 
             if (length != 0) {
-                char cthdr[128];
-
                 /*
                  * if content is supplied, then set up the
                  * request to read the content for upload
@@ -212,10 +207,6 @@ ubiq_support_http_request(
                     &ubiq_support_http_upload);
                 curl_easy_setopt(
                     hnd->ch, CURLOPT_INFILESIZE, length);
-
-                snprintf(cthdr, sizeof(cthdr),
-                         "Content-Type: %s", content_type);
-                ubiq_support_http_add_header(hnd, cthdr);
             }
 
             /* add headers to the request */

@@ -1,9 +1,113 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <stdio.h>
-#include <getopt.h>
+#include <string.h>
 
 #include "common.h"
+
+static int   opterr   = 1;    /* if error message should be printed */
+static int   optind   = 1;    /* index into parent argv vector */
+static int   optopt   = 0;    /* character checked for validity */
+static int   optreset = 0;    /* reset getopt */
+static char *optarg   = NULL; /* argument associated with option */
+
+#define BADCH   (int)'?'
+#define BADARG  (int)':'
+#define EMSG    ""
+
+/*
+ * getopt --
+ *  Parse argc/argv argument vector.
+ *
+ * This code originally came from:
+ * https://github.com/freebsd/freebsd/blob/master/lib/libc/stdlib/getopt.c
+ */
+static
+int
+getopt(int nargc, char * const nargv[], const char *ostr)
+{
+    char empty[] = EMSG;
+    static char *place = NULL;      /* option letter processing */
+    char *oli;              /* option letter list index */
+
+    if (!place) {
+        place = empty;
+    }
+
+    if (optreset || *place == 0) {      /* update scanning pointer */
+        optreset = 0;
+        place = nargv[optind];
+        if (optind >= nargc || *place++ != '-') {
+            /* Argument is absent or is not an option */
+            place = empty;
+            return (-1);
+        }
+        optopt = *place++;
+        if (optopt == '-' && *place == 0) {
+            /* "--" => end of options */
+            ++optind;
+            place = empty;
+            return (-1);
+        }
+        if (optopt == 0) {
+            /* Solitary '-', treat as a '-' option
+               if the program (eg su) is looking for it. */
+            place = empty;
+            if (strchr(ostr, '-') == NULL)
+                return (-1);
+            optopt = '-';
+        }
+    } else
+        optopt = *place++;
+
+    /* See if option letter is one the caller wanted... */
+    if (optopt == ':' || (oli = strchr((char *)ostr, optopt)) == NULL) {
+        if (*place == 0)
+            ++optind;
+        if (opterr && *ostr != ':')
+            (void)fprintf(stderr,
+                          ": illegal option -- %c\n",
+                          optopt);
+        return (BADCH);
+    }
+
+    /* Does this option need an argument? */
+    if (oli[1] != ':') {
+        /* don't need argument */
+        optarg = NULL;
+        if (*place == 0)
+            ++optind;
+    } else {
+        /* Option-argument is either the rest of this argument or the
+           entire next argument. */
+        if (*place)
+            optarg = place;
+        else if (oli[2] == ':')
+            /*
+             * GNU Extension, for optional arguments if the rest of
+             * the argument is empty, we return NULL
+             */
+            optarg = NULL;
+        else if (nargc > ++optind)
+            optarg = nargv[optind];
+        else {
+            /* option-argument absent */
+            place = empty;
+            if (*ostr == ':' ||
+                ((*ostr == '+' || *ostr == '-') &&
+                 *(ostr + 1) == ':'))
+                return (BADARG);
+            if (opterr)
+                (void)fprintf(stderr,
+                              ": option requires an argument -- %c\n",
+                              optopt);
+            return (BADCH);
+        }
+        place = empty;
+        ++optind;
+    }
+    return (optopt);            /* return option letter */
+}
 
 static
 void
@@ -17,22 +121,19 @@ ubiq_sample_usage(
     fprintf(stderr, "Usage: %s -e|-d -s|-p -i INFILE -o OUTFILE\n", cmd);
     fprintf(stderr, "Encrypt or decrypt files using the Ubiq service\n");
     fprintf(stderr, "\n");
-    fprintf(stderr, "  -h, --help               Show this help message and exit\n");
-    fprintf(stderr, "  -V, --version            Show program's version number and exit\n");
-    fprintf(stderr, "  -e, --encrypt            Encrypt the contents of the input file and write\n");
+    fprintf(stderr, "  -h                       Show this help message and exit\n");
+    fprintf(stderr, "  -V                       Show program's version number and exit\n");
+    fprintf(stderr, "  -e                       Encrypt the contents of the input file and write\n");
     fprintf(stderr, "                             the results to the output file\n");
-    fprintf(stderr, "  -d, --decrypt            Decrypt the contents of the input file and write\n");
+    fprintf(stderr, "  -d                       Decrypt the contents of the input file and write\n");
     fprintf(stderr, "                             the results to the output file\n");
-    fprintf(stderr, "  -s, --simple             Use the simple encryption / decryption interfaces\n");
-    fprintf(stderr, "  -p, --pieceswise         Use the piecewise encryption / decryption interfaces\n");
-    fprintf(stderr, "  -i INFILE, --in INFILE   Set input file name\n");
-    fprintf(stderr, "  -o OUTFILE, --out OUTFILE\n");
-    fprintf(stderr, "                           Set output file name\n");
-    fprintf(stderr, "  -c CREDENTIALS, --creds CREDENTIALS\n");
-    fprintf(stderr, "                           Set the file name with the API credentials\n");
+    fprintf(stderr, "  -s                       Use the simple encryption / decryption interfaces\n");
+    fprintf(stderr, "  -p                       Use the piecewise encryption / decryption interfaces\n");
+    fprintf(stderr, "  -i INFILE                Set input file name\n");
+    fprintf(stderr, "  -o OUTFILE               Set output file name\n");
+    fprintf(stderr, "  -c CREDENTIALS           Set the file name with the API credentials\n");
     fprintf(stderr, "                             (default: ~/.ubiq/credentials)\n");
-    fprintf(stderr, "  -P PROFILE, --profile PROFILE\n");
-    fprintf(stderr, "                           Identify the profile within the credentials file\n");
+    fprintf(stderr, "  -P PROFILE               Identify the profile within the credentials file\n");
 }
 
 int
@@ -43,37 +144,16 @@ ubiq_sample_getopt(
     const char ** const infile, const char ** const outfile,
     const char ** const credfile, const char ** const profile)
 {
-#define OPTION(LONGOPT, HASARG, SHORTOPT)                               \
-    { .name = LONGOPT, .has_arg = HASARG, .flag = NULL, .val = SHORTOPT }
-
-    static const struct option longopt[] = {
-        OPTION("help",        0, 'h'),
-        OPTION("version",     0, 'V'),
-        OPTION("encrypt",     0, 'e'),
-        OPTION("decrypt",     0, 'd'),
-        OPTION("simple",      0, 's'),
-        OPTION("piecewise",   0, 'p'),
-        OPTION("in",          1, 'i'),
-        OPTION("out",         1, 'o'),
-        OPTION("creds",       1, 'c'),
-        OPTION("profile",     1, 'P'),
-        { NULL, 0, NULL, 0 },
-    };
-
-#undef OPTION
+    int opt;
 
     optind = 1;
     opterr = 0;
-
-    int opt;
 
     *mode = UBIQ_SAMPLE_MODE_UNSPEC;
     *method = UBIQ_SAMPLE_METHOD_UNSPEC;
     *infile = *outfile = *credfile = *profile = NULL;
 
-    while ((opt = getopt_long(argc, argv,
-                              "+:hVedspi:o:c:P:",
-                              longopt, NULL)) != -1) {
+    while ((opt = getopt(argc, argv, "+:hVedspi:o:c:P:")) != -1) {
         switch (opt) {
         case 'h':
             ubiq_sample_usage(argv[0], NULL);

@@ -26,6 +26,8 @@ ubiq_sample_simple_encrypt(
     }
 
     free(ibuf);
+
+    return 0;
 }
 
 static
@@ -49,6 +51,8 @@ ubiq_sample_simple_decrypt(
     }
 
     free(ibuf);
+
+    return 0;
 }
 
 static

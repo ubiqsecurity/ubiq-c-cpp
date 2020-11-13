@@ -11,6 +11,8 @@ public:
     void TearDown(void);
 
 protected:
+    void encrypt_decrypt(const std::string &);
+
     ubiq::platform::credentials _creds;
     ubiq::platform::decryption _dec;
 };
@@ -32,18 +34,56 @@ TEST_F(cpp_decrypt, none)
         _dec = ubiq::platform::decryption(_creds));
 }
 
-TEST_F(cpp_decrypt, simple)
+void
+cpp_decrypt::encrypt_decrypt(
+    const std::string & pt)
 {
-    std::string pt("ABC");
     std::vector<std::uint8_t> ct, rec;
 
+    /* encrypt the data */
     ASSERT_NO_THROW(
         ct = ubiq::platform::encrypt(_creds, pt.data(), pt.size()));
+
+    /* decrypt the data */
     ASSERT_NO_THROW(
         rec = ubiq::platform::decrypt(_creds, ct.data(), ct.size()));
 
+    /* verify that the recovered data matches the plain text */
     ASSERT_EQ(pt.size(), rec.size());
     EXPECT_EQ(0, std::memcmp(pt.data(), rec.data(), pt.size()));
+
+    /*
+     * flip the last byte of the cipher text (should be part of the tag),
+     * and verify that an exception is thrown.
+     */
+    ct[ct.size() - 1] = ~ct[ct.size() - 1];
+    ASSERT_ANY_THROW(
+        ubiq::platform::decrypt(_creds, ct.data(), ct.size()));
+}
+
+TEST_F(cpp_decrypt, simple)
+{
+    encrypt_decrypt(std::string("ABC"));
+}
+
+TEST_F(cpp_decrypt, aes_block_size)
+{
+    encrypt_decrypt(std::string("ABCDEFGHIJKLMNOP"));
+}
+
+TEST_F(cpp_decrypt, aes_block_size_2xm1)
+{
+    encrypt_decrypt(std::string("ABCDEFGHIJKLMNOPQRSTUVWXYZ01234"));
+}
+
+TEST_F(cpp_decrypt, aes_block_size_2x)
+{
+    encrypt_decrypt(std::string("ABCDEFGHIJKLMNOPQRSTUVWXYZ012345"));
+}
+
+TEST_F(cpp_decrypt, aes_block_size_2xp1)
+{
+    encrypt_decrypt(std::string("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456"));
 }
 
 TEST(c_decrypt, simple)

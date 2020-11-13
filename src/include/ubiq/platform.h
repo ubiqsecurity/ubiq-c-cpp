@@ -19,7 +19,9 @@ __BEGIN_DECLS
  * and the exit() function should be called just prior to
  * program shutdown/exit.
  */
+UBIQ_PLATFORM_API
 int ubiq_platform_init(void);
+UBIQ_PLATFORM_API
 void ubiq_platform_exit(void);
 
 __END_DECLS
@@ -37,7 +39,9 @@ namespace ubiq {
          *
          * These simply call through to the C versions.
          */
+        UBIQ_PLATFORM_API
         void init(void);
+        UBIQ_PLATFORM_API
         void exit(void);
     }
 }
