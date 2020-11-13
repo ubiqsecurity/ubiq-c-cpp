@@ -58,7 +58,11 @@ commands described above.
 [CMake 3.10+](https://cmake.org/files/) is required for building on both
 Windows and Unix-like systems.
 
-On Unix-like systems, the following libraries and the development headers are
+On Windows, the library has been tested to build with the
+[Visual Studio 2017 CE](https://visualstudio.microsoft.com/downloads/)
+compiler.
+
+On Unix-like systems, the following libraries and development headers are
 required:
 -   cURL 7.68+
 -   OpenSSL 1.1+
@@ -468,4 +472,3 @@ ptbuf.insert(ptbuf.end(), buf.begin(), buf.end());
 
 [dashboard]:https://dashboard.ubiqsecurity.com/
 [credentials]:https://dev.ubiqsecurity.com/docs/how-to-create-api-keys
-[windows-sdk]:https://developer.microsoft.com/en-us/windows/downloads/sdk-archive/
