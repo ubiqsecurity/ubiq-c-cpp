@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0.0 -
+## 0.2.0.0 - 2020-11-13
 * Add support for Windows clients
 
 ## 0.1.1.2 - 2020-10-28
