@@ -11,13 +11,28 @@ stages:
 
 build:
     stage: build
+    before_script:
+        - apt -y update
+        - apt -y install git cmake gcc g++
+        - apt -y install libcurl4 libssl1.1
+        - apt -y install libcurl4-openssl-dev libssl-dev
     script:
-        - echo build
+        - cmake -S. -Bbuild
+        - cmake --build build
+    artifacts:
+        paths:
+            - build/
 
 test:
     stage: test
+    before_script:
+        - apt -y update
+        - apt -y install libcurl4 libssl1.1
     script:
-        - echo test
+        - build/src/test/unittests
+    artifacts:
+        paths:
+            - build/
 
 deploy:
     stage: deploy
