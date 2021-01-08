@@ -10,6 +10,8 @@ stages:
     - deploy
 
 build:
+    variables:
+        GIT_SUBMODULE_STRATEGY: recursive
     stage: build
     before_script:
         - apt -y update
@@ -20,6 +22,7 @@ build:
         - cmake -S. -Bbuild
         - cmake --build build
     artifacts:
+        expire_in: 1 hour
         paths:
             - build/
 
@@ -31,6 +34,7 @@ test:
     script:
         - build/src/test/unittests
     artifacts:
+        expire_in: 1 hour
         paths:
             - build/
 
