@@ -1,5 +1,5 @@
 image:
-    name: debian:testing
+    name: debian:stable
 
 services:
     - docker:19.03.12-dind
@@ -15,12 +15,12 @@ build:
     stage: build
     before_script:
         - apt -y update
-        - apt -y install git cmake gcc g++
-        - apt -y install libcurl4 libssl1.1
+        - apt -y install cmake gcc g++
         - apt -y install libcurl4-openssl-dev libssl-dev
+        - apt -y install dpkg-dev file
     script:
         - cmake -S. -Bbuild
-        - cmake --build build
+        - cmake --build build -- -j$(nproc)
     artifacts:
         expire_in: 1 hour
         paths:
@@ -41,6 +41,15 @@ test:
 deploy:
     stage: deploy
     script:
-        - echo deploy
-    only:
-        - master
+        - docker login ${DOCKERHUB_USER} --password-stdin < ${DOCKERHUB_TOKEN}
+        - docker build -t ubiqsecurity/ubiq-c-cpp-example -f src/examples/Dockerfile .
+        - docker push
+        - docker logout
+    artifacts:
+        # gitlab will keep the most recent artifacts
+        # regardless of the expiration time
+        expire_in: 1 hour
+        paths:
+            - build/*.deb
+#    only:
+#        - master
