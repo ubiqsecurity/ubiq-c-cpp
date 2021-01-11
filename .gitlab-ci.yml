@@ -40,6 +40,9 @@ test:
 
 deploy:
     stage: deploy
+    before_script:
+        - apt -y update
+        - apt -y install docker.io
     script:
         - docker login ${DOCKERHUB_USER} --password-stdin < ${DOCKERHUB_TOKEN}
         - docker build -t ubiqsecurity/ubiq-c-cpp-example -f src/examples/Dockerfile .
