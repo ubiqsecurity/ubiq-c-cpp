@@ -206,31 +206,47 @@ ubiq_platform_credentials_from_list(
     const char * const prof,
     struct ubiq_platform_credentials * const c)
 {
-    const struct ubiq_platform_credentials_list_entry * def;
+    const struct ubiq_platform_credentials_list_entry * def, * fnd;
 
-    def = ubiq_platform_credentials_list_find(cl, "default");
+    fnd = def = ubiq_platform_credentials_list_find(cl, "default");
+    if (prof) {
+        unsigned int i;
 
-    for (unsigned int i = 0; i < cl->count; i++) {
-        const struct ubiq_platform_credentials_list_entry * const cur =
-            &cl->entries[i];
-
-        if (!prof || strcmp(prof, cur->profile) == 0) {
-            if ((cur->creds.papi || (def && def->creds.papi)) &&
-                (cur->creds.sapi || (def && def->creds.sapi)) &&
-                (cur->creds.srsa || (def && def->creds.srsa))) {
-                c->papi = strdup(
-                    cur->creds.papi ? cur->creds.papi : def->creds.papi);
-                c->sapi = strdup(
-                    cur->creds.sapi ? cur->creds.sapi : def->creds.sapi);
-                c->srsa = strdup(
-                    cur->creds.srsa ? cur->creds.srsa : def->creds.srsa);
-                if (cur->creds.host || (def && def->creds.host)) {
-                    c->host = strdup(
-                        cur->creds.host ?
-                        cur->creds.host : def->creds.host);
-                }
-
+        /* look for a profile matching the given name */
+        for (unsigned int i = 0; i < cl->count; i++) {
+            if (strcmp(prof, cl->entries[i].profile) == 0) {
+                fnd = &cl->entries[i];
                 break;
+            }
+        }
+    }
+
+    /*
+     * there are 3 possible combinations of `def` and `fnd`
+     * - both are NULL
+     * - both are non-NULL (may or may not be equal)
+     * - `fnd` is non-NULL and `def` is NULL
+     *
+     * if `fnd` is NULL, it's because no matching profile was
+     * found and `def` is also NULL. in this case, there are
+     * no credentials to be loaded.
+     *
+     * the other cases are handled by the code below.
+     */
+
+    if (fnd) {
+        if ((fnd->creds.papi || (def && def->creds.papi)) &&
+            (fnd->creds.sapi || (def && def->creds.sapi)) &&
+            (fnd->creds.srsa || (def && def->creds.srsa))) {
+            c->papi = strdup(
+                fnd->creds.papi ? fnd->creds.papi : def->creds.papi);
+            c->sapi = strdup(
+                fnd->creds.sapi ? fnd->creds.sapi : def->creds.sapi);
+            c->srsa = strdup(
+                fnd->creds.srsa ? fnd->creds.srsa : def->creds.srsa);
+            if (fnd->creds.host || (def && def->creds.host)) {
+                c->host = strdup(
+                    fnd->creds.host ? fnd->creds.host : def->creds.host);
             }
         }
     }
