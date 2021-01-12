@@ -213,15 +213,11 @@ ubiq_platform_credentials_from_list(
         unsigned int i;
 
         /* look for a profile matching the given name */
-
-        for (i = 0;
-             i < cl->count &&
-                 strcmp(prof, cl->entries[i].profile) != 0;
-             i++)
-            ;
-
-        if (i < cl->count) {
-            fnd = &cl->entries[i];
+        for (unsigned int i = 0; i < cl->count; i++) {
+            if (strcmp(prof, cl->entries[i].profile) == 0) {
+                fnd = &cl->entries[i];
+                break;
+            }
         }
     }
 
