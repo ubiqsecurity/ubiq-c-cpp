@@ -50,8 +50,8 @@ deploy:
         - apt -y install docker.io
         - docker login --username ${DOCKERHUB_USER} --password-stdin < ${DOCKERHUB_TOKEN}
     script:
-        - docker build -t ubiqsecurity/ubiq-c-cpp-example -f src/examples/Dockerfile .
-        - docker push ubiqsecurity/ubiq-c-cpp-example
+        - docker build -t ubiqsecurity/ubiq-c-cpp-sample -f src/examples/Dockerfile .
+        - docker push ubiqsecurity/ubiq-c-cpp-sample
     after_script:
         - docker logout
     artifacts:
