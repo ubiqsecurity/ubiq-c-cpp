@@ -60,5 +60,5 @@ deploy:
         expire_in: 1 hour
         paths:
             - build/*.deb
-#    only:
-#        - master
+    only:
+        - master
