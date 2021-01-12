@@ -19,9 +19,7 @@ protected:
 
 void cpp_decrypt::SetUp(void)
 {
-    ASSERT_NO_THROW(
-        _creds = ubiq::platform::credentials(
-            std::string(), "test"));
+    ASSERT_TRUE((bool)_creds);
 }
 
 void cpp_decrypt::TearDown(void)
@@ -95,7 +93,7 @@ TEST(c_decrypt, simple)
     size_t ctlen, ptlen;
     int res;
 
-    res = ubiq_platform_credentials_create_specific(NULL, "test", &creds);
+    res = ubiq_platform_credentials_create(&creds);
     ASSERT_EQ(res, 0);
 
     res = ubiq_platform_encrypt(

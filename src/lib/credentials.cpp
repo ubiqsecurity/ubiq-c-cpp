@@ -9,8 +9,7 @@ credentials::credentials(void)
     struct ubiq_platform_credentials * creds;
     int res;
 
-    res = ubiq_platform_credentials_create_specific(
-        nullptr, nullptr, &creds);
+    res = ubiq_platform_credentials_create(&creds);
     if (res == 0) {
         _cred.reset(creds, &ubiq_platform_credentials_destroy);
     }

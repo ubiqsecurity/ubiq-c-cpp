@@ -7,6 +7,11 @@ the different APIs.
 
 See the [C/C++ API docs](https://dev.ubiqsecurity.com/docs/api).
 
+## Dockerized samples
+
+Pre-built versions of the samples can be run in a docker container as described
+[here](Docker.md).
+
 ## Installation
 
 Install or build the software as described [here](/README.md#installation).

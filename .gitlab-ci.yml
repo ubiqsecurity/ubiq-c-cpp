@@ -1,0 +1,64 @@
+image:
+    name: debian:stable
+
+services:
+    - docker:18-dind
+
+variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+
+stages:
+    - build
+    - test
+    - deploy
+
+build:
+    variables:
+        GIT_SUBMODULE_STRATEGY: recursive
+    stage: build
+    before_script:
+        - apt -y update
+        - apt -y install cmake gcc g++
+        - apt -y install libcurl4-openssl-dev libssl-dev
+        - apt -y install dpkg-dev file
+    script:
+        - cmake -S. -Bbuild
+        - cmake --build build -- -j$(nproc)
+        - cmake --build build --target package -- -j$(nproc)
+    artifacts:
+        expire_in: 1 hour
+        paths:
+            - build/
+
+test:
+    stage: test
+    before_script:
+        - apt -y update
+        - apt -y install libcurl4 libssl1.1
+    script:
+        - build/src/test/unittests
+    artifacts:
+        expire_in: 1 hour
+        paths:
+            - build/
+
+deploy:
+    stage: deploy
+    before_script:
+        - apt -y update
+        - apt -y install docker.io
+        - docker login --username ${DOCKERHUB_USER} --password-stdin < ${DOCKERHUB_TOKEN}
+    script:
+        - docker build -t ubiqsecurity/ubiq-c-cpp-sample:${CI_COMMIT_TAG:-latest} -f src/examples/Dockerfile .
+        - docker push ubiqsecurity/ubiq-c-cpp-sample:${CI_COMMIT_TAG:-latest}
+    after_script:
+        - docker logout
+    artifacts:
+        # gitlab will keep the most recent artifacts
+        # regardless of the expiration time
+        expire_in: 1 hour
+        paths:
+            - build/*.deb
+    only:
+        - master

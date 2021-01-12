@@ -15,9 +15,7 @@ protected:
 
 void cpp_encrypt::SetUp(void)
 {
-    ASSERT_NO_THROW(
-        _creds = ubiq::platform::credentials(
-            std::string(), "test"));
+    ASSERT_TRUE((bool)_creds);
 }
 
 void cpp_encrypt::TearDown(void)
@@ -48,7 +46,7 @@ TEST(c_encrypt, simple)
     size_t ctlen;
     int res;
 
-    res = ubiq_platform_credentials_create_specific(NULL, "test", &creds);
+    res = ubiq_platform_credentials_create(&creds);
     ASSERT_EQ(res, 0);
 
     res = ubiq_platform_encrypt(creds, pt, strlen(pt), &ctbuf, &ctlen);
