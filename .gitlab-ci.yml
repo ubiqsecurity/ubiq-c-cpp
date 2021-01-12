@@ -25,6 +25,7 @@ build:
     script:
         - cmake -S. -Bbuild
         - cmake --build build -- -j$(nproc)
+        - cmake --build build --target package -- -j$(nproc)
     artifacts:
         expire_in: 1 hour
         paths:
@@ -47,10 +48,11 @@ deploy:
     before_script:
         - apt -y update
         - apt -y install docker.io
+        - docker login --username ${DOCKERHUB_USER} --password-stdin < ${DOCKERHUB_TOKEN}
     script:
         - docker build -t ubiqsecurity/ubiq-c-cpp-example -f src/examples/Dockerfile .
-        - docker login --username ${DOCKERHUB_USER} --password-stdin < ${DOCKERHUB_TOKEN}
         - docker push ubiqsecurity/ubiq-c-cpp-example
+    after_script:
         - docker logout
     artifacts:
         # gitlab will keep the most recent artifacts
