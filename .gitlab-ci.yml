@@ -2,7 +2,11 @@ image:
     name: debian:stable
 
 services:
-    - docker:19.03.12-dind
+    - docker:18-dind
+
+variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
 
 stages:
     - build
@@ -44,8 +48,8 @@ deploy:
         - apt -y update
         - apt -y install docker.io
     script:
-        - docker login --username ${DOCKERHUB_USER} --password-stdin < ${DOCKERHUB_TOKEN}
         - docker build -t ubiqsecurity/ubiq-c-cpp-example -f src/examples/Dockerfile .
+        - docker login --username ${DOCKERHUB_USER} --password-stdin < ${DOCKERHUB_TOKEN}
         - docker push ubiqsecurity/ubiq-c-cpp-example
         - docker logout
     artifacts:
