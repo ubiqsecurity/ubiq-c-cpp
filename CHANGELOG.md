@@ -1,6 +1,6 @@
 # Changelog
 
-##
+## 0.3.0.0 - 2021-01-18
 * Fix bug causing wrong credentials to be loaded when no profile is specified
 * Modify default credentials constructor to allow environment to override,
   existing code did not operate as documented
