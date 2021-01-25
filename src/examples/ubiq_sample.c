@@ -254,7 +254,7 @@ int main(const int argc, char * const argv[])
         fprintf(stderr, "NOTE: This is only for demonstration purposes and is designed to work on memory\n");
         fprintf(stderr, "      constrained devices.  Therefore, this sample application will switch to\n");
         fprintf(stderr, "      the piecewise APIs for files larger than %u bytes in order to reduce\n", UBIQ_SAMPLE_MAX_SIMPLE_SIZE);
-        fprintf(stderr, "      excesive resource usages on resource constrained IoT devices\n");
+        fprintf(stderr, "      excessive resource usages on resource constrained IoT devices\n");
         method = UBIQ_SAMPLE_METHOD_PIECEWISE;
     }
 
