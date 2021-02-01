@@ -1,3 +1,9 @@
+workflow:
+    rules:
+        - if: $CI_COMMIT_TAG
+        - if: $CI_COMMIT_BRANCH
+        - if: $CI_MERGE_REQUEST_IID
+
 image:
     name: debian:stable
 
@@ -50,8 +56,9 @@ deploy:
         - apt -y install docker.io
         - docker login --username ${DOCKERHUB_USER} --password-stdin < ${DOCKERHUB_TOKEN}
     script:
-        - docker build -t ubiqsecurity/ubiq-c-cpp-sample:${CI_COMMIT_TAG:-latest} -f src/examples/Dockerfile .
-        - docker push ubiqsecurity/ubiq-c-cpp-sample:${CI_COMMIT_TAG:-latest}
+        - docker build -t ubiqsecurity/ubiq-c-cpp-sample -f src/examples/Dockerfile .
+        - docker tag ubiqsecurity/ubiq-c-cpp-sample ubiqsecurity/ubiq-c-cpp-sample:${CI_COMMIT_TAG:-latest}
+        - docker push ubiqsecurity/ubiq-c-cpp-sample
     after_script:
         - docker logout
     artifacts:
