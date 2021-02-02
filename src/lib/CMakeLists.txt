@@ -1,5 +1,5 @@
 set_source_files_properties(
-  ${CMAKE_SOURCE_DIR}/src/ext/inih/ini.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/../ext/inih/ini.c
   PROPERTIES
   COMPILE_DEFINITIONS INI_ALLOW_MULTILINE=0)
 
@@ -22,8 +22,8 @@ add_library(
   init.c
   rest.c
   support.c
-  ${CMAKE_SOURCE_DIR}/src/ext/cJSON/cJSON.c
-  ${CMAKE_SOURCE_DIR}/src/ext/inih/ini.c)
+  ${CMAKE_CURRENT_SOURCE_DIR}/../ext/cJSON/cJSON.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/../ext/inih/ini.c)
 
 if(WIN32)
   # silence warnings about "more secure"
@@ -57,8 +57,8 @@ endif()
 target_include_directories(
   c_objects
   PRIVATE
-  ${CMAKE_SOURCE_DIR}/src/include
-  ${CMAKE_SOURCE_DIR}/src/ext)
+  ${CMAKE_CURRENT_SOURCE_DIR}/../include
+  ${CMAKE_CURRENT_SOURCE_DIR}/../ext)
 set_target_properties(
   c_objects
   PROPERTIES
@@ -88,7 +88,7 @@ endif()
 target_include_directories(
   cxx_objects
   PRIVATE
-  ${CMAKE_SOURCE_DIR}/src/include)
+  ${CMAKE_CURRENT_SOURCE_DIR}/../include)
 set_target_properties(
   cxx_objects
   PROPERTIES
