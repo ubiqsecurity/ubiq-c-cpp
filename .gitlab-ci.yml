@@ -70,3 +70,5 @@ deploy:
     only:
         - master
         - tags
+    except:
+        - schedules
