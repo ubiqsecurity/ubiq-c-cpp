@@ -14,6 +14,11 @@ variables:
     DOCKER_HOST: tcp://docker:2375
     DOCKER_TLS_CERTDIR: ""
 
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - build
+
 stages:
     - build
     - test
@@ -32,10 +37,6 @@ build:
         - cmake -S. -Bbuild
         - cmake --build build -- -j$(nproc)
         - cmake --build build --target package -- -j$(nproc)
-    artifacts:
-        expire_in: 1 hour
-        paths:
-            - build/
 
 test:
     stage: test
@@ -44,10 +45,6 @@ test:
         - apt -y install libcurl4 libssl1.1
     script:
         - build/src/test/unittests
-    artifacts:
-        expire_in: 1 hour
-        paths:
-            - build/
 
 deploy:
     stage: deploy
