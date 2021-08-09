@@ -1,0 +1,59 @@
+#include <ubiq/platform/internal/parsing.h>
+
+#include <stdlib.h>
+#include <string.h>
+#include <errno.h>
+
+int
+ubiq_platform_efpe_parsing_parse_input(
+    const char * const input_string, // Null terminated
+    const char * const input_character_set, // Null terminated
+    const char * const passthrough_character_set, // Null terminated
+    char * trimmed_characters, // Preallocated and filled with char[0] from input characterset.  Should be same length as input string
+    char * empty_formatted_output // Preallocated and filled with char[0] from OUTPUT characterset, Should be same length as input string
+  )
+  {
+    int err;
+
+    printf( "input_string '%s'\n",input_string );
+    printf( "input_character_set '%s'\n",input_character_set );
+    printf( "passthrough_character_set '%s'\n",passthrough_character_set );
+    printf( "trimmed_characters '%s'\n",trimmed_characters );
+    printf( "empty_formatted_output '%s'\n",empty_formatted_output );
+
+    const char * i = input_string;
+    char * f = empty_formatted_output;
+    char * t = trimmed_characters;
+
+    err = 0;
+
+    while (*i && (0 == err))
+    {
+      printf("i %c (%d)\n", *i, err);
+      // If the input string matches a passthrough character, copy
+      // to empty formatted output string
+      if (passthrough_character_set && strchr(passthrough_character_set, *i))
+      {
+        *f = *i;
+      }
+      // If the string is in the input characterset,
+      // copy to trimmed characters
+      else if (strchr(input_character_set, *i))
+      {
+        *t = *i;
+        t++;
+        // Trimmed may be shorter than input so make sure to include null terminator
+        // after last character
+        *t = '\0';
+      } else {
+        printf("   Invalid Character %c\n", *i);
+        err = -EINVAL;
+      }
+
+      i++;
+      f++;
+    }
+    printf("\n");
+
+    return err;
+  }

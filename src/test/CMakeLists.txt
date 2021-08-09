@@ -8,7 +8,9 @@ add_executable(
   credentials.cpp
   decrypt.cpp
   encrypt.cpp
+  fpeencrypt.cpp
   global.cpp
+  parsing.cpp
   request.cpp)
 # link against the static libraries which avoids
 # having to export certain internal interfaces

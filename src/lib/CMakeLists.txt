@@ -20,6 +20,7 @@ add_library(
   decrypt.c
   encrypt.c
   init.c
+  parsing.c
   rest.c
   support.c
   ${CMAKE_CURRENT_SOURCE_DIR}/../ext/cJSON/cJSON.c
