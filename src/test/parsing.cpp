@@ -104,6 +104,8 @@ TEST(c_parsing, invalid_data)
     ASSERT_EQ(x, -EINVAL);
 }
 
+// Creates a string and randomly creates input / passthrough characters and then determines what the
+// output should look like, and then calls
 TEST(c_parsing, auto)
 {
   char pt[50];
@@ -124,21 +126,21 @@ TEST(c_parsing, auto)
   char * i = &input_character_set[0];
   char * p = &passthrough_character_set[0];
   char * t = &res_trimmed[0];
-
+  srand(time(NULL));
   for (int j = 0; j < sizeof(pt) - 1; j++) {
     pt[j] = (rand() % 255) + 1;
-    printf("char %c", pt[j]);
+    // printf("char %c", pt[j]);
     // Duplicate character ?
     if (!strchr(input_character_set, pt[j]) && !strchr(passthrough_character_set, pt[j])) {
       if ((rand() % 4) != 0) {
-        printf(" (input)");
+        // printf(" (input)");
         *i++ = pt[j];
       } else {
-        printf(" (passthrough)");
+        // printf(" (passthrough)");
         *p++ = pt[j];
       }
     }
-    printf("\n");
+    // printf("\n");
     if (strchr(input_character_set, pt[j])) {
       *t++ = pt[j];
     } else {
@@ -146,8 +148,8 @@ TEST(c_parsing, auto)
     }
   }
   pt[sizeof(pt)] = '\n';
-  printf("res_trimmed '%s'\n", res_trimmed);
-  printf("res_formatted '%s'\n", res_formatted);
+  // printf("res_trimmed '%s'\n", res_trimmed);
+  // printf("res_formatted '%s'\n", res_formatted);
 
   char empty_formatted_output[50];
   char trimmed_output [50];
@@ -161,8 +163,8 @@ TEST(c_parsing, auto)
   int x = ubiq_platform_efpe_parsing_parse_input(pt, input_character_set, passthrough_character_set,
   trimmed_output, empty_formatted_output);
 
-  std::cout << "trimmed_output '" << (char *)(&trimmed_output[0]) << "'" << std::endl;
-  std::cout << "empty_formatted_output '" << (char *)(&empty_formatted_output[0]) << "'" << std::endl;
+  // std::cout << "trimmed_output '" << (char *)(&trimmed_output[0]) << "'" << std::endl;
+  // std::cout << "empty_formatted_output '" << (char *)(&empty_formatted_output[0]) << "'" << std::endl;
 
   ASSERT_EQ(x, 0);
   ASSERT_STREQ(trimmed_output, res_trimmed);
