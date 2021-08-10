@@ -474,3 +474,172 @@ ubiq_platform_encrypt(
 
     return res;
 }
+
+struct ubiq_platform_fpe_encryption
+{
+    /* http[s]://host/api/v0 */
+    const char * restapi;
+    struct ubiq_platform_rest_handle * rest;
+
+    struct {
+        struct {
+            void * buf;
+            size_t len;
+        } raw, enc;
+
+    } key;
+
+};
+
+static
+int
+ubiq_platform_fpe_encryption_new(
+    const char * const host,
+    const char * const papi, const char * const sapi,
+    struct ubiq_platform_fpe_encryption ** const enc)
+{
+    static const char * const api_path = "api/v0";
+
+    struct ubiq_platform_fpe_encryption * e;
+    size_t len;
+    int res;
+
+    res = -ENOMEM;
+    len = ubiq_platform_snprintf_api_url(NULL, 0, host, api_path) + 1;
+    e = calloc(1, sizeof(*e) + len);
+    if (e) {
+        ubiq_platform_snprintf_api_url((char *)(e + 1), len, host, api_path);
+        e->restapi = (char *)(e + 1);
+
+        res = ubiq_platform_rest_handle_create(papi, sapi, &e->rest);
+        if (res != 0) {
+            free(e);
+            e = NULL;
+        }
+    }
+
+    *enc = e;
+    return res;
+}
+
+void
+ubiq_platform_fpe_encryption_destroy(
+    struct ubiq_platform_fpe_encryption * const e)
+{
+    /*
+     * if there is a session and a fingerprint
+     * and the key was used less times than requested,
+     * then update the server with the actual number
+     * of uses
+     */
+
+    ubiq_platform_rest_handle_destroy(e->rest);
+
+    free(e);
+}
+
+int ubiq_platform_fpe_encryption_create(
+    const struct ubiq_platform_credentials * const creds,
+    struct ubiq_platform_fpe_encryption ** const enc)
+{
+    struct ubiq_platform_fpe_encryption * e;
+    int res;
+
+    const char * const host = ubiq_platform_credentials_get_host(creds);
+    const char * const papi = ubiq_platform_credentials_get_papi(creds);
+    const char * const sapi = ubiq_platform_credentials_get_sapi(creds);
+    const char * const srsa = ubiq_platform_credentials_get_srsa(creds);
+
+    res = ubiq_platform_fpe_encryption_new(host, papi, sapi, &e);
+
+    if (res == 0) {
+        *enc = e;
+    } else {
+        ubiq_platform_fpe_encryption_destroy(e);
+    }
+
+    return res;
+}
+
+int
+ubiq_platform_fpe_encryption_get_ffs(
+  struct ubiq_platform_fpe_encryption * const e,
+  const char * const ffs_name, const cJSON * const ffs_json)
+{
+  const char * const fmt = "%s/ffs/%s";
+
+  printf("ubiq_platform_fpe_encryption_get_ffs started\n");
+
+    cJSON * json;
+    char * url, * str;
+    int len;
+
+    json = cJSON_CreateObject();
+
+    cJSON_AddItemToObject(json, "ffs_name", cJSON_CreateString(ffs_name));
+    cJSON_AddItemToObject(json, "ldap", cJSON_CreateString("ldap info"));
+    str = cJSON_Print(json);
+    printf("DEBUG json string '%s'\n", str);
+    cJSON_Delete(json);
+
+
+}
+
+int
+ubiq_platform_fpe_encrypt(
+    const struct ubiq_platform_credentials * const creds,
+    const char * const ffs_name,
+    const void * const tweak, const size_t tweaklen,
+    const void * const ldap, const size_t ldaplen,
+    const void * const ptbuf, const size_t ptlen,
+    void ** const ctbuf, size_t * const ctlen)
+{
+
+  printf("Entered ubiq_platform_fpe_encrypt\n");
+  struct ubiq_platform_fpe_encryption * enc;
+
+  struct {
+      void * buf;
+      size_t len;
+  } ffs;
+
+  int res = 0;
+  ffs.buf = NULL;
+
+  cJSON * ffs_json;
+  ffs_json = cJSON_CreateObject();
+
+  // Create Structure that will handle REST calls.
+  // Std voltron gets additional information, this will
+  // simply allocate structure.  Mapping creds to individual strings
+  enc = NULL;
+  res = ubiq_platform_fpe_encryption_create(creds, &enc);
+
+  printf("ubiq_platform_fpe_encryption_create res (%d)\n", res);
+
+
+  // Get the FFS data from server
+  if (res == 0) {
+      res = ubiq_platform_fpe_encryption_get_ffs(
+          enc, ffs_name, ffs_json);
+
+          printf("ubiq_platform_fpe_encryption_get_ffs res (%d)\n", res);
+  }
+
+
+
+
+  // Parse the pt to get the trimmed and formatted
+
+  // FPE Encrypt the trimmed
+
+  // Convert encrypted to output radix
+
+  // Copy output into formatted output
+
+  printf("before cJSON_Delete\n");
+  cJSON_Delete(ffs_json);
+  printf("after cJSON_Delete\n");
+
+  return res;
+}
