@@ -592,16 +592,12 @@ static int set_ffs_string(
   char * field_name,
   char **  destination)
 {
-  printf("Entereed set_ffs_string - Looking for '%s'\n", field_name);
   int res = 0;
   const cJSON * j = cJSON_GetObjectItemCaseSensitive(ffs_data, field_name);
   if (cJSON_IsString(j) && j->valuestring != NULL) {
-    printf("   Found  '%s'\n", j->valuestring);
     *destination = strdup(j->valuestring);
     if (!*destination) {
       res = -errno;
-    } else {
-      printf("   Set  '%s' to '%s'\n", field_name, *destination);
     }
   }
   return res;
@@ -612,13 +608,10 @@ static int set_ffs_int(
   char * field_name,
   int *  destination)
 {
-  printf("Entereed set_ffs_int - Looking for '%s'\n", field_name);
   int res = 0;
   const cJSON * j = cJSON_GetObjectItemCaseSensitive(ffs_data, field_name);
   if (cJSON_IsNumber(j)) {
-    printf("   Found  '%d'\n", j->valueint);
     *destination = j->valueint;
-    printf("   Set  '%s' to '%d'\n", field_name, destination);
   }
   return res;
 }
@@ -680,14 +673,10 @@ ubiq_platform_fpe_encryption_get_ffs(
 
   char * encoded_papi = NULL;
   res = ubiq_platform_rest_uri_escape(e->rest, papi, &encoded_papi);
-  printf("DEBUG papi '%s'\n", papi);
-  printf("DEBUG encoded_papi '%s'\n", encoded_papi);
 
   len = snprintf(NULL, 0, fmt, e->restapi, encoded_papi);
   url = malloc(len + 1);
   snprintf(url, len + 1, fmt, e->restapi, encoded_papi);
-
-  printf("DEBUG url '%s'\n", url);
 
   free(encoded_papi);
   json = cJSON_CreateObject();
@@ -695,7 +684,7 @@ ubiq_platform_fpe_encryption_get_ffs(
   cJSON_AddItemToObject(json, "ffs_name", cJSON_CreateString(ffs_name));
   cJSON_AddItemToObject(json, "ldap", cJSON_CreateString("ldap info"));
   str = cJSON_Print(json);
-  printf("DEBUG json string '%s'\n", str);
+  printf("DEBUG Request Payload '%s'\n", str);
   cJSON_Delete(json);
 
   res = ubiq_platform_rest_request(
@@ -705,15 +694,13 @@ ubiq_platform_fpe_encryption_get_ffs(
     char * content = ubiq_platform_rest_response_content(e->rest, &len);
 
     if (content) {
-      printf("ffs payload '%s'\n", content);
+      printf("DEBUG Result payload '%s'\n", content);
       cJSON * ffs_json = cJSON_Parse(content);
       if (ffs_json) {
         res = ubiq_platform_ffs_app_create(ffs_json,  ffs_app);
       }
-      // TODO Parse the JSON to build FFS
     }
 
-    printf("DEBUG res '%d'\n", res);
     return res;
 }
 
@@ -762,23 +749,16 @@ ubiq_platform_fpe_encrypt(
   printf("trimmed '%s'  empty_formatted_output '%s'\n", trimmed, empty_formatted_output);
 
   if ((ffs_app)) {
-    printf ("ffs_app valid\n");
     if (ffs_app->ffs) {
-      printf ("ffs_app->ffs valid\n");
       if (ffs_app->ffs->input_character_set) {
-        printf ("ffs_app->ffs->input_character_set valid\n");
      }
    }
   }
-
-  printf("input_character_set[0] '%c'  output_character_set[0] '%c'\n", ffs_app->ffs->input_character_set[0], ffs_app->ffs->output_character_set[0]);
-
 
   if (!res) {
     trimmed = calloc(1, ptlen + 1);
     if (!trimmed) {res = -ENOMEM;}
     if (!res) {
-      printf("memset trimmed\n");
       memset(trimmed, ffs_app->ffs->input_character_set[0], ptlen);
     }
   }
@@ -787,7 +767,6 @@ ubiq_platform_fpe_encrypt(
     empty_formatted_output = calloc(1, ptlen + 1);
     if (!empty_formatted_output)  {res = -ENOMEM;}
     if (!res) {
-      printf("memset empty_formatted_output\n");
       memset(empty_formatted_output, ffs_app->ffs->output_character_set[0], ptlen);
     }
   }
@@ -809,14 +788,11 @@ ubiq_platform_fpe_encrypt(
   bigint_init(&n);
 
   if (!res) {res = __bigint_set_str(&n, trimmed, ffs_app->ffs->input_character_set);}
-  printf("__bigint_set_str %d\n", res);
   if (!res) {
     size_t len = __bigint_get_str(NULL, 0, ffs_app->ffs->output_character_set, &n);
 
-    printf("__bigint_get_str len %d\n", len);
     char * outstr = calloc(1, len + 1);
     res = __bigint_get_str(outstr, len, ffs_app->ffs->output_character_set, &n);
-    printf("__bigint_get_str res %d\n", res);
 
     printf("__bigint_get_str outstr %s\n", outstr);
 
@@ -826,16 +802,13 @@ ubiq_platform_fpe_encrypt(
       int s = len - 1;
       while (s >= 0 && d >= 0)
       {
-        printf("s (%d) d(%d) \n", s, d);
         // Find the first available destination character
         while (d >=0 && empty_formatted_output[d] != ffs_app->ffs->output_character_set[0])
         {
           d--;
         }
-        printf("   s (%d) d(%d) \n", s, d);
         if (d >= 0) {
           empty_formatted_output[d] = outstr[s];
-          printf("empty_formatted_output %s\n", empty_formatted_output);
         }
         s--;
         d--;
