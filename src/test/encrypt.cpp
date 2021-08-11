@@ -42,7 +42,7 @@ TEST(c_encrypt, simple)
     static const char * const pt = "ABC";
 
     struct ubiq_platform_credentials * creds;
-    void * ctbuf;
+    void * ctbuf = NULL;
     size_t ctlen;
     int res;
 

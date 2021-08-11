@@ -240,3 +240,21 @@ ubiq_support_http_request(
 
     return res;
 }
+
+int
+ubiq_support_uri_escape(struct ubiq_support_http_handle * const hnd,
+  char * const uri, char ** const encoded_uri)
+{
+  int ret = -ENOMEM;
+  char * esc = NULL;
+  char * url_escape = curl_easy_escape(hnd->ch, uri, strlen(uri));
+  if (url_escape) {
+    esc = strdup(url_escape);
+    if (esc) {
+      *encoded_uri = esc;
+      ret = 0;
+    }
+    curl_free(url_escape);
+  }
+  return ret;
+}

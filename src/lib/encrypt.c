@@ -564,16 +564,27 @@ int ubiq_platform_fpe_encryption_create(
 int
 ubiq_platform_fpe_encryption_get_ffs(
   struct ubiq_platform_fpe_encryption * const e,
-  const char * const ffs_name, const cJSON * const ffs_json)
+  const char * const ffs_name, const char * const papi, const cJSON * const ffs_json)
 {
   const char * const fmt = "%s/ffs/%s";
-
-  printf("ubiq_platform_fpe_encryption_get_ffs started\n");
 
     cJSON * json;
     char * url, * str;
     int len;
+    int res = 0;
 
+    char * encoded_papi = NULL;
+    res = ubiq_platform_rest_uri_escape(e->rest, papi, &encoded_papi);
+    printf("DEBUG papi '%s'\n", papi);
+    printf("DEBUG encoded_papi '%s'\n", encoded_papi);
+
+    len = snprintf(NULL, 0, fmt, e->restapi, encoded_papi);
+    url = malloc(len + 1);
+    snprintf(url, len + 1, fmt, e->restapi, encoded_papi);
+
+    printf("DEBUG url '%s'\n", url);
+
+    free(encoded_papi);
     json = cJSON_CreateObject();
 
     cJSON_AddItemToObject(json, "ffs_name", cJSON_CreateString(ffs_name));
@@ -582,7 +593,12 @@ ubiq_platform_fpe_encryption_get_ffs(
     printf("DEBUG json string '%s'\n", str);
     cJSON_Delete(json);
 
+    res = ubiq_platform_rest_request(
+        e->rest,
+        HTTP_RM_GET, url, "application/json", str, strlen(str));
 
+        printf("DEBUG res '%d'\n", res);
+    return res;
 }
 
 int
@@ -595,7 +611,6 @@ ubiq_platform_fpe_encrypt(
     void ** const ctbuf, size_t * const ctlen)
 {
 
-  printf("Entered ubiq_platform_fpe_encrypt\n");
   struct ubiq_platform_fpe_encryption * enc;
 
   struct {
@@ -615,18 +630,26 @@ ubiq_platform_fpe_encrypt(
   enc = NULL;
   res = ubiq_platform_fpe_encryption_create(creds, &enc);
 
-  printf("ubiq_platform_fpe_encryption_create res (%d)\n", res);
-
-
   // Get the FFS data from server
   if (res == 0) {
       res = ubiq_platform_fpe_encryption_get_ffs(
-          enc, ffs_name, ffs_json);
-
-          printf("ubiq_platform_fpe_encryption_get_ffs res (%d)\n", res);
+          enc, ffs_name, ubiq_platform_credentials_get_papi(creds), ffs_json);
   }
 
+  {
+    const char * c = ubiq_platform_rest_response_content_type(enc->rest);
+  }
 
+  {
+    size_t len = 0;
+    char * content = ubiq_platform_rest_response_content(enc->rest, &len);
+
+    if (content) {
+      printf ("Response ubiq_platform_rest_response_content content '%s'\n", content);
+    }
+
+
+  }
 
 
   // Parse the pt to get the trimmed and formatted
@@ -637,9 +660,7 @@ ubiq_platform_fpe_encrypt(
 
   // Copy output into formatted output
 
-  printf("before cJSON_Delete\n");
   cJSON_Delete(ffs_json);
-  printf("after cJSON_Delete\n");
 
   return res;
 }
