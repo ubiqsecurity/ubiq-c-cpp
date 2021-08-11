@@ -6,6 +6,8 @@
 #include "ubiq/platform/internal/common.h"
 #include "ubiq/platform/internal/support.h"
 
+#include "ubiq/fpe/internal/bn.h"
+
 #include <errno.h>
 #include <limits.h>
 #include <stdio.h>
@@ -585,33 +587,6 @@ struct ubiq_platform_ffs_app {
 };
 
 
-
-
-
-//
-// struct ubiq_platform_ffs {
-//   char * name;
-//   char * tweak;
-//   unsigned int min_input_length;
-//   unsigned int max_input_length;
-//   char * regex;
-//   char * input_character_set;
-//   char * output_character_set;
-//   char * passthrough_character_set;
-//   unsigned int max_key_rotations;
-//   int efpe_flag;
-// };
-//
-// struct ubiq_platform_fpe_app {
-//   char * papi;
-// };
-//
-// struct ubiq_platform_fpe_app {
-//   struct ubiq_platform_fpe_app * app;
-//   struct ubiq_platform_ffs * ffs;
-//   unsigned int current_key;
-// };
-
 static int set_ffs_string(
   cJSON * ffs_data,
   char * field_name,
@@ -642,7 +617,7 @@ static int set_ffs_int(
   const cJSON * j = cJSON_GetObjectItemCaseSensitive(ffs_data, field_name);
   if (cJSON_IsNumber(j)) {
     printf("   Found  '%d'\n", j->valueint);
-    destination = j->valueint;
+    *destination = j->valueint;
     printf("   Set  '%s' to '%d'\n", field_name, destination);
   }
   return res;
@@ -827,6 +802,60 @@ ubiq_platform_fpe_encrypt(
   // FPE Encrypt the trimmed
 
   // Convert encrypted to output radix
+
+  bigint_t n;
+
+  /* @n will be the numerical value of @inp */
+  bigint_init(&n);
+
+  if (!res) {res = __bigint_set_str(&n, trimmed, ffs_app->ffs->input_character_set);}
+  printf("__bigint_set_str %d\n", res);
+  if (!res) {
+    size_t len = __bigint_get_str(NULL, 0, ffs_app->ffs->output_character_set, &n);
+
+    printf("__bigint_get_str len %d\n", len);
+    char * outstr = calloc(1, len + 1);
+    res = __bigint_get_str(outstr, len, ffs_app->ffs->output_character_set, &n);
+    printf("__bigint_get_str res %d\n", res);
+
+    printf("__bigint_get_str outstr %s\n", outstr);
+
+    if (res <= len) {
+      res = 0;
+      int d = strlen(empty_formatted_output) - 1;
+      int s = len - 1;
+      while (s >= 0 && d >= 0)
+      {
+        printf("s (%d) d(%d) \n", s, d);
+        // Find the first available destination character
+        while (d >=0 && empty_formatted_output[d] != ffs_app->ffs->output_character_set[0])
+        {
+          d--;
+        }
+        printf("   s (%d) d(%d) \n", s, d);
+        if (d >= 0) {
+          empty_formatted_output[d] = outstr[s];
+          printf("empty_formatted_output %s\n", empty_formatted_output);
+        }
+        s--;
+        d--;
+      }
+      printf("outstr '%s'   formatted_output '%s'   res(%d)\n", outstr, empty_formatted_output,res);
+    }
+
+    free(outstr);
+  }
+
+  // ASSERT_GT(r1, 0);
+  // output.resize(r1);
+  //
+  // r2 = __bigint_get_str((char *)output.data(), r1, oalpha, &n);
+  // EXPECT_EQ(r1, r2);
+  // EXPECT_EQ(std::string(output), expect);
+
+  bigint_deinit(&n);
+
+
 
   // Copy output into formatted output
 
