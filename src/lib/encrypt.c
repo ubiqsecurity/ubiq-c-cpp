@@ -561,43 +561,184 @@ int ubiq_platform_fpe_encryption_create(
     return res;
 }
 
+struct ubiq_platform_ffs {
+  char * name;
+  char * tweak;
+  int min_input_length;
+  int max_input_length;
+  char * regex;
+  char * input_character_set;
+  char * output_character_set;
+  char * passthrough_character_set;
+  int max_key_rotations;
+  int efpe_flag;
+};
+
+struct ubiq_platform_app {
+  char * papi;
+};
+
+struct ubiq_platform_ffs_app {
+  struct ubiq_platform_app * app;
+  struct ubiq_platform_ffs * ffs;
+  unsigned int current_key;
+};
+
+
+
+
+
+//
+// struct ubiq_platform_ffs {
+//   char * name;
+//   char * tweak;
+//   unsigned int min_input_length;
+//   unsigned int max_input_length;
+//   char * regex;
+//   char * input_character_set;
+//   char * output_character_set;
+//   char * passthrough_character_set;
+//   unsigned int max_key_rotations;
+//   int efpe_flag;
+// };
+//
+// struct ubiq_platform_fpe_app {
+//   char * papi;
+// };
+//
+// struct ubiq_platform_fpe_app {
+//   struct ubiq_platform_fpe_app * app;
+//   struct ubiq_platform_ffs * ffs;
+//   unsigned int current_key;
+// };
+
+static int set_ffs_string(
+  cJSON * ffs_data,
+  char * field_name,
+  char **  destination)
+{
+  printf("Entereed set_ffs_string - Looking for '%s'\n", field_name);
+  int res = 0;
+  const cJSON * j = cJSON_GetObjectItemCaseSensitive(ffs_data, field_name);
+  if (cJSON_IsString(j) && j->valuestring != NULL) {
+    printf("   Found  '%s'\n", j->valuestring);
+    *destination = strdup(j->valuestring);
+    if (!*destination) {
+      res = -errno;
+    } else {
+      printf("   Set  '%s' to '%s'\n", field_name, *destination);
+    }
+  }
+  return res;
+}
+
+static int set_ffs_int(
+  cJSON * ffs_data,
+  char * field_name,
+  int *  destination)
+{
+  printf("Entereed set_ffs_int - Looking for '%s'\n", field_name);
+  int res = 0;
+  const cJSON * j = cJSON_GetObjectItemCaseSensitive(ffs_data, field_name);
+  if (cJSON_IsNumber(j)) {
+    printf("   Found  '%d'\n", j->valueint);
+    destination = j->valueint;
+    printf("   Set  '%s' to '%d'\n", field_name, destination);
+  }
+  return res;
+}
+
+static
+int
+ubiq_platform_ffs_app_create(
+    cJSON * ffs_data,
+    struct ubiq_platform_ffs_app ** const ffs_app)
+{
+  int res = 0;
+
+  // Going to allocate memory as a single block
+  // First with the structure.  Then with the
+  // length of strings.  This will allow simple copy and
+  // avoid fragmented memory
+
+  struct ubiq_platform_ffs_app * e;
+  e = calloc(1, sizeof(*e));
+  if (!e) {
+    res = -ENOMEM;
+  } else {
+    e->app = calloc(1, sizeof(struct ubiq_platform_app));
+    e->ffs = calloc(1, sizeof(struct ubiq_platform_ffs));
+  }
+
+  if (!res) {res = set_ffs_string(ffs_data, "ffs_name", &e->ffs->name);}
+  if (!res) {res = set_ffs_string(ffs_data, "tweak_source", &e->ffs->tweak);}
+  if (!res) {res = set_ffs_string(ffs_data, "regex", &e->ffs->regex);}
+  if (!res) {res = set_ffs_string(ffs_data, "input_character_set", &e->ffs->input_character_set);}
+  if (!res) {res = set_ffs_string(ffs_data, "output_character_set", &e->ffs->output_character_set);}
+  if (!res) {res = set_ffs_string(ffs_data, "passthrough_character_set", &e->ffs->passthrough_character_set);}
+
+  if (!res) {res = set_ffs_int(ffs_data, "min_input_length", &e->ffs->min_input_length);}
+  if (!res) {res = set_ffs_int(ffs_data, "max_input_length", &e->ffs->max_input_length);}
+  if (!res) {res = set_ffs_int(ffs_data, "max_key_rotations", &e->ffs->max_key_rotations);}
+
+
+  if (!res) {
+    e->ffs->efpe_flag = 1; // DEBUG just to indicate this is an eFPE field
+    *ffs_app = e;
+  }
+  return res;
+}
+
 int
 ubiq_platform_fpe_encryption_get_ffs(
   struct ubiq_platform_fpe_encryption * const e,
-  const char * const ffs_name, const char * const papi, const cJSON * const ffs_json)
+  const char * const ffs_name,
+  const char * const papi,
+  struct ubiq_platform_ffs_app ** ffs_app)
 {
   const char * const fmt = "%s/ffs/%s";
 
-    cJSON * json;
-    char * url, * str;
-    int len;
-    int res = 0;
+  cJSON * json;
+  char * url, * str;
+  int len;
+  int res = 0;
 
-    char * encoded_papi = NULL;
-    res = ubiq_platform_rest_uri_escape(e->rest, papi, &encoded_papi);
-    printf("DEBUG papi '%s'\n", papi);
-    printf("DEBUG encoded_papi '%s'\n", encoded_papi);
+  char * encoded_papi = NULL;
+  res = ubiq_platform_rest_uri_escape(e->rest, papi, &encoded_papi);
+  printf("DEBUG papi '%s'\n", papi);
+  printf("DEBUG encoded_papi '%s'\n", encoded_papi);
 
-    len = snprintf(NULL, 0, fmt, e->restapi, encoded_papi);
-    url = malloc(len + 1);
-    snprintf(url, len + 1, fmt, e->restapi, encoded_papi);
+  len = snprintf(NULL, 0, fmt, e->restapi, encoded_papi);
+  url = malloc(len + 1);
+  snprintf(url, len + 1, fmt, e->restapi, encoded_papi);
 
-    printf("DEBUG url '%s'\n", url);
+  printf("DEBUG url '%s'\n", url);
 
-    free(encoded_papi);
-    json = cJSON_CreateObject();
+  free(encoded_papi);
+  json = cJSON_CreateObject();
 
-    cJSON_AddItemToObject(json, "ffs_name", cJSON_CreateString(ffs_name));
-    cJSON_AddItemToObject(json, "ldap", cJSON_CreateString("ldap info"));
-    str = cJSON_Print(json);
-    printf("DEBUG json string '%s'\n", str);
-    cJSON_Delete(json);
+  cJSON_AddItemToObject(json, "ffs_name", cJSON_CreateString(ffs_name));
+  cJSON_AddItemToObject(json, "ldap", cJSON_CreateString("ldap info"));
+  str = cJSON_Print(json);
+  printf("DEBUG json string '%s'\n", str);
+  cJSON_Delete(json);
 
-    res = ubiq_platform_rest_request(
-        e->rest,
-        HTTP_RM_GET, url, "application/json", str, strlen(str));
+  res = ubiq_platform_rest_request(
+      e->rest,
+      HTTP_RM_GET, url, "application/json", str, strlen(str));
 
-        printf("DEBUG res '%d'\n", res);
+    char * content = ubiq_platform_rest_response_content(e->rest, &len);
+
+    if (content) {
+      printf("ffs payload '%s'\n", content);
+      cJSON * ffs_json = cJSON_Parse(content);
+      if (ffs_json) {
+        res = ubiq_platform_ffs_app_create(ffs_json,  ffs_app);
+      }
+      // TODO Parse the JSON to build FFS
+    }
+
+    printf("DEBUG res '%d'\n", res);
     return res;
 }
 
@@ -612,6 +753,8 @@ ubiq_platform_fpe_encrypt(
 {
 
   struct ubiq_platform_fpe_encryption * enc;
+  char * empty_formatted_output = NULL;
+  char * trimmed = NULL;
 
   struct {
       void * buf;
@@ -621,8 +764,9 @@ ubiq_platform_fpe_encrypt(
   int res = 0;
   ffs.buf = NULL;
 
-  cJSON * ffs_json;
-  ffs_json = cJSON_CreateObject();
+  // cJSON * ffs_json;
+  // ffs_json = cJSON_CreateObject();
+  struct ubiq_platform_ffs_app * ffs_app;
 
   // Create Structure that will handle REST calls.
   // Std voltron gets additional information, this will
@@ -633,26 +777,52 @@ ubiq_platform_fpe_encrypt(
   // Get the FFS data from server
   if (res == 0) {
       res = ubiq_platform_fpe_encryption_get_ffs(
-          enc, ffs_name, ubiq_platform_credentials_get_papi(creds), ffs_json);
+          enc, ffs_name, ubiq_platform_credentials_get_papi(creds), &ffs_app);
   }
 
-  {
-    const char * c = ubiq_platform_rest_response_content_type(enc->rest);
+  // Allocate the space for Trimmer or Empty Format String based on the length of the plain text.
+  // Using calloc to set all bytes to null but then set based on the appropriate character set.
+  // leaving the last byte as null terminator('\0')
+  printf("pt '%s'  :    '%d'\n", ptbuf, ptlen);
+  printf("trimmed '%s'  empty_formatted_output '%s'\n", trimmed, empty_formatted_output);
+
+  if ((ffs_app)) {
+    printf ("ffs_app valid\n");
+    if (ffs_app->ffs) {
+      printf ("ffs_app->ffs valid\n");
+      if (ffs_app->ffs->input_character_set) {
+        printf ("ffs_app->ffs->input_character_set valid\n");
+     }
+   }
   }
 
-  {
-    size_t len = 0;
-    char * content = ubiq_platform_rest_response_content(enc->rest, &len);
+  printf("input_character_set[0] '%c'  output_character_set[0] '%c'\n", ffs_app->ffs->input_character_set[0], ffs_app->ffs->output_character_set[0]);
 
-    if (content) {
-      printf ("Response ubiq_platform_rest_response_content content '%s'\n", content);
+
+  if (!res) {
+    trimmed = calloc(1, ptlen + 1);
+    if (!trimmed) {res = -ENOMEM;}
+    if (!res) {
+      printf("memset trimmed\n");
+      memset(trimmed, ffs_app->ffs->input_character_set[0], ptlen);
     }
-
-
   }
 
+  if (!res) {
+    empty_formatted_output = calloc(1, ptlen + 1);
+    if (!empty_formatted_output)  {res = -ENOMEM;}
+    if (!res) {
+      printf("memset empty_formatted_output\n");
+      memset(empty_formatted_output, ffs_app->ffs->output_character_set[0], ptlen);
+    }
+  }
 
   // Parse the pt to get the trimmed and formatted
+  res = ubiq_platform_efpe_parsing_parse_input(
+    ptbuf, ffs_app->ffs->input_character_set, ffs_app->ffs->passthrough_character_set,
+    trimmed, empty_formatted_output);
+
+  printf("trimmed '%s'  empty_formatted_output '%s'\n", trimmed, empty_formatted_output);
 
   // FPE Encrypt the trimmed
 
@@ -660,7 +830,7 @@ ubiq_platform_fpe_encrypt(
 
   // Copy output into formatted output
 
-  cJSON_Delete(ffs_json);
+  //cJSON_Delete(ffs_json);
 
   return res;
 }
