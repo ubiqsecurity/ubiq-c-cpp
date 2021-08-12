@@ -101,7 +101,7 @@ ubiq_platform_rest_response_content(
 int
 ubiq_platform_rest_uri_escape(
   const struct ubiq_platform_rest_handle * const h,
-  char * const uri, char ** const encoded_uri);
+  const char * const uri, char ** const encoded_uri);
 
 
 __END_DECLS

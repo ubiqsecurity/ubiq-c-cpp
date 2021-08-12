@@ -44,20 +44,29 @@ TEST(c_fpe_encrypt, simple)
     static const char * const ldap = "ldap info";
 
     struct ubiq_platform_credentials * creds;
-    void * ctbuf(NULL);
+    char * ctbuf(nullptr);
     size_t ctlen;
+    char * ptbuf(nullptr);
+    size_t ptlen;
     int res;
 
     res = ubiq_platform_credentials_create(&creds);
     ASSERT_EQ(res, 0);
 
     res = ubiq_platform_fpe_encrypt(creds,
-      ffs_name, NULL, 0, ldap, strlen(ldap), pt, strlen(pt), &ctbuf, &ctlen);
+      ffs_name, NULL, 0, ldap, strlen(ldap), pt, strlen(pt), (void**)&ctbuf, &ctlen);
     EXPECT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_decrypt(creds,
+      ffs_name, NULL, 0, ldap, strlen(ldap), (char *)ctbuf, strlen(ctbuf), (void**)&ptbuf, &ptlen);
+    EXPECT_EQ(res, 0);
+
+    EXPECT_EQ(strcmp(pt, ptbuf),0);
 
     ubiq_platform_credentials_destroy(creds);
 
     if (res == 0) {
         free(ctbuf);
+        free(ptbuf);
     }
 }

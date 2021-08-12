@@ -1,5 +1,7 @@
 include(GNUInstallDirs)
 
+add_subdirectory(ext)
+
 function(strip_target TARGET)
   set(CMAKE_STRIP_COMMAND /usr/bin/strip)
 
@@ -63,7 +65,7 @@ if(WIN32)
 else()
   target_link_libraries(
     ubiqclient
-    curl crypto)
+    curl crypto gmp)
 endif()
 strip_target(ubiqclient)
 install(
@@ -116,7 +118,7 @@ if(WIN32)
 else()
   target_link_libraries(
     ubiqclient++
-    curl crypto)
+    curl crypto gmp)
 endif()
 strip_target(ubiqclient++)
 install(

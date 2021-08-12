@@ -145,7 +145,7 @@ ubiq_support_http_request(
 
     /* encoded_uri must be freed via free() */
     int ubiq_support_uri_escape(struct ubiq_support_http_handle * const hnd,
-      char * const uri, char ** const encoded_uri);
+      const char * const uri, char ** const encoded_uri);
 
 __END_DECLS
 

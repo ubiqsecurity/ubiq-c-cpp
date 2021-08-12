@@ -243,7 +243,7 @@ ubiq_support_http_request(
 
 int
 ubiq_support_uri_escape(struct ubiq_support_http_handle * const hnd,
-  char * const uri, char ** const encoded_uri)
+  const char * const uri, char ** const encoded_uri)
 {
   int ret = -ENOMEM;
   char * esc = NULL;

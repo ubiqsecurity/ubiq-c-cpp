@@ -5,6 +5,7 @@
 #include "ubiq/platform/internal/credentials.h"
 #include "ubiq/platform/internal/common.h"
 #include "ubiq/platform/internal/support.h"
+#include "ubiq/platform/internal/parsing.h"
 
 #include "ubiq/fpe/internal/bn.h"
 
@@ -668,7 +669,7 @@ ubiq_platform_fpe_encryption_get_ffs(
 
   cJSON * json;
   char * url, * str;
-  int len;
+  size_t len;
   int res = 0;
 
   char * encoded_papi = NULL;
@@ -691,7 +692,7 @@ ubiq_platform_fpe_encryption_get_ffs(
       e->rest,
       HTTP_RM_GET, url, "application/json", str, strlen(str));
 
-    char * content = ubiq_platform_rest_response_content(e->rest, &len);
+    const char * content = ubiq_platform_rest_response_content(e->rest, &len);
 
     if (content) {
       printf("DEBUG Result payload '%s'\n", content);
@@ -699,6 +700,7 @@ ubiq_platform_fpe_encryption_get_ffs(
       if (ffs_json) {
         res = ubiq_platform_ffs_app_create(ffs_json,  ffs_app);
       }
+      cJSON_Delete(ffs_json);
     }
 
     return res;
@@ -746,7 +748,6 @@ ubiq_platform_fpe_encrypt(
   // Using calloc to set all bytes to null but then set based on the appropriate character set.
   // leaving the last byte as null terminator('\0')
   printf("pt '%s'  :    '%d'\n", ptbuf, ptlen);
-  printf("trimmed '%s'  empty_formatted_output '%s'\n", trimmed, empty_formatted_output);
 
   if ((ffs_app)) {
     if (ffs_app->ffs) {
@@ -794,8 +795,6 @@ ubiq_platform_fpe_encrypt(
     char * outstr = calloc(1, len + 1);
     res = __bigint_get_str(outstr, len, ffs_app->ffs->output_character_set, &n);
 
-    printf("__bigint_get_str outstr %s\n", outstr);
-
     if (res <= len) {
       res = 0;
       int d = strlen(empty_formatted_output) - 1;
@@ -807,6 +806,7 @@ ubiq_platform_fpe_encrypt(
         {
           d--;
         }
+        // Copy the encrypted text into the formatted output string
         if (d >= 0) {
           empty_formatted_output[d] = outstr[s];
         }
@@ -819,18 +819,126 @@ ubiq_platform_fpe_encrypt(
     free(outstr);
   }
 
-  // ASSERT_GT(r1, 0);
-  // output.resize(r1);
-  //
-  // r2 = __bigint_get_str((char *)output.data(), r1, oalpha, &n);
-  // EXPECT_EQ(r1, r2);
-  // EXPECT_EQ(std::string(output), expect);
+  bigint_deinit(&n);
+
+  // Copy output into formatted output
+  *ctbuf = empty_formatted_output;
+  *ctlen = strlen(empty_formatted_output);
+
+  //cJSON_Delete(ffs_json);
+
+  return res;
+}
+
+int
+ubiq_platform_fpe_decrypt(
+    const struct ubiq_platform_credentials * const creds,
+    const char * const ffs_name,
+    const void * const tweak, const size_t tweaklen,
+    const void * const ldap, const size_t ldaplen,
+    const void * const ctbuf, const size_t ctlen,
+    void ** const ptbuf, size_t * const ptlen)
+{
+
+  struct ubiq_platform_fpe_encryption * enc;
+  char * empty_formatted_output = NULL;
+  char * trimmed = NULL;
+
+  struct {
+      void * buf;
+      size_t len;
+  } ffs;
+
+  int res = 0;
+  ffs.buf = NULL;
+
+  struct ubiq_platform_ffs_app * ffs_app;
+
+  // Create Structure that will handle REST calls.
+  // Std voltron gets additional information, this will
+  // simply allocate structure.  Mapping creds to individual strings
+  enc = NULL;
+  res = ubiq_platform_fpe_encryption_create(creds, &enc);
+
+  // Get the FFS data from server
+  if (res == 0) {
+      res = ubiq_platform_fpe_encryption_get_ffs(
+          enc, ffs_name, ubiq_platform_credentials_get_papi(creds), &ffs_app);
+  }
+
+  // Allocate the space for Trimmer or Empty Format String based on the length of the plain text.
+  // Using calloc to set all bytes to null but then set based on the appropriate character set.
+  // leaving the last byte as null terminator('\0')
+  printf("ct '%s'  :    '%d'\n", ctbuf, ctlen);
+
+  if (!res) {
+    trimmed = calloc(1, ctlen + 1);
+    if (!trimmed) {res = -ENOMEM;}
+    if (!res) {
+      memset(trimmed, ffs_app->ffs->output_character_set[0], ctlen);
+    }
+  }
+
+  if (!res) {
+    empty_formatted_output = calloc(1, ctlen + 1);
+    if (!empty_formatted_output)  {res = -ENOMEM;}
+    if (!res) {
+      memset(empty_formatted_output, ffs_app->ffs->input_character_set[0], ctlen);
+    }
+  }
+
+  // Parse the pt to get the trimmed and formatted
+  res = ubiq_platform_efpe_parsing_parse_input(
+    ctbuf, ffs_app->ffs->output_character_set, ffs_app->ffs->passthrough_character_set,
+    trimmed, empty_formatted_output);
+
+  printf("trimmed '%s'  empty_formatted_output '%s'\n", trimmed, empty_formatted_output);
+
+  // FPE Encrypt the trimmed
+
+  // Convert encrypted to output radix
+
+  bigint_t n;
+
+  /* @n will be the numerical value of @inp */
+  bigint_init(&n);
+
+  if (!res) {res = __bigint_set_str(&n, trimmed, ffs_app->ffs->output_character_set);}
+  if (!res) {
+    size_t len = __bigint_get_str(NULL, 0, ffs_app->ffs->input_character_set, &n);
+
+    char * outstr = calloc(1, len + 1);
+    res = __bigint_get_str(outstr, len, ffs_app->ffs->input_character_set, &n);
+
+    if (res <= len) {
+      res = 0;
+      int d = strlen(empty_formatted_output) - 1;
+      int s = len - 1;
+      while (s >= 0 && d >= 0)
+      {
+        // Find the first available destination character
+        while (d >=0 && empty_formatted_output[d] != ffs_app->ffs->input_character_set[0])
+        {
+          d--;
+        }
+        // Copy the encrypted text into the formatted output string
+        if (d >= 0) {
+          empty_formatted_output[d] = outstr[s];
+        }
+        s--;
+        d--;
+      }
+      printf("outstr '%s'   formatted_output '%s'   res(%d)\n", outstr, empty_formatted_output,res);
+    }
+
+    free(outstr);
+  }
 
   bigint_deinit(&n);
 
-
-
   // Copy output into formatted output
+  *ptbuf = empty_formatted_output;
+  *ptlen = strlen(empty_formatted_output);
 
   //cJSON_Delete(ffs_json);
 
