@@ -182,6 +182,59 @@ ubiq_platform_common_parse_new_key(
 }
 
 int
+ubiq_platform_common_fpe_parse_new_key(
+    const cJSON * const json,
+    const char * const srsa,
+    void ** const keybuf, size_t * const keylen)
+{
+    const cJSON * j;
+    const char * prvpem;
+    int res;
+
+    prvpem = NULL;
+    res = 0;
+
+    if (res == 0) {
+        /*
+         * decrypt the private key using the srsa as a password
+         */
+        j = cJSON_GetObjectItemCaseSensitive(
+            json, "encrypted_private_key");
+        if (cJSON_IsString(j) && j->valuestring != NULL) {
+            prvpem = j->valuestring;
+        } else {
+            res = -EBADMSG;
+        }
+    }
+
+    if (res == 0) {
+        /*
+         * unwrap the data key
+         */
+        j = cJSON_GetObjectItemCaseSensitive(
+            json, "wrapped_data_key");
+        if (cJSON_IsString(j) && j->valuestring != NULL) {
+            void * buf;
+            int len;
+
+            printf("DEBUG ubiq_platform_common_fpe_parse_new_key j->valuestring '%s'\n", j->valuestring);
+            len = ubiq_support_base64_decode(
+                &buf, j->valuestring, strlen(j->valuestring));
+            printf("DEBUG ubiq_platform_common_fpe_parse_new_key len(%d)\n", len);
+
+            res = ubiq_support_asymmetric_decrypt(
+                prvpem, srsa, buf, len, keybuf, keylen);
+
+            free(buf);
+        } else {
+            res = -EBADMSG;
+        }
+    }
+
+    return res;
+}
+
+int
 ubiq_platform_http_error(
     const http_response_code_t rc)
 {
