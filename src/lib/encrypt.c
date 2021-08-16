@@ -6,6 +6,8 @@
 #include "ubiq/platform/internal/common.h"
 #include "ubiq/platform/internal/support.h"
 #include "ubiq/platform/internal/parsing.h"
+#include <ubiq/fpe/ff1.h>
+#include <ubiq/fpe/internal/ffx.h>
 
 #include "ubiq/fpe/internal/bn.h"
 
@@ -914,14 +916,122 @@ int ubiq_platform_fpe_string_parse(
   return res;
 }
 
+static
+int
+fpe_encrypt(
+  struct ubiq_platform_fpe_encryption * const enc,
+  const char * const ptbuf, const size_t ptlen,
+  const uint8_t * const tweak, const size_t tweaklen,
+  char ** const ctbuf, size_t * const ctlen
+)
+{
+  static char * base10_charset = "0123456789";
+  int res = 0;
+  struct fpe_ffs_parsed * parsed = NULL;
+
+  printf("DEBUG fpe_encrypt pt '%s'\n", ptbuf);
+
+  // Trim pt
+  res = fpe_ffs_parsed_create(&parsed, ptlen);
+  if (!res) {res = ubiq_platform_fpe_string_parse(enc, 1, ptbuf, ptlen, parsed);}
+
+  bigint_t n;
+
+  // Convert pt to base 10
+  bigint_init(&n);
+  if (!res) {res = __bigint_set_str(&n, parsed->trimmed_buf, enc->ffs_app->ffs->input_character_set);}
+
+  if (!res) {
+    size_t len = __bigint_get_str(NULL, 0, base10_charset, &n);
+
+    char * pt_base10_trimmed = calloc(len + 1, 1);
+    char * ct_base10 = calloc(len + 1, 1);
+    if (pt_base10_trimmed == NULL || ct_base10 == NULL) {
+      res = -ENOMEM;
+    }
+    if (!res) {
+      res = __bigint_get_str(pt_base10_trimmed, len, base10_charset, &n);
+
+      if (res <= len) {
+        res = 0;
+
+        printf("DEBUG fpe_encrypt pt_base10_trimmed '%s'\n", pt_base10_trimmed);
+
+
+        // Encrypt
+
+        // Assume FF1 right now
+        struct ff1_ctx * ctx;
+        res = ff1_ctx_create(&ctx, enc->key.buf, enc->key.len, tweak, tweaklen, 0, SIZE_MAX, sizeof(base10_charset));
+        if (!res) {
+          res = ff1_encrypt(ctx, ct_base10, pt_base10_trimmed, tweak, tweaklen);
+          printf("DEBUG fpe_encrypt ct_base10 '%s'\n", ct_base10);
+          if (!res) {
+            // Convert CT to output character set
+             __bigint_set_str(&n, ct_base10, base10_charset);
+            size_t len = __bigint_get_str(NULL, 0, enc->ffs_app->ffs->output_character_set, &n);
+            char * ct_output_charset = calloc(1, len + 1);
+            if (ct_output_charset == NULL) {
+              res = -ENOMEM;
+            }
+            if (!res) {
+              res = __bigint_get_str(ct_output_charset, len, enc->ffs_app->ffs->output_character_set, &n);
+              printf("DEBUG fpe_encrypt ct_output_charset '%s'\n", ct_output_charset);
+
+              // merge ct into formatted output
+              if (res <= len) {
+                res = 0;
+                int d = strlen(parsed->formatted_dest_buf) - 1;
+                int s = len - 1;
+                while (s >= 0 && d >= 0)
+                {
+                  // Find the first available destination character
+                  while (d >=0 && parsed->formatted_dest_buf[d] != enc->ffs_app->ffs->output_character_set[0])
+                  {
+                    d--;
+                  }
+                  // Copy the encrypted text into the formatted output string
+                  if (d >= 0) {
+                    parsed->formatted_dest_buf[d] = ct_output_charset[s];
+                  }
+                  s--;
+                  d--;
+                }
+                printf("outstr '%s'   formatted_output '%s'   res(%d)\n", ct_output_charset, parsed->formatted_dest_buf,res);
+              }
+            }
+            free(ct_output_charset);
+          }
+        }
+      }
+    }
+    printf("DEBUG before 3 free\n");
+    free(ct_base10);
+    free(pt_base10_trimmed);
+    if (!res) {
+      *ctbuf = strdup(parsed->formatted_dest_buf);
+      if (*ctbuf != NULL) {
+        *ctlen = strlen(*ctbuf);
+      } else {
+        res = -ENOMEM;
+      }
+    }
+    fpe_ffs_parsed_destroy(parsed);
+  }
+  bigint_deinit(&n);
+  printf("END fpe_encrypt res(%d)\n", res);
+  return res;
+}
+
+
 int
 ubiq_platform_fpe_encrypt(
     const struct ubiq_platform_credentials * const creds,
     const char * const ffs_name,
     const void * const tweak, const size_t tweaklen,
     const void * const ldap, const size_t ldaplen,
-    const void * const ptbuf, const size_t ptlen,
-    void ** const ctbuf, size_t * const ctlen)
+    const char * const ptbuf, const size_t ptlen,
+    char ** const ctbuf, size_t * const ctlen)
 {
 
   struct ubiq_platform_fpe_encryption * enc;
@@ -949,10 +1059,13 @@ ubiq_platform_fpe_encrypt(
 
   printf("pt '%s'  :    '%d'\n", ptbuf, ptlen);
 
+  fpe_encrypt(enc, ptbuf, ptlen, tweak, tweaklen, ctbuf, ctlen);
+
+
   // Parse PT
 
   // Returns trimmed & output_string
-
+#ifdef NODEF
   res = fpe_ffs_parsed_create(&parsed, ptlen);
 
 
@@ -982,6 +1095,9 @@ ubiq_platform_fpe_encrypt(
   // printf("trimmed '%s'  empty_formatted_output '%s'\n", trimmed, empty_formatted_output);
 
   // FPE Encrypt the trimmed
+
+
+
 
   // Convert encrypted to output radix
 
@@ -1020,20 +1136,16 @@ ubiq_platform_fpe_encrypt(
 
     free(outstr);
   }
-  printf("DEBUG ubiq_platform_fpe_encrypt A res(%d)\n", res);
 
   bigint_deinit(&n);
-  printf("DEBUG ubiq_platform_fpe_encrypt B res(%d)\n", res);
 
   // Copy output into formatted output
   *ctbuf = strndup(parsed->formatted_dest_buf,parsed->formatted_dest_len + 1);
   *ctlen = parsed->formatted_dest_len;
-  printf("DEBUG ubiq_platform_fpe_encrypt C res(%d)\n", res);
 
   fpe_ffs_parsed_destroy(parsed);
-
+#endif
   //cJSON_Delete(ffs_json);
-  printf("DEBUG ubiq_platform_fpe_encrypt END res(%d)\n", res);
   return res;
 }
 
