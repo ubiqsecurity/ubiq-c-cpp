@@ -65,8 +65,6 @@ TEST(c_fpe_encrypt, simple)
 
     ubiq_platform_credentials_destroy(creds);
 
-    if (res == 0) {
-        free(ctbuf);
-        free(ptbuf);
-    }
+    free(ctbuf);
+    free(ptbuf);
 }
