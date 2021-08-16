@@ -637,12 +637,29 @@ ubiq_platform_fpe_encryption_new(
 
 static
 int
+ubiq_platform_ffs_destroy(
+    struct ubiq_platform_ffs * const ffs)
+{
+  if (ffs) {
+    free (ffs->name);
+    free (ffs->tweak);
+    free (ffs->regex);
+    free (ffs->input_character_set);
+    free (ffs->output_character_set);
+    free (ffs->passthrough_character_set);
+  }
+  free(ffs);
+}
+
+
+static
+int
 ubiq_platform_ffs_app_destroy(
     struct ubiq_platform_ffs_app * const ffs_app)
 {
   if (ffs_app) {
     free(ffs_app->app);
-    free(ffs_app->ffs);
+    ubiq_platform_ffs_destroy(ffs_app->ffs);
   }
   free(ffs_app);
 }
@@ -748,19 +765,20 @@ ubiq_platform_fpe_encryption_get_ffs(
       e->rest,
       HTTP_RM_GET, url, "application/json", str, strlen(str));
 
-    const char * content = ubiq_platform_rest_response_content(e->rest, &len);
+  const char * content = ubiq_platform_rest_response_content(e->rest, &len);
 
-    if (content) {
-      printf("DEBUG Result payload '%s'\n", content);
-      cJSON * ffs_json = cJSON_Parse(content);
-      if (ffs_json) {
-        res = ubiq_platform_ffs_app_create(ffs_json,  &e->ffs_app);
-      }
-      cJSON_Delete(ffs_json);
+  if (content) {
+    printf("DEBUG Result payload '%s'\n", content);
+    cJSON * ffs_json = cJSON_Parse(content);
+    if (ffs_json) {
+      res = ubiq_platform_ffs_app_create(ffs_json,  &e->ffs_app);
     }
-
-    printf("DEBUG END ubiq_platform_fpe_encryption_get_ffs (%d)\n", res);
-    return res;
+    cJSON_Delete(ffs_json);
+  }
+  free(url);
+  free(str);
+  printf("DEBUG END ubiq_platform_fpe_encryption_get_ffs (%d)\n", res);
+  return res;
 }
 
 
@@ -811,7 +829,8 @@ ubiq_platform_fpe_encryption_get_key(
 
     cJSON_Delete(rsp_json);
   }
-
+  free(url);
+  free(str);
   return res;
 
 }
@@ -831,7 +850,7 @@ int ubiq_platform_fpe_encryption_create(
 
     res = ubiq_platform_fpe_encryption_new(host, papi, sapi, &e);
 
-    printf("BEFORE ubiq_platform_fpe_encryption_get_ffs (%d)\n", res);
+    // printf("BEFORE ubiq_platform_fpe_encryption_get_ffs (%d)\n", res);
     if (0 == res) {
         res = ubiq_platform_fpe_encryption_get_ffs(
             e, ffs_name, papi);
@@ -1174,9 +1193,8 @@ ubiq_platform_fpe_encrypt(
   // simply allocate structure.  Mapping creds to individual strings
   enc = NULL;
   if (!(res = ubiq_platform_fpe_encryption_create(creds, ffs_name, &enc))) {
-    res  = fpe_encrypt(enc, ptbuf, ptlen, tweak, tweaklen, ctbuf, ctlen);
-
-    ubiq_platform_fpe_encryption_destroy(enc);
+     res  = fpe_encrypt(enc, ptbuf, ptlen, tweak, tweaklen, ctbuf, ctlen);
+     ubiq_platform_fpe_encryption_destroy(enc);
   }
 
   return res;
