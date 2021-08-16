@@ -58,7 +58,7 @@ TEST(c_fpe_encrypt, simple)
     EXPECT_EQ(res, 0);
 
     res = ubiq_platform_fpe_decrypt(creds,
-      ffs_name, "9", 1, ldap, strlen(ldap), (char *)ctbuf, strlen(ctbuf), (void**)&ptbuf, &ptlen);
+      ffs_name, "1", 1, ldap, strlen(ldap), (char *)ctbuf, strlen(ctbuf), &ptbuf, &ptlen);
     EXPECT_EQ(res, 0);
 
     EXPECT_EQ(strcmp(pt, ptbuf),0);

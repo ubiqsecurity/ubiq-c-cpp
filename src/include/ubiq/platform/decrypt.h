@@ -38,7 +38,7 @@ ubiq_platform_fpe_decrypt(
     const void * const tweak, const size_t tweaklen,
     const void * const ldap, const size_t ldaplen,
     const void * const ptbuf, const size_t ptlen,
-    void ** const ctbuf, size_t * const ctlen);
+    char ** const ctbuf, size_t * const ctlen);
 
 
 /* Opaque decryption object */
