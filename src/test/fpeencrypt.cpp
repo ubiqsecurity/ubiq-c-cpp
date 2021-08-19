@@ -41,7 +41,6 @@ TEST(c_fpe_encrypt, simple)
 {
     static const char * const pt = "01$23-456-78-90";
     static const char * const ffs_name = "FFS Name";
-    static const char * const ldap = "ldap info";
 
     struct ubiq_platform_credentials * creds;
     char * ctbuf(nullptr);
@@ -54,11 +53,11 @@ TEST(c_fpe_encrypt, simple)
     ASSERT_EQ(res, 0);
 
     res = ubiq_platform_fpe_encrypt(creds,
-      ffs_name, "1", 1, ldap, strlen(ldap), pt, strlen(pt), &ctbuf, &ctlen);
+      ffs_name, "1", 1, pt, strlen(pt), &ctbuf, &ctlen);
     EXPECT_EQ(res, 0);
 
     res = ubiq_platform_fpe_decrypt(creds,
-      ffs_name, "1", 1, ldap, strlen(ldap), (char *)ctbuf, strlen(ctbuf), &ptbuf, &ptlen);
+      ffs_name, "1", 1, (char *)ctbuf, strlen(ctbuf), &ptbuf, &ptlen);
     EXPECT_EQ(res, 0);
 
     EXPECT_EQ(strcmp(pt, ptbuf),0);

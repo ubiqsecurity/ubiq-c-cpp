@@ -688,7 +688,6 @@ ubiq_platform_ffs_app_create(
     cJSON * ffs_data,
     struct ubiq_platform_ffs_app ** const ffs_app)
 {
-  printf("DEBUG BEGIN ubiq_platform_ffs_app_create\n");
   int res = 0;
 
   // Going to allocate memory as a single block
@@ -716,8 +715,6 @@ ubiq_platform_ffs_app_create(
   if (!res) {res = set_ffs_int(ffs_data, "max_input_length", &e->ffs->max_input_length);}
   if (!res) {res = set_ffs_int(ffs_data, "max_key_rotations", &e->ffs->max_key_rotations);}
 
-  printf("DEBUG AFTER set_ffs_int\n");
-
   if (!res) {
     e->ffs->efpe_flag = 1; // DEBUG just to indicate this is an eFPE field
     *ffs_app = e;
@@ -725,7 +722,6 @@ ubiq_platform_ffs_app_create(
     ubiq_platform_ffs_app_destroy(e);
   }
 
-  printf("DEBUG END ubiq_platform_ffs_app_create res(%d)\n", res);
   return res;
 }
 
@@ -738,37 +734,39 @@ ubiq_platform_fpe_encryption_get_ffs(
   const char * const ffs_name,
   const char * const papi)
 {
-  const char * const fmt = "%s/ffs/%s";
+  const char * const fmt = "%s/ffs?ffs_name=%s&papi=%s";
 
   cJSON * json;
-  char * url, * str;
+  char * url;//, * str;
   size_t len;
   int res = 0;
 
   char * encoded_papi = NULL;
+  char * encoded_name = NULL;
   res = ubiq_platform_rest_uri_escape(e->rest, papi, &encoded_papi);
+  res = ubiq_platform_rest_uri_escape(e->rest, ffs_name, &encoded_name);
 
-  len = snprintf(NULL, 0, fmt, e->restapi, encoded_papi);
+  len = snprintf(NULL, 0, fmt, e->restapi, encoded_name, encoded_papi);
   url = malloc(len + 1);
-  snprintf(url, len + 1, fmt, e->restapi, encoded_papi);
+  snprintf(url, len + 1, fmt, e->restapi, encoded_name, encoded_papi);
 
   free(encoded_papi);
-  json = cJSON_CreateObject();
-
-  cJSON_AddItemToObject(json, "ffs_name", cJSON_CreateString(ffs_name));
-  cJSON_AddItemToObject(json, "ldap", cJSON_CreateString("ldap info"));
-  str = cJSON_Print(json);
-  printf("DEBUG Request Payload '%s'\n", str);
-  cJSON_Delete(json);
+  free(encoded_name);
+  // json = cJSON_CreateObject();
+  //
+  // cJSON_AddItemToObject(json, "ffs_name", cJSON_CreateString(ffs_name));
+  // cJSON_AddItemToObject(json, "ldap", cJSON_CreateString("ldap info"));
+  // str = cJSON_Print(json);
+  // cJSON_Delete(json);
 
   res = ubiq_platform_rest_request(
       e->rest,
-      HTTP_RM_GET, url, "application/json", str, strlen(str));
+      HTTP_RM_GET, url, "application/json", NULL, 0);
 
   const char * content = ubiq_platform_rest_response_content(e->rest, &len);
 
   if (content) {
-    printf("DEBUG Result payload '%s'\n", content);
+    printf("FFS => '%s'\n", content);
     cJSON * ffs_json = cJSON_Parse(content);
     if (ffs_json) {
       res = ubiq_platform_ffs_app_create(ffs_json,  &e->ffs_app);
@@ -776,8 +774,7 @@ ubiq_platform_fpe_encryption_get_ffs(
     cJSON_Delete(ffs_json);
   }
   free(url);
-  free(str);
-  printf("DEBUG END ubiq_platform_fpe_encryption_get_ffs (%d)\n", res);
+//  free(str);
   return res;
 }
 
@@ -791,31 +788,35 @@ ubiq_platform_fpe_encryption_get_key(
   const char * const papi,
   const char * const srsa)
 {
-  const char * const fmt = "%s/fpe/key/%s";
+//  const char * const fmt = "%s/fpe/key?ffs_name=%s&papi=%s";
+  const char * const fmt = "%s/fpe/key?ffs_name=%s&papi=%s&key_number=%d";
 
   cJSON * json;
-  char * url, * str;
+  char * url; //, * str;
   size_t len;
   int res = 0;
 
   char * encoded_papi = NULL;
+  char * encoded_name = NULL;
   res = ubiq_platform_rest_uri_escape(e->rest, papi, &encoded_papi);
+  res = ubiq_platform_rest_uri_escape(e->rest, e->ffs_app->ffs->name, &encoded_name);
 
-  len = snprintf(NULL, 0, fmt, e->restapi, encoded_papi);
+  len = snprintf(NULL, 0, fmt, e->restapi, encoded_name, encoded_papi, 5);
   url = malloc(len + 1);
-  snprintf(url, len + 1, fmt, e->restapi, encoded_papi);
+  snprintf(url, len + 1, fmt, e->restapi, encoded_name, encoded_papi,5);
 
   free(encoded_papi);
-  json = cJSON_CreateObject();
-
-  cJSON_AddItemToObject(json, "ffs_name", cJSON_CreateString(e->ffs_app->ffs->name));
-  cJSON_AddItemToObject(json, "ldap", cJSON_CreateString("ldap info"));
-  str = cJSON_Print(json);
-  cJSON_Delete(json);
+  free(encoded_name);
+  // json = cJSON_CreateObject();
+  //
+  // cJSON_AddItemToObject(json, "ffs_name", cJSON_CreateString(e->ffs_app->ffs->name));
+  // cJSON_AddItemToObject(json, "ldap", cJSON_CreateString("ldap info"));
+  // str = cJSON_Print(json);
+  // cJSON_Delete(json);
 
   res = ubiq_platform_rest_request(
     e->rest,
-    HTTP_RM_GET, url, "application/json", str, strlen(str));
+    HTTP_RM_GET, url, "application/json", NULL , 0);
 
   const char * content = ubiq_platform_rest_response_content(e->rest, &len);
 
@@ -830,7 +831,7 @@ ubiq_platform_fpe_encryption_get_key(
     cJSON_Delete(rsp_json);
   }
   free(url);
-  free(str);
+//  free(str);
   return res;
 
 }
@@ -854,9 +855,10 @@ int ubiq_platform_fpe_encryption_create(
     if (0 == res) {
         res = ubiq_platform_fpe_encryption_get_ffs(
             e, ffs_name, papi);
-        printf("ubiq_platform_fpe_encryption_get_ffs (%d)\n", res);
     }
 
+    // TODO - Need to have way to pass KEY_NUMBER into rest to
+    // get key for specific key in the cycle
     if (!res) {
       res = ubiq_platform_fpe_encryption_get_key(
         e, papi, srsa
@@ -887,8 +889,6 @@ ubiq_platform_encryption_fpe_parse_new_key(
     res = ubiq_platform_common_fpe_parse_new_key(
         json, srsa,
         &e->key.buf, &e->key.len);
-
-    printf("ubiq_platform_encryption_fpe_parse_new_key ubiq_platform_common_fpe_parse_new_key res(%s) keylen(%d)", &e->key.len);
 
     return res;
 }
@@ -1170,7 +1170,6 @@ fpe_encrypt(
   free(ct_base10);
   free(pt_base10);
   free(ct_trimmed);
-  printf("END fpe_encrypt res(%d)\n", res);
   return res;
 }
 
@@ -1180,7 +1179,6 @@ ubiq_platform_fpe_encrypt(
     const struct ubiq_platform_credentials * const creds,
     const char * const ffs_name,
     const void * const tweak, const size_t tweaklen,
-    const void * const ldap, const size_t ldaplen,
     const char * const ptbuf, const size_t ptlen,
     char ** const ctbuf, size_t * const ctlen)
 {
@@ -1205,7 +1203,6 @@ ubiq_platform_fpe_decrypt(
     const struct ubiq_platform_credentials * const creds,
     const char * const ffs_name,
     const void * const tweak, const size_t tweaklen,
-    const void * const ldap, const size_t ldaplen,
     const void * const ctbuf, const size_t ctlen,
     char ** const ptbuf, size_t * const ptlen)
 {

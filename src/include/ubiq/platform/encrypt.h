@@ -35,7 +35,6 @@ ubiq_platform_fpe_encrypt(
     const struct ubiq_platform_credentials * const creds,
     const char * const ffs_name,
     const void * const tweak, const size_t tweaklen,
-    const void * const ldap, const size_t ldaplen,
     const char * const ptbuf, const size_t ptlen,
     char ** const ctbuf, size_t * const ctlen);
 
