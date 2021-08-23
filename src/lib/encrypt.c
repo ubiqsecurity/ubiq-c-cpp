@@ -704,13 +704,12 @@ ubiq_platform_ffs_app_create(
     e->ffs = calloc(1, sizeof(struct ubiq_platform_ffs));
   }
 
-  if (!res) {res = set_ffs_string(ffs_data, "ffs_name", &e->ffs->name);}
+  if (!res) {res = set_ffs_string(ffs_data, "name", &e->ffs->name);}
   if (!res) {res = set_ffs_string(ffs_data, "tweak_source", &e->ffs->tweak);}
   if (!res) {res = set_ffs_string(ffs_data, "regex", &e->ffs->regex);}
   if (!res) {res = set_ffs_string(ffs_data, "input_character_set", &e->ffs->input_character_set);}
   if (!res) {res = set_ffs_string(ffs_data, "output_character_set", &e->ffs->output_character_set);}
-  if (!res) {res = set_ffs_string(ffs_data, "passthrough_character_set", &e->ffs->passthrough_character_set);}
-
+  if (!res) {res = set_ffs_string(ffs_data, "passthrough", &e->ffs->passthrough_character_set);}
   if (!res) {res = set_ffs_int(ffs_data, "min_input_length", &e->ffs->min_input_length);}
   if (!res) {res = set_ffs_int(ffs_data, "max_input_length", &e->ffs->max_input_length);}
   if (!res) {res = set_ffs_int(ffs_data, "max_key_rotations", &e->ffs->max_key_rotations);}
@@ -774,7 +773,6 @@ ubiq_platform_fpe_encryption_get_ffs(
     cJSON_Delete(ffs_json);
   }
   free(url);
-//  free(str);
   return res;
 }
 
@@ -788,7 +786,6 @@ ubiq_platform_fpe_encryption_get_key(
   const char * const papi,
   const char * const srsa)
 {
-//  const char * const fmt = "%s/fpe/key?ffs_name=%s&papi=%s";
   const char * const fmt = "%s/fpe/key?ffs_name=%s&papi=%s&key_number=%d";
 
   cJSON * json;
@@ -864,7 +861,6 @@ int ubiq_platform_fpe_encryption_create(
         e, papi, srsa
       );
     }
-
 
     if (res == 0) {
         *enc = e;
@@ -989,8 +985,6 @@ fpe_decrypt(
   char * pt_base10 = NULL;
   char * pt_trimmed = NULL;
   // Trim pt
-
-  printf("DEBUG '%s' Started\n", csu);
 
   res = fpe_ffs_parsed_create(&parsed, ctlen);
   if (!res) {res = ubiq_platform_fpe_string_parse(enc, -1, ctbuf, ctlen, parsed);}

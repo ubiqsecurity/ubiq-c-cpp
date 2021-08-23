@@ -40,7 +40,7 @@ TEST_F(cpp_fpe_encrypt, simple)
 TEST(c_fpe_encrypt, simple)
 {
     static const char * const pt = "01$23-456-78-90";
-    static const char * const ffs_name = "FFS Name";
+    static const char * const ffs_name = "ssn";
 
     struct ubiq_platform_credentials * creds;
     char * ctbuf(nullptr);
