@@ -1,6 +1,3 @@
-include:
-    - template: Security/SAST.gitlab-ci.yml
-
 workflow:
     rules:
         - if: $CI_COMMIT_TAG
@@ -48,6 +45,13 @@ test:
         - apt -y install libcurl4 libssl1.1
     script:
         - build/src/test/unittests
+
+sast:
+    variables:
+        SAST_EXCLUDED_PATHS: src/test, build
+    stage: test
+include:
+    - template: Security/SAST.gitlab-ci.yml
 
 deploy:
     stage: deploy
