@@ -15,9 +15,9 @@ variables:
     DOCKER_TLS_CERTDIR: ""
 
 cache:
-  key: ${CI_COMMIT_REF_SLUG}
-  paths:
-    - build
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+        - build
 
 stages:
     - build
@@ -45,6 +45,13 @@ test:
         - apt -y install libcurl4 libssl1.1
     script:
         - build/src/test/unittests
+
+sast:
+    variables:
+        SAST_EXCLUDED_PATHS: src/test, build
+    stage: test
+include:
+    - template: Security/SAST.gitlab-ci.yml
 
 deploy:
     stage: deploy
