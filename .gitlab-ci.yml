@@ -1,3 +1,6 @@
+include:
+    - template: Security/SAST.gitlab-ci.yml
+
 workflow:
     rules:
         - if: $CI_COMMIT_TAG
@@ -15,9 +18,9 @@ variables:
     DOCKER_TLS_CERTDIR: ""
 
 cache:
-  key: ${CI_COMMIT_REF_SLUG}
-  paths:
-    - build
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+        - build
 
 stages:
     - build
