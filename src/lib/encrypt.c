@@ -1073,6 +1073,10 @@ fpe_decrypt(
   res = fpe_ffs_parsed_create(&parsed, ctlen);
   if (!res) {res = ubiq_platform_fpe_string_parse(enc, -1, ctbuf, ctlen, parsed);}
 
+  if (!res) {
+    res = ubiq_platform_fpe_encryption_get_key(enc);
+  }
+
   // Convert trimmed into base 10 to prepare for decrypt
   if (!res) {
     res = str_convert_radix(
@@ -1168,21 +1172,14 @@ fpe_encrypt(
 
   printf("DEBUG fpe_encrypt pt '%s'\n", ptbuf);
 
-  /*
-   * Need to get the encryption key based on FFS and PAPI
-   */
-
-   if (!res) {
-     // res = ubiq_platform_fpe_encryption_get_key(
-     //   enc, papi, srsa
-     // );
-   }
-
-
   // Trim pt
   res = fpe_ffs_parsed_create(&parsed, ptlen);
+
   if (!res) {res = ubiq_platform_fpe_string_parse(enc, 1, ptbuf, ptlen, parsed);}
 
+  if (!res) {
+    res = ubiq_platform_fpe_encryption_get_key(enc);
+  }
 
   // Convert trimmed into base 10 to prepare for decrypt
   if (!res) {
@@ -1279,16 +1276,15 @@ ubiq_platform_fpe_encrypt(
   // Std voltron gets additional information, this will
   // simply allocate structure.  Mapping creds to individual strings
   enc = NULL;
-  res = ubiq_platform_fpe_encryption_create(creds, //ffs_name,
-    &enc);
+  res = ubiq_platform_fpe_encryption_create(creds,  &enc);
 
   if (!res) {
     res = ubiq_platform_fpe_encryption_get_ffs(enc, ffs_name);
   }
 
-  if (!res) {
-    res = ubiq_platform_fpe_encryption_get_key(enc);
-  }
+  /*
+  * Key is retrieved in the encrypt call
+  */
 
   if (!res) {
      res  = fpe_encrypt(enc, ptbuf, ptlen, tweak, tweaklen, ctbuf, ctlen);
@@ -1314,12 +1310,15 @@ ubiq_platform_fpe_decrypt(
   // Std voltron gets additional information, this will
   // simply allocate structure.  Mapping creds to individual strings
   enc = NULL;
-  if (!(res = ubiq_platform_fpe_encryption_create(creds, // ffs_name,
-     &enc))) {
-    res  = fpe_decrypt(enc, ctbuf, ctlen, tweak, tweaklen, ptbuf, ptlen);
+  res = ubiq_platform_fpe_encryption_create(creds, &enc);
 
-    ubiq_platform_fpe_encryption_destroy(enc);
+  if (!res) {
+    res = ubiq_platform_fpe_encryption_get_ffs(enc, ffs_name);
   }
 
+  if (!res) {
+    res  = fpe_decrypt(enc, ctbuf, ctlen, tweak, tweaklen, ptbuf, ptlen);
+  }
+    ubiq_platform_fpe_encryption_destroy(enc);
   return res;
 }
