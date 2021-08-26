@@ -575,24 +575,27 @@ int fpe_ffs_parsed_create(
   return res;
 }
 
-static char encode_keynum(
-  struct ubiq_platform_fpe_encryption * const enc
+static int encode_keynum(
+  struct ubiq_platform_fpe_encryption * const enc,
+  char * const buf
 )
 {
+  int res = 0;
+  // TODO - Need to account for existing character, ffs min length, input and output radix
   printf("encode_keynum %d %d\n", enc->key.key_number,  strlen(enc->ffs_app->ffs->output_character_set));
-  char c = enc->ffs_app->ffs->output_character_set[enc->key.key_number % strlen(enc->ffs_app->ffs->output_character_set)];
-  printf("encode_keynum %i\n", c);
-  return c;
+  *buf = enc->ffs_app->ffs->output_character_set[enc->key.key_number % strlen(enc->ffs_app->ffs->output_character_set)];
+  return res;
 }
 
 static unsigned int decode_keynum(
   struct ubiq_platform_fpe_encryption * const enc,
-  const char encoded_char
+  char * const encoded_char
 )
 {
 
-  char * pos = strchr(enc->ffs_app->ffs->output_character_set, (int)encoded_char);
+  char * pos = strchr(enc->ffs_app->ffs->output_character_set, (int)*encoded_char);
   unsigned int keynum = pos - enc->ffs_app->ffs->output_character_set;
+  *encoded_char = enc->ffs_app->ffs->output_character_set[0];
   printf("Key number is %d\n", keynum);
   return keynum;
 }
@@ -761,8 +764,6 @@ ubiq_platform_ffs_app_create(
   return res;
 }
 
-
-
 static
 int
 ubiq_platform_fpe_encryption_get_ffs(
@@ -805,7 +806,6 @@ ubiq_platform_fpe_encryption_get_ffs(
   return res;
 }
 
-
 static
 int
 ubiq_platform_fpe_encryption_get_key_helper(
@@ -822,11 +822,16 @@ ubiq_platform_fpe_encryption_get_key_helper(
 
   const char * content = ubiq_platform_rest_response_content(e->rest, &len);
 
-  printf("contents %s\n", content);
 
+//  printf("contents %.*s\n", len, content);
   if (content) {
     cJSON * rsp_json;
     res = (rsp_json = cJSON_ParseWithLength(content, len)) ? 0 : INT_MIN;
+    {
+      char * str = cJSON_Print(rsp_json);
+      printf("contents %s\n", str);
+      free(str);
+    }
 
     res = ubiq_platform_common_fpe_parse_new_key(
         rsp_json, e->srsa,
@@ -1121,8 +1126,9 @@ fpe_decrypt(
   res = fpe_ffs_parsed_create(&parsed, ctlen);
   if (!res) {res = ubiq_platform_fpe_string_parse(enc, -1, ctbuf, ctlen, parsed);}
 
-  unsigned int keynum = decode_keynum(enc, parsed->trimmed_buf[0]);
-  parsed->trimmed_buf[0] = enc->ffs_app->ffs->output_character_set[0];
+  // TODO - Need to manipulate the trimmed_buf[0] - removing the
+  // embedded information
+  unsigned int keynum = decode_keynum(enc, &parsed->trimmed_buf[0]);
 
   if (!res) {
     res = ubiq_platform_fpe_decryption_get_key(enc, keynum);
@@ -1301,7 +1307,7 @@ fpe_encrypt(
     * eFPE
     */
     printf("ct %s\n", *ctbuf);
-    *ctbuf[0] = encode_keynum(enc);
+    res = encode_keynum(enc, *ctbuf);
     printf("ct %s\n", *ctbuf);
 
     if (*ctbuf != NULL) {
