@@ -492,7 +492,7 @@ struct ubiq_platform_ffs {
   char * input_character_set;
   char * output_character_set;
   char * passthrough_character_set;
-  int max_key_rotations;
+  int msb_encoding_bits;
   int efpe_flag;
 };
 
@@ -581,9 +581,13 @@ static int encode_keynum(
 )
 {
   int res = 0;
-  // TODO - Need to account for existing character, ffs min length, input and output radix
-  printf("encode_keynum %d %d\n", enc->key.key_number,  strlen(enc->ffs_app->ffs->output_character_set));
-  *buf = enc->ffs_app->ffs->output_character_set[enc->key.key_number % strlen(enc->ffs_app->ffs->output_character_set)];
+
+  char * pos = strchr(enc->ffs_app->ffs->output_character_set, (int)*buf);
+  unsigned int ct_value = pos - enc->ffs_app->ffs->output_character_set;
+
+  ct_value += enc->key.key_number << enc->ffs_app->ffs->msb_encoding_bits;
+  *buf = enc->ffs_app->ffs->output_character_set[ct_value];
+
   return res;
 }
 
@@ -594,10 +598,14 @@ static unsigned int decode_keynum(
 {
 
   char * pos = strchr(enc->ffs_app->ffs->output_character_set, (int)*encoded_char);
-  unsigned int keynum = pos - enc->ffs_app->ffs->output_character_set;
-  *encoded_char = enc->ffs_app->ffs->output_character_set[0];
-  printf("Key number is %d\n", keynum);
-  return keynum;
+  unsigned int encoded_value = pos - enc->ffs_app->ffs->output_character_set;
+
+  unsigned int key_num = encoded_value >> enc->ffs_app->ffs->msb_encoding_bits;
+
+
+  *encoded_char = enc->ffs_app->ffs->output_character_set[encoded_value - (key_num << enc->ffs_app->ffs->msb_encoding_bits)];
+  printf("Key number is %d\n", key_num);
+  return key_num;
 }
 
 static int set_ffs_string(
@@ -752,7 +760,8 @@ ubiq_platform_ffs_app_create(
   if (!res) {res = set_ffs_string(ffs_data, "passthrough", &e->ffs->passthrough_character_set);}
   if (!res) {res = set_ffs_int(ffs_data, "min_input_length", &e->ffs->min_input_length);}
   if (!res) {res = set_ffs_int(ffs_data, "max_input_length", &e->ffs->max_input_length);}
-  if (!res) {res = set_ffs_int(ffs_data, "max_key_rotations", &e->ffs->max_key_rotations);}
+//  if (!res) {res = set_ffs_int(ffs_data, "max_key_rotations", &e->ffs->max_key_rotations);}
+  if (!res) {res = set_ffs_int(ffs_data, "msb_encoding_bits", &e->ffs->msb_encoding_bits);}
 
   if (!res) {
     e->ffs->efpe_flag = 1; // DEBUG just to indicate this is an eFPE field
@@ -1050,8 +1059,6 @@ int ubiq_platform_fpe_string_parse(
       parsed->trimmed_buf, parsed->formatted_dest_buf);
 
     printf("trimmed '%s'  empty_formatted_output '%s'\n", parsed->trimmed_buf, parsed->formatted_dest_buf);
-
-
   }
 
   // if (res) {
@@ -1300,15 +1307,29 @@ fpe_encrypt(
     printf("outstr '%s'   formatted_output '%s'   res(%d)\n", ct_trimmed, parsed->formatted_dest_buf,res);
 
   }
-  if (!res) {
-    *ctbuf = strdup(parsed->formatted_dest_buf);
 
+  /*
+  * Since ct_trimmed may not include empty leading characters, Need to walk through the formated_dest_buf and find
+  * first non-pass through character.  Could be char 0 or MSB with some actual CT
+  */
+  if (!res) {
     /*
     * eFPE
     */
-    printf("ct %s\n", *ctbuf);
-    res = encode_keynum(enc, *ctbuf);
-    printf("ct %s\n", *ctbuf);
+    char * pos = parsed->formatted_dest_buf;
+    while ((*pos != '\0') && (NULL != strchr(enc->ffs_app->ffs->passthrough_character_set, *pos))) {pos++;};
+    printf("first non-passthrough %s\n", pos);
+    res = encode_keynum(enc, pos);
+//    printf("ct %s\n", ct_trimmed);
+
+  }
+
+
+
+  if (!res) {
+    *ctbuf = strdup(parsed->formatted_dest_buf);
+
+    printf("ctbuf '%s'\n", *ctbuf);
 
     if (*ctbuf != NULL) {
       *ctlen = strlen(*ctbuf);
