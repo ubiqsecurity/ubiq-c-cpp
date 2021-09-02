@@ -21,7 +21,8 @@
 
 #include "cJSON/cJSON.h"
 
-static const char * base10_charset = "01";
+static const char * base2_charset = "01";
+static const int FF1_base2_min_length = 20; // NIST requirement ceil(log2(1000000))
 
 struct ubiq_platform_encryption
 {
@@ -781,14 +782,14 @@ ubiq_platform_ffs_app_create(
     e->ffs->tweak.len = ubiq_support_base64_decode(
         &e->ffs->tweak.buf, s, strlen(s));
     free(s);
-    printf("DEBUG %d\n  tweak value: ", e->ffs->tweak.len);
 
-    char * b;
-    b = e->ffs->tweak.buf;
-    for (int i = 0; i < e->ffs->tweak.len; i++) {
-      printf("%x ", b[i] & 0xff);
-    }
-    printf("\n");
+    // printf("tweak value: ");
+    // char * b;
+    // b = e->ffs->tweak.buf;
+    // for (int i = 0; i < e->ffs->tweak.len; i++) {
+    //   printf("%x ", b[i] & 0xff);
+    // }
+    // printf("\n");
 
   }
 
@@ -1096,7 +1097,7 @@ int ubiq_platform_fpe_string_parse(
       source_string, src_char_set, enc->ffs_app->ffs->passthrough_character_set,
       parsed->trimmed_buf, parsed->formatted_dest_buf);
 
-    printf("trimmed '%s'  empty_formatted_output '%s'\n", parsed->trimmed_buf, parsed->formatted_dest_buf);
+//    printf("trimmed '%s'  empty_formatted_output '%s'\n", parsed->trimmed_buf, parsed->formatted_dest_buf);
   }
 
   // if (res) {
@@ -1140,51 +1141,32 @@ str_convert_radix(
   }
   bigint_deinit(&n);
 
-   printf("\n\tDEBUG %s res(%d) src '%s'  => '%s' \n", csu, res, src_str, *out_str);
-   printf("\n\t\t Radix input '%s'  output '%s' \n", input_radix, output_radix);
-
-  // DEBUG
-  // {
-  //   bigint_t n;
-  //   int res = 0;
-  //   bigint_init(&n);
-  //   if (!res) {res = __bigint_set_str(&n, *out_str, output_radix);}
-  //   char out[strlen(src_str) + 1];
-  //   memset(out, 0, sizeof(out));
-  //   if (!res) {
-  //     size_t len = __bigint_get_str(NULL, 0, input_radix, &n);
-  //
-  //     if (!res) {
-  //       res = __bigint_get_str(out, len, input_radix, &n);
-  //       if (res <= len && res > 0) {
-  //       }
-  //     }
-  //   }
-  //
-  //   printf("\n\tDEBUG %s res(%d) src '%s'  reversed '%s' \n", csu, res, src_str, out);
-  //   bigint_deinit(&n);
-  // }
-
-
+   // printf("\n\tDEBUG %s res(%d) src '%s'  => '%s' \n", csu, res, src_str, *out_str);
+   // printf("\n\t\t Radix input '%s'  output '%s' \n", input_radix, output_radix);
 
   return res;
 }
 
 static
 int
-prep_base10(char ** b10, size_t l)
+pad_text(char ** str, const size_t minlen, const char c)
 {
+  int res = 0;
   char * p = NULL;
-  int len = strlen(*b10);
-  if (len < l) {
-    p = calloc(l + 1, 1);
-    memset(p, '0', l);
-    memcpy(p + (l-len), *b10, len);
-    free(*b10);
-    *b10 = p;
+  int len = strlen(*str);
+  if (len < minlen) {
+    if ((p = calloc(minlen + 1, 1)) == NULL) {
+      res = -ENOMEM;
+    } else {
+      // Moving memory to end so can't use realloc (original ptr is invalid)
+      memset(p, c, (minlen-len));
+      memcpy(p + (minlen-len), *str, len);  // copy the characters
+      free(*str);
+      *str = p;
+    }
   }
-  printf("debug: trimmed %s\n", *b10);
-
+//  printf("debug: trimmed %s\n", *str);
+  return res;
 }
 
 static
@@ -1200,8 +1182,8 @@ fpe_decrypt(
 
   int res = 0;
   struct fpe_ffs_parsed * parsed = NULL;
-  char * ct_base10 = NULL;
-  char * pt_base10 = NULL;
+  char * ct_base2 = NULL;
+  char * pt_base2 = NULL;
   char * pt_trimmed = NULL;
   // Trim pt
 
@@ -1229,26 +1211,24 @@ fpe_decrypt(
     res = str_convert_radix(
       parsed->trimmed_buf,
       enc->ffs_app->ffs->output_character_set,
-      base10_charset,
-      &ct_base10);
+      base2_charset,
+      &ct_base2);
 
-      int padlen = ceil(fmax(20.0,log2(strlen(enc->ffs_app->ffs->input_character_set)) * strlen(parsed->trimmed_buf)));
+      int padlen = ceil(fmax(FF1_base2_min_length,log2(strlen(enc->ffs_app->ffs->input_character_set)) * strlen(parsed->trimmed_buf)));
 
-      printf("length %d\n", padlen);
+      pad_text(&ct_base2,padlen, base2_charset[0]);
 
-      prep_base10(&ct_base10,padlen);
-
-    if (!res) {pt_base10 = calloc(strlen(ct_base10) + 1, 1);}
-    if (pt_base10 == NULL) {
+    if (!res) {pt_base2 = calloc(strlen(ct_base2) + 1, 1);}
+    if (pt_base2 == NULL) {
       res = -ENOMEM;
     }
 
-    printf("DEBUG '%s' trimmed '%s' to '%s' base10\n", csu, parsed->trimmed_buf, ct_base10);
+//    printf("DEBUG '%s' trimmed '%s' to '%s' base2\n", csu, parsed->trimmed_buf, ct_base2);
 
   }
 
   // TODO - Need logic to check tweak source and error out depending on supplied tweak
-  printf("\n TWEAK: ");
+  printf("\nTWEAK: ");
   char * b;
   b = enc->ffs_app->ffs->tweak.buf;
   for (int i = 0; i < enc->ffs_app->ffs->tweak.len; i++) {
@@ -1259,40 +1239,35 @@ fpe_decrypt(
 
   if (!res) {
     struct ff1_ctx * ctx;
-    res = ff1_ctx_create(&ctx, enc->key.buf, enc->key.len, enc->ffs_app->ffs->tweak.buf, enc->ffs_app->ffs->tweak.len, enc->ffs_app->ffs->tweak_min_len, enc->ffs_app->ffs->tweak_max_len, strlen(base10_charset));
+    res = ff1_ctx_create(&ctx, enc->key.buf, enc->key.len, enc->ffs_app->ffs->tweak.buf, enc->ffs_app->ffs->tweak.len, enc->ffs_app->ffs->tweak_min_len, enc->ffs_app->ffs->tweak_max_len, strlen(base2_charset));
 
     if (!res) {
-//      strcpy(pt_base10, ct_base10);
 
-      res = ff1_decrypt(ctx, pt_base10, ct_base10, NULL, 0);
+      res = ff1_decrypt(ctx, pt_base2, ct_base2, NULL, 0);
 
-      printf("\tDEBUG %d BASE 10 pt '%s' ct '%s'\n", res, pt_base10, ct_base10);
-
-      if (!res) { // DEBUG
-
-      // char buf[strlen(ct_base10) + 1];
-      // int res = ff1_encrypt(ctx, buf, pt_base10, NULL, 0);
-      //
-      // printf("DEBUG TEST ENCRYPT res(%d) ct_base10 '%s' buf '%s'\n", res, ct_base10, buf);
-
-      }
-
-
-      ff1_ctx_destroy(ctx);
+      printf("DEBUG '%s' %d \n",csu, res);
+      printf("\t     ct '%.*s'\n", ctlen, ctbuf);
+      printf("\ttrimmed '%s'\n",parsed->trimmed_buf);
+      printf("\tpadded base2 '%s'\n", ct_base2);
+      printf("\t    pt base2 '%s'\n", pt_base2);
+      printf("\tformatted_dest_buf '%s'\n", parsed->formatted_dest_buf);
     }
+    ff1_ctx_destroy(ctx);
+
   }
 
   // Convert PT to output radix
   if (!res) {
     res = str_convert_radix(
-      pt_base10,
-      base10_charset,
+      pt_base2,
+      base2_charset,
       enc->ffs_app->ffs->input_character_set,
       &pt_trimmed);
 
     if (pt_trimmed == NULL) {
       res = -ENOMEM;
     }
+    printf("\ttrimmed   PT '%s' \n", pt_trimmed);
   }
 
   // Merge PT to formatted output
@@ -1313,8 +1288,8 @@ fpe_decrypt(
       s--;
       d--;
     }
-    printf("pt_trimmed '%s'   formatted_output '%s'   res(%d)\n", pt_trimmed, parsed->formatted_dest_buf,res);
 
+    printf("\t          PT '%s' \n", parsed->formatted_dest_buf);
   }
 
   if (!res) {
@@ -1326,8 +1301,8 @@ fpe_decrypt(
     }
   }
   fpe_ffs_parsed_destroy(parsed);
-  free(ct_base10);
-  free(pt_base10);
+  free(ct_base2);
+  free(pt_base2);
   free(pt_trimmed);
   return res;
 }
@@ -1344,11 +1319,10 @@ fpe_encrypt(
   static const char * csu = "fpe_encrypt";
   int res = 0;
   struct fpe_ffs_parsed * parsed = NULL;
-  char * ct_base10 = NULL;
-  char * pt_base10 = NULL;
+  char * ct_base2 = NULL;
+  char * pt_base2 = NULL;
   char * ct_trimmed = NULL;
 
-  printf("DEBUG fpe_encrypt pt '%s'\n", ptbuf);
 
   // Trim pt
   res = fpe_ffs_parsed_create(&parsed, ptlen);
@@ -1364,26 +1338,30 @@ fpe_encrypt(
     res = str_convert_radix(
       parsed->trimmed_buf,
       enc->ffs_app->ffs->input_character_set,
-      base10_charset,
-      &pt_base10);
+      base2_charset,
+      &pt_base2);
 
-      int padlen = ceil(fmax(20.0,log2(strlen(enc->ffs_app->ffs->input_character_set)) * strlen(parsed->trimmed_buf)));
+    if (!res) {
+      // Figure out how long to pad the binary string.  Formula is input_radix^len = 2^Y which is log2(input_radix) * len
+      // Due to FF1 constraints, the there is a minimum length for a base2 string, so make sure to be at least that long too
+      // or fpe will fail
+      int padlen = ceil(fmax(FF1_base2_min_length,log2(strlen(enc->ffs_app->ffs->input_character_set)) * strlen(parsed->trimmed_buf)));
 
-      printf("length %d\n", padlen);
-      prep_base10(&pt_base10,padlen);
-
-    // Allocate buffer of same size for ct_base10
-    if (!res) {ct_base10 = calloc(strlen(pt_base10) + 1, 1);}
-    if (ct_base10 == NULL) {
-      res = -ENOMEM;
+      // The padding may re-allocate so make sure to allow for pt_base2 to change pointer
+      res = pad_text(&pt_base2, padlen, base2_charset[0]);
+    }
+    // Allocate buffer of same size for ct_base2
+    if (!res) {
+      if ((ct_base2 = calloc(strlen(pt_base2) + 1, 1)) == NULL) {
+        res = -ENOMEM;
+      }
     }
 
-    printf("DEBUG '%s' %d trimmed '%s' to '%s' base10\n", csu, res, parsed->trimmed_buf, pt_base10);
   }
 
   // TODO - Need logic to check tweak source and error out depending on supplied tweak
 
-  printf("\n TWEAK: ");
+  printf("\nTWEAK: ");
   char * b;
   b = enc->ffs_app->ffs->tweak.buf;
   for (int i = 0; i < enc->ffs_app->ffs->tweak.len; i++) {
@@ -1396,24 +1374,17 @@ fpe_encrypt(
   if (!res) {
     struct ff1_ctx * ctx;
 
-    res = ff1_ctx_create(&ctx, enc->key.buf, enc->key.len, enc->ffs_app->ffs->tweak.buf, enc->ffs_app->ffs->tweak.len, enc->ffs_app->ffs->tweak_min_len, enc->ffs_app->ffs->tweak_max_len, strlen(base10_charset));
+    res = ff1_ctx_create(&ctx, enc->key.buf, enc->key.len, enc->ffs_app->ffs->tweak.buf, enc->ffs_app->ffs->tweak.len, enc->ffs_app->ffs->tweak_min_len, enc->ffs_app->ffs->tweak_max_len, strlen(base2_charset));
     if (!res) {
 
-      res = ff1_encrypt(ctx, ct_base10, pt_base10, NULL, 0);
+      res = ff1_encrypt(ctx, ct_base2, pt_base2, NULL, 0);
 
-      printf("\tDEBUG %d BASE 10 pt '%s' ct '%s'\n", res, pt_base10, ct_base10);
-//      prep_base10(ct_base10,60);
-
-//      strcpy(ct_base10, pt_base10);
-
-      if (!res) { // DEBUG
-
-//      char buf[strlen(ct_base10) + 1];
-//      int res = ff1_decrypt(ctx, buf, ct_base10, NULL, 0);
-
-//      printf("DEBUG TEST DECRYPT res(%d) pt_base10 '%s' buf '%s'\n", res, pt_base10, buf);
-
-      }
+      printf("DEBUG '%s' %d \n",csu, res);
+      printf("\t     pt '%.*s'\n", ptlen, ptbuf);
+      printf("\ttrimmed '%s'\n",parsed->trimmed_buf);
+      printf("\tpadded base2 '%s'\n", pt_base2);
+      printf("\t    ct base2 '%s'\n", ct_base2);
+      printf("\tformatted_dest_buf '%s'\n", parsed->formatted_dest_buf);
     }
     ff1_ctx_destroy(ctx);
   }
@@ -1421,14 +1392,15 @@ fpe_encrypt(
   // Convert PT to output radix
   if (!res) {
     res = str_convert_radix(
-      ct_base10,
-      base10_charset,
+      ct_base2,
+      base2_charset,
       enc->ffs_app->ffs->output_character_set,
       &ct_trimmed);
 
     if (ct_trimmed == NULL) {
       res = -ENOMEM;
     }
+    printf("\ttrimmed   CT '%s' \n", ct_trimmed);
   }
 
   // Merge PT to formatted output
@@ -1450,7 +1422,7 @@ fpe_encrypt(
       s--;
       d--;
     }
-    printf("outstr '%s'   formatted_output '%s'   res(%d)\n", ct_trimmed, parsed->formatted_dest_buf,res);
+    printf("\tUnencoded CT '%s' \n", parsed->formatted_dest_buf);
 
   }
 
@@ -1464,7 +1436,7 @@ fpe_encrypt(
     */
     char * pos = parsed->formatted_dest_buf;
     while ((*pos != '\0') && (NULL != strchr(enc->ffs_app->ffs->passthrough_character_set, *pos))) {pos++;};
-    printf("first non-passthrough %s\n", pos);
+//    printf("first non-passthrough %s\n", pos);
     res = encode_keynum(enc, pos);
 //    printf("ct %s\n", ct_trimmed);
 
@@ -1475,18 +1447,17 @@ fpe_encrypt(
   if (!res) {
     *ctbuf = strdup(parsed->formatted_dest_buf);
 
-    printf("ctbuf '%s'\n", *ctbuf);
-
     if (*ctbuf != NULL) {
       *ctlen = strlen(*ctbuf);
     } else {
       res = -ENOMEM;
     }
   }
+  printf("\t  Encoded CT '%s' \n", *ctbuf);
 
   fpe_ffs_parsed_destroy(parsed);
-  free(ct_base10);
-  free(pt_base10);
+  free(ct_base2);
+  free(pt_base2);
   free(ct_trimmed);
   return res;
 }
