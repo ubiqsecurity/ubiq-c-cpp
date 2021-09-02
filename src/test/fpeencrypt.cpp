@@ -39,7 +39,8 @@ TEST_F(cpp_fpe_encrypt, simple)
 
 TEST(c_fpe_encrypt, simple)
 {
-    static const char * const pt = " 01&23-456-78-90";
+    static const char * const pt = " 01121231231231231& 1 &231120001&-0-8-9";
+//    static const char * const pt = "00001234567890";//234567890";
     static const char * const ffs_name = "ALPHANUM_SSN";
 
     struct ubiq_platform_credentials * creds;
@@ -53,11 +54,11 @@ TEST(c_fpe_encrypt, simple)
     ASSERT_EQ(res, 0);
 
     res = ubiq_platform_fpe_encrypt(creds,
-      ffs_name, "1", 1, pt, strlen(pt), &ctbuf, &ctlen);
+      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
     EXPECT_EQ(res, 0);
 
     res = ubiq_platform_fpe_decrypt(creds,
-      ffs_name, "1", 1, (char *)ctbuf, strlen(ctbuf), &ptbuf, &ptlen);
+      ffs_name, NULL, 0, (char *)ctbuf, strlen(ctbuf), &ptbuf, &ptlen);
     EXPECT_EQ(res, 0);
 
     EXPECT_EQ(strcmp(pt, ptbuf),0);

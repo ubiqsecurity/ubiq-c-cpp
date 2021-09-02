@@ -17,10 +17,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <math.h>
 
 #include "cJSON/cJSON.h"
 
-static const char * base10_charset = "0123456789";
+static const char * base10_charset = "01";
 
 struct ubiq_platform_encryption
 {
@@ -485,15 +486,21 @@ ubiq_platform_encrypt(
 
 struct ubiq_platform_ffs {
   char * name;
-  char * tweak;
   int min_input_length;
   int max_input_length;
+  char * tweak_source;
   char * regex;
   char * input_character_set;
   char * output_character_set;
   char * passthrough_character_set;
   int msb_encoding_bits;
   int efpe_flag;
+  struct {
+          void * buf;
+          size_t len;
+  } tweak;
+  int tweak_min_len;
+  int tweak_max_len;
 };
 
 struct ubiq_platform_app {
@@ -645,11 +652,12 @@ ubiq_platform_ffs_destroy(
 {
   if (ffs) {
     free (ffs->name);
-    free (ffs->tweak);
+    free (ffs->tweak_source);
     free (ffs->regex);
     free (ffs->input_character_set);
     free (ffs->output_character_set);
     free (ffs->passthrough_character_set);
+    free (ffs->tweak.buf);
   }
   free(ffs);
 }
@@ -726,7 +734,7 @@ ubiq_platform_fpe_encryption_new(
     }
 
     *enc = e;
-    printf("DEBUG %s END %d \n", csu, res);
+//    printf("DEBUG %s END %d \n", csu, res);
     return res;
 }
 
@@ -753,7 +761,7 @@ ubiq_platform_ffs_app_create(
   }
 
   if (!res) {res = set_ffs_string(ffs_data, "name", &e->ffs->name);}
-  if (!res) {res = set_ffs_string(ffs_data, "tweak_source", &e->ffs->tweak);}
+  if (!res) {res = set_ffs_string(ffs_data, "tweak_source", &e->ffs->tweak_source);}
   if (!res) {res = set_ffs_string(ffs_data, "regex", &e->ffs->regex);}
   if (!res) {res = set_ffs_string(ffs_data, "input_character_set", &e->ffs->input_character_set);}
   if (!res) {res = set_ffs_string(ffs_data, "output_character_set", &e->ffs->output_character_set);}
@@ -762,6 +770,27 @@ ubiq_platform_ffs_app_create(
   if (!res) {res = set_ffs_int(ffs_data, "max_input_length", &e->ffs->max_input_length);}
 //  if (!res) {res = set_ffs_int(ffs_data, "max_key_rotations", &e->ffs->max_key_rotations);}
   if (!res) {res = set_ffs_int(ffs_data, "msb_encoding_bits", &e->ffs->msb_encoding_bits);}
+
+  if (!res) {res = set_ffs_int(ffs_data, "tweak_min_len", &e->ffs->tweak_min_len);}
+  if (!res) {res = set_ffs_int(ffs_data, "tweak_max_len", &e->ffs->tweak_max_len);}
+
+  if (!res && strcmp(e->ffs->tweak_source, "constant") == 0) {
+    char * s = NULL;
+    res = set_ffs_string(ffs_data, "tweak", &s);
+    // printf("DEBUG %s\n", s);
+    e->ffs->tweak.len = ubiq_support_base64_decode(
+        &e->ffs->tweak.buf, s, strlen(s));
+    free(s);
+    printf("DEBUG %d\n  tweak value: ", e->ffs->tweak.len);
+
+    char * b;
+    b = e->ffs->tweak.buf;
+    for (int i = 0; i < e->ffs->tweak.len; i++) {
+      printf("%x ", b[i] & 0xff);
+    }
+    printf("\n");
+
+  }
 
   if (!res) {
     e->ffs->efpe_flag = 1; // DEBUG just to indicate this is an eFPE field
@@ -803,15 +832,24 @@ ubiq_platform_fpe_encryption_get_ffs(
   const char * content = ubiq_platform_rest_response_content(e->rest, &len);
 
   if (content) {
-    printf("FFS => '%s'\n", content);
-    cJSON * ffs_json = cJSON_Parse(content);
+//    printf("FFS => '%s'\n", content);
+    cJSON * ffs_json;
+    res = (ffs_json = cJSON_ParseWithLength(content, len)) ? 0 : INT_MIN;
+    if (!res) {
+      char * str = cJSON_Print(ffs_json);
+      printf("FFS => %s\n", str);
+      free(str);
+    }
+
+//    cJSON * ffs_json = cJSON_Parse(content);
     if (ffs_json) {
+//      printf("before ubiq_platform_ffs_app_create\n");
       res = ubiq_platform_ffs_app_create(ffs_json,  &e->ffs_app);
     }
     cJSON_Delete(ffs_json);
   }
   free(url);
-  printf("DEBUG %s END %d \n", csu, res);
+//  printf("DEBUG %s END %d \n", csu, res);
   return res;
 }
 
@@ -856,8 +894,8 @@ ubiq_platform_fpe_encryption_get_key_helper(
           res = -ERANGE;
         } else {
           e->key.key_number = (unsigned int)n;
-          printf("get key %d\n", e->key.key_number );
-        }printf("get key %d\n", e->key.key_number);
+//          printf("get key %d\n", e->key.key_number );
+        }
       } else {
         res = -EBADMSG;
       }
@@ -1101,7 +1139,52 @@ str_convert_radix(
     }
   }
   bigint_deinit(&n);
+
+   printf("\n\tDEBUG %s res(%d) src '%s'  => '%s' \n", csu, res, src_str, *out_str);
+   printf("\n\t\t Radix input '%s'  output '%s' \n", input_radix, output_radix);
+
+  // DEBUG
+  // {
+  //   bigint_t n;
+  //   int res = 0;
+  //   bigint_init(&n);
+  //   if (!res) {res = __bigint_set_str(&n, *out_str, output_radix);}
+  //   char out[strlen(src_str) + 1];
+  //   memset(out, 0, sizeof(out));
+  //   if (!res) {
+  //     size_t len = __bigint_get_str(NULL, 0, input_radix, &n);
+  //
+  //     if (!res) {
+  //       res = __bigint_get_str(out, len, input_radix, &n);
+  //       if (res <= len && res > 0) {
+  //       }
+  //     }
+  //   }
+  //
+  //   printf("\n\tDEBUG %s res(%d) src '%s'  reversed '%s' \n", csu, res, src_str, out);
+  //   bigint_deinit(&n);
+  // }
+
+
+
   return res;
+}
+
+static
+int
+prep_base10(char ** b10, size_t l)
+{
+  char * p = NULL;
+  int len = strlen(*b10);
+  if (len < l) {
+    p = calloc(l + 1, 1);
+    memset(p, '0', l);
+    memcpy(p + (l-len), *b10, len);
+    free(*b10);
+    *b10 = p;
+  }
+  printf("debug: trimmed %s\n", *b10);
+
 }
 
 static
@@ -1149,21 +1232,52 @@ fpe_decrypt(
       base10_charset,
       &ct_base10);
 
+      int padlen = ceil(fmax(20.0,log2(strlen(enc->ffs_app->ffs->input_character_set)) * strlen(parsed->trimmed_buf)));
+
+      printf("length %d\n", padlen);
+
+      prep_base10(&ct_base10,padlen);
+
     if (!res) {pt_base10 = calloc(strlen(ct_base10) + 1, 1);}
     if (pt_base10 == NULL) {
       res = -ENOMEM;
     }
 
-    printf("DEBUG '%s' converted from '%s' to '%s'\n", csu, parsed->trimmed_buf, ct_base10);
+    printf("DEBUG '%s' trimmed '%s' to '%s' base10\n", csu, parsed->trimmed_buf, ct_base10);
 
   }
 
+  // TODO - Need logic to check tweak source and error out depending on supplied tweak
+  printf("\n TWEAK: ");
+  char * b;
+  b = enc->ffs_app->ffs->tweak.buf;
+  for (int i = 0; i < enc->ffs_app->ffs->tweak.len; i++) {
+    printf("%x ", b[i] & 0xff);
+  }
+  printf("\n");
+
+
   if (!res) {
     struct ff1_ctx * ctx;
-    res = ff1_ctx_create(&ctx, enc->key.buf, enc->key.len, tweak, tweaklen, 0, SIZE_MAX, strlen(base10_charset));
+    res = ff1_ctx_create(&ctx, enc->key.buf, enc->key.len, enc->ffs_app->ffs->tweak.buf, enc->ffs_app->ffs->tweak.len, enc->ffs_app->ffs->tweak_min_len, enc->ffs_app->ffs->tweak_max_len, strlen(base10_charset));
 
     if (!res) {
-      res = ff1_decrypt(ctx, pt_base10, ct_base10, tweak, tweaklen);
+//      strcpy(pt_base10, ct_base10);
+
+      res = ff1_decrypt(ctx, pt_base10, ct_base10, NULL, 0);
+
+      printf("\tDEBUG %d BASE 10 pt '%s' ct '%s'\n", res, pt_base10, ct_base10);
+
+      if (!res) { // DEBUG
+
+      // char buf[strlen(ct_base10) + 1];
+      // int res = ff1_encrypt(ctx, buf, pt_base10, NULL, 0);
+      //
+      // printf("DEBUG TEST ENCRYPT res(%d) ct_base10 '%s' buf '%s'\n", res, ct_base10, buf);
+
+      }
+
+
       ff1_ctx_destroy(ctx);
     }
   }
@@ -1253,21 +1367,53 @@ fpe_encrypt(
       base10_charset,
       &pt_base10);
 
+      int padlen = ceil(fmax(20.0,log2(strlen(enc->ffs_app->ffs->input_character_set)) * strlen(parsed->trimmed_buf)));
+
+      printf("length %d\n", padlen);
+      prep_base10(&pt_base10,padlen);
+
     // Allocate buffer of same size for ct_base10
     if (!res) {ct_base10 = calloc(strlen(pt_base10) + 1, 1);}
     if (ct_base10 == NULL) {
       res = -ENOMEM;
     }
 
-    printf("DEBUG '%s' converted from '%s' to '%s'\n", csu, parsed->trimmed_buf, pt_base10);
+    printf("DEBUG '%s' %d trimmed '%s' to '%s' base10\n", csu, res, parsed->trimmed_buf, pt_base10);
   }
+
+  // TODO - Need logic to check tweak source and error out depending on supplied tweak
+
+  printf("\n TWEAK: ");
+  char * b;
+  b = enc->ffs_app->ffs->tweak.buf;
+  for (int i = 0; i < enc->ffs_app->ffs->tweak.len; i++) {
+    printf("%x ", b[i] & 0xff);
+  }
+  printf("\n");
+
 
   // Encrypt
   if (!res) {
     struct ff1_ctx * ctx;
-    res = ff1_ctx_create(&ctx, enc->key.buf, enc->key.len, tweak, tweaklen, 0, SIZE_MAX, strlen(base10_charset));
+
+    res = ff1_ctx_create(&ctx, enc->key.buf, enc->key.len, enc->ffs_app->ffs->tweak.buf, enc->ffs_app->ffs->tweak.len, enc->ffs_app->ffs->tweak_min_len, enc->ffs_app->ffs->tweak_max_len, strlen(base10_charset));
     if (!res) {
-      res = ff1_encrypt(ctx, ct_base10, pt_base10, tweak, tweaklen);
+
+      res = ff1_encrypt(ctx, ct_base10, pt_base10, NULL, 0);
+
+      printf("\tDEBUG %d BASE 10 pt '%s' ct '%s'\n", res, pt_base10, ct_base10);
+//      prep_base10(ct_base10,60);
+
+//      strcpy(ct_base10, pt_base10);
+
+      if (!res) { // DEBUG
+
+//      char buf[strlen(ct_base10) + 1];
+//      int res = ff1_decrypt(ctx, buf, ct_base10, NULL, 0);
+
+//      printf("DEBUG TEST DECRYPT res(%d) pt_base10 '%s' buf '%s'\n", res, pt_base10, buf);
+
+      }
     }
     ff1_ctx_destroy(ctx);
   }
