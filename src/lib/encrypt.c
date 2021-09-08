@@ -24,6 +24,9 @@
 static const char * base2_charset = "01";
 static const int FF1_base2_min_length = 20; // NIST requirement ceil(log2(1000000))
 
+//enum action_type {encrypt=0, decrypt=1};
+typedef enum {encrypt=0, decrypt=1}  action_type ;
+
 struct ubiq_platform_encryption
 {
     /* http[s]://host/api/v0 */
@@ -1462,6 +1465,77 @@ fpe_encrypt(
   return res;
 }
 
+static
+int
+ubiq_platform_fpe_billing(
+  struct ubiq_platform_fpe_encryption * const e,
+  const action_type action,
+  unsigned int count) {
+
+    static const char * const fmt = "%s/fpe/billing/%s";
+    time_t now;
+
+    cJSON * json;
+    char * url;
+    size_t len;
+    int res = 0;
+
+
+    len = snprintf(NULL, 0, fmt, e->restapi, e->encoded_papi);
+    url = malloc(len + 1);
+    snprintf(url, len + 1, fmt, e->restapi, e->encoded_papi);
+
+    char guid_hex[37]; // 8 - 4 - 4 - 4 - 12
+    uint16_t guid[8];
+
+    ubiq_support_getrandom(&guid, sizeof(guid));
+    snprintf(guid_hex, sizeof(guid_hex), "%04x%04x-%04x-%04x-%04x-%04x%04x%04x",
+			guid[0], guid[1], guid[2], guid[3],
+			guid[4], guid[5], guid[6], guid[7]);
+
+    json = cJSON_CreateObject();
+    cJSON * array = cJSON_CreateArray();
+    cJSON_AddItemToObject(json, "count", cJSON_CreateNumber(count));
+
+    time(&now);
+    char buf[sizeof("2011-10-08T07:07:09Z   ")];
+//    char guid[17];
+//    char * guid_hex = NULL;
+    strftime(buf, sizeof(buf), "%FT%TZ", gmtime(&now));
+//    memset(guid, '\0', sizeof(guid));
+//    ubiq_support_getrandom(guid, sizeof(guid) - 1);
+
+//    res = ubiq_support_bin_to_strhex(guid, sizeof(guid) - 1, &guid_hex);
+
+    cJSON_AddItemToObject(json, "id", cJSON_CreateString(guid_hex));
+    cJSON_AddItemToObject(json, "timestamp", cJSON_CreateString(buf));
+    cJSON_AddItemToObject(json, "ffs_name", cJSON_CreateString(e->ffs_app->ffs->name));
+    if (action == encrypt) {
+      cJSON_AddItemToObject(json, "action", cJSON_CreateString("encrypt"));
+    } else {
+      cJSON_AddItemToObject(json, "action", cJSON_CreateString("decrypt"));
+    }
+
+    cJSON_AddItemToArray(array, json);
+
+    char * str = cJSON_Print(array);
+//    cJSON_Delete(json);
+    cJSON_Delete(array);
+
+    printf("BILLING Payload: %s\n", str);
+
+    res = ubiq_platform_rest_request(
+        e->rest,
+        HTTP_RM_POST, url, "application/json", str, strlen(str));
+
+    const char * content = ubiq_platform_rest_response_content(e->rest, &len);
+
+//  free(guid_hex);
+  free(str);
+  free(url);
+  return res;
+
+}
 
 int
 ubiq_platform_fpe_encrypt(
@@ -1491,6 +1565,7 @@ ubiq_platform_fpe_encrypt(
 
   if (!res) {
      res  = fpe_encrypt(enc, ptbuf, ptlen, tweak, tweaklen, ctbuf, ctlen);
+     ubiq_platform_fpe_billing(enc, encrypt, 1);
   }
   ubiq_platform_fpe_encryption_destroy(enc);
 
@@ -1509,9 +1584,6 @@ ubiq_platform_fpe_decrypt(
   struct ubiq_platform_fpe_encryption * enc;
   int res = 0;
 
-  // Create Structure that will handle REST calls.
-  // Std voltron gets additional information, this will
-  // simply allocate structure.  Mapping creds to individual strings
   enc = NULL;
   res = ubiq_platform_fpe_encryption_create(creds, &enc);
 
@@ -1521,6 +1593,7 @@ ubiq_platform_fpe_decrypt(
 
   if (!res) {
     res  = fpe_decrypt(enc, ctbuf, ctlen, tweak, tweaklen, ptbuf, ptlen);
+    res = ubiq_platform_fpe_billing(enc, decrypt, 1);
   }
     ubiq_platform_fpe_encryption_destroy(enc);
   return res;
