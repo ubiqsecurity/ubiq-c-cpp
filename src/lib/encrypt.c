@@ -1499,13 +1499,7 @@ ubiq_platform_fpe_billing(
 
     time(&now);
     char buf[sizeof("2011-10-08T07:07:09Z   ")];
-//    char guid[17];
-//    char * guid_hex = NULL;
     strftime(buf, sizeof(buf), "%FT%TZ", gmtime(&now));
-//    memset(guid, '\0', sizeof(guid));
-//    ubiq_support_getrandom(guid, sizeof(guid) - 1);
-
-//    res = ubiq_support_bin_to_strhex(guid, sizeof(guid) - 1, &guid_hex);
 
     cJSON_AddItemToObject(json, "id", cJSON_CreateString(guid_hex));
     cJSON_AddItemToObject(json, "timestamp", cJSON_CreateString(buf));
@@ -1516,10 +1510,16 @@ ubiq_platform_fpe_billing(
       cJSON_AddItemToObject(json, "action", cJSON_CreateString("decrypt"));
     }
 
+    cJSON_AddItemToArray(array, cJSON_Duplicate(json, cJSON_True));
+
+    // Intentionally create an invalid item to test error payload
+    cJSON_DeleteItemFromObject(json, "id");
+    cJSON_AddItemToObject(json, "id", cJSON_CreateString("1"));
+    cJSON_DeleteItemFromObject(json, "count");
+    cJSON_AddItemToObject(json, "count", cJSON_CreateNumber(-1 * (int)count));
     cJSON_AddItemToArray(array, json);
 
     char * str = cJSON_Print(array);
-//    cJSON_Delete(json);
     cJSON_Delete(array);
 
     printf("BILLING Payload: %s\n", str);
@@ -1527,6 +1527,37 @@ ubiq_platform_fpe_billing(
     res = ubiq_platform_rest_request(
         e->rest,
         HTTP_RM_POST, url, "application/json", str, strlen(str));
+
+    // If Success, simply proceed
+    if (res == 0) {
+      const http_response_code_t rc =
+          ubiq_platform_rest_response_code(e->rest);
+
+      if (rc == HTTP_RC_BAD_REQUEST) {
+          const void * rsp;
+          size_t len;
+          cJSON * json;
+
+          rsp = ubiq_platform_rest_response_content(e->rest, &len);
+          res = (json = cJSON_ParseWithLength(rsp, len)) ? 0 : INT_MIN;
+
+          if (res == 0) {
+            char * str = cJSON_Print(json);
+            printf("RESULTS => %s\n", str);
+            // TODO - Loops through json array and remove items UNTIL we find
+            // record with the provided ID.
+            // NOTE - It is possible that there were NOT any records successfully
+            // processed which means everything would need to be resent.
+            free(str);
+          }
+          cJSON_Delete(json);
+      } else if (rc == HTTP_RC_CREATED) {
+          res = 0;
+      } else {
+        res = ubiq_platform_http_error(rc);
+      }
+    }
+
 
     const char * content = ubiq_platform_rest_response_content(e->rest, &len);
 
