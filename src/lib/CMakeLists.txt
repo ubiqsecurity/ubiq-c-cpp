@@ -19,6 +19,7 @@ add_library(
   credentials.c
   decrypt.c
   encrypt.c
+  fpe.c
   init.c
   parsing.c
   rest.c
