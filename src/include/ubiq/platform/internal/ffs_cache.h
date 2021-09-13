@@ -15,7 +15,8 @@ int
 add_element(
   void * f,
   const char * const key,
-  const char * const ffs
+  char * ffs,
+  void (*free_ptr)(void *)
 );
 
 const char *

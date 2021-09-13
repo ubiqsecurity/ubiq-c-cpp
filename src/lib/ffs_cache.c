@@ -8,12 +8,14 @@
  * immutable size, going to use a simple b-tree
 */
 
+#define _GNU_SOURCE         /* See feature_test_macros(7) */
 #include <errno.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+
 #include <search.h>
 
 struct ffs_cache {
@@ -22,17 +24,21 @@ struct ffs_cache {
 
 struct ffs_element {
   char * key;
+  void (*free_ptr)(void *);
   char * ffs;
 };
 
 static
 void
 destroy_element(
-  struct ffs_element * element)
+  void * element)
   {
-    free(element->key);
-    free(element->ffs);
-    free(element);
+    struct ffs_element* e = (struct ffs_element*)element;
+    free(e->key);
+    if (e->free_ptr) {
+      (*e->free_ptr)(e->ffs);
+    }
+    free(e);
 }
 
 static
@@ -51,7 +57,8 @@ int
 create_element(
   struct ffs_element ** const element,
   const char * const key,
-  const char * const ffs)
+  char * ffs,
+  void (*free_ptr)(void *))
 {
   struct ffs_element * e;
   int res = -ENOMEM;
@@ -60,7 +67,8 @@ create_element(
   e = calloc(1, sizeof(* e));
   if (e != NULL) {
     e->key = strdup(key);
-    e->ffs = strdup(ffs);
+    e->ffs = ffs; //strdup(ffs);
+    e->free_ptr = free_ptr;
 
     printf ("e %p\n", (void *) e);
     printf ("e->key %p\n", (void *) e->key);
@@ -99,7 +107,8 @@ find_element(
 
   void * root = NULL;
   struct ffs_element * find_element = NULL;
-  res = create_element(&find_element, key, "");
+  char * data = calloc(1,2);
+  res = create_element(&find_element, key, data, &free);
   if (!res) {
     printf("BEFORE\n");
     void * const find_node = tfind(find_element, &(((struct ffs_cache const *)f)->root), element_compare);
@@ -127,7 +136,8 @@ int
 add_element(
   void * f,
   const char * const key,
-  const char * const ffs
+  char * ffs,
+  void (*free_ptr)(void *)
 )
 {
   const char * csu = "add_element";
@@ -141,7 +151,7 @@ add_element(
   struct ffs_element * find_element = NULL;
   struct ffs_element * inserted_element = NULL;
 
-  res = create_element(&find_element, key, ffs);
+  res = create_element(&find_element, key, ffs, free_ptr);
   if (!res) {
     printf("%s find_element '%p'\n", csu, (void *)find_element);
     printf("%s find_element->key '%p'\n", csu, (void *)find_element->key);

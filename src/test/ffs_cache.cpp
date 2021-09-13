@@ -29,24 +29,26 @@ void cpp_ffs_cache::TearDown(void)
 
 TEST_F(cpp_ffs_cache, find)
 {
-  const char * data = "test";
+//  char * const data = (char *)calloc(25, sizeof(char));
+//  strcpy(data, "test");
   const char * key = "key";
 
-//  ASSERT_EQ(find_element(_ffs_tree, key),(char *) NULL);
+  ASSERT_EQ(find_element(_ffs_tree, key),(char *) NULL);
 }
 
 TEST_F(cpp_ffs_cache, add)
 {
-  const char * data = "test";
-  const char * key = "key";
+  char * const data = (char *)calloc(25, sizeof(char));
+  strcpy(data, "testtest");
+  const char * key = "key       ";
 
   ASSERT_EQ(find_element(_ffs_tree, key),(char *) NULL);
-  ASSERT_EQ(add_element(_ffs_tree, key, data),0);
+  ASSERT_EQ(add_element(_ffs_tree, key, data, &free),0);
   const char * x= find_element(_ffs_tree, key);
   ASSERT_EQ(strcmp(find_element(_ffs_tree, key),data),0);
 
   ASSERT_EQ(find_element(_ffs_tree, "wrong-key"),(char *) NULL);
-
+//  free(data);
 }
 
 // TEST_F(cpp_fpe_encrypt, simple)
