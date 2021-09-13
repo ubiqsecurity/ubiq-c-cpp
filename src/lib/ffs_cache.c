@@ -15,14 +15,18 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-
+#include <time.h>
 #include <search.h>
 
 struct ffs_cache {
   void * root;
 };
 
+// The element records the expiration time.
+// If it is expired, the find will remove the element automatically
+
 struct ffs_element {
+  time_t expires_after;
   char * key;
   void (*free_ptr)(void *);
   void * ffs;
@@ -69,6 +73,8 @@ create_element(
     e->key = strdup(key);
     e->ffs = ffs; //strdup(ffs);
     e->free_ptr = free_ptr;
+    // current time + 3 days (in seconds)
+    e->expires_after = time(NULL) + 3 * 24 * 60 * 60;
 
     printf ("e %p\n", (void *) e);
     printf ("e->key %p\n", (void *) e->key);
@@ -122,9 +128,16 @@ find_element(
 
       struct ffs_element * const rec = *(struct ffs_element ** ) find_node;
       printf("rec '%p'\n", (void *)rec);
-      ret = rec->ffs;
-      printf("%s rec->key '%p'\n", csu, (void *)rec->key);
-      printf("%s rec->ffs '%p'\n", csu, rec->ffs);
+
+      // If expired after is BEFORE current time, then delete it.
+      if (rec->expires_after < time(NULL))
+      {
+        tdelete(find_element, &(((struct ffs_cache *)f)->root), element_compare);
+      } else {
+        ret = rec->ffs;
+        printf("%s rec->key '%p'\n", csu, (void *)rec->key);
+        printf("%s rec->ffs '%p'\n", csu, rec->ffs);
+      }
     }
   }
   destroy_element(find_element);
@@ -162,19 +175,29 @@ add_element(
     } else {
       /*  We must know if the allocated pointed
           to space was saved in the tree or not. */
-       struct ffs_element *re = 0;
-       re = *(struct ffs_element **)inserted_element;
+      struct ffs_element *re = 0;
+      re = *(struct ffs_element **)inserted_element;
       if (re != find_element) {
         printf("Add Existing element\n");
         // Record already existed.
-        destroy_element(find_element);
+
+        // Check expiration date and delete OLD, then add new if necessary
+        // Otherwise delete the find element since it was not ADDED
+
+        if (re->expires_after < time(NULL))
+        {
+          tdelete(find_element, &(((struct ffs_cache *)f)->root), element_compare);
+          inserted_element = tsearch(find_element,&((struct ffs_cache *)f)->root, element_compare);
+          if (inserted_element == NULL) {
+            res = -ENOMEM;
+          }
+        } else {
+          destroy_element(find_element);
+        }
       } else {
         printf("%s re '%p'\n", csu, (void *)re);
         printf("%s re->key '%p'\n", csu, (void *)re->key);
         printf("%s re->ffs '%p'\n", csu, re->ffs);
-        printf("%s inserted_element '%p'\n", csu, (void *)inserted_element);
-        printf("%s inserted_element->key '%p'\n", csu, (void *)inserted_element->key);
-        printf("%s inserted_element->ffs '%p'\n", csu, inserted_element->ffs);
         printf("Added new element\n");
       }
     }

@@ -29,11 +29,9 @@ void cpp_ffs_cache::TearDown(void)
 
 TEST_F(cpp_ffs_cache, find)
 {
-//  char * const data = (char *)calloc(25, sizeof(char));
-//  strcpy(data, "test");
   const char * key = "key";
 
-  ASSERT_EQ(find_element(_ffs_tree, key),(char *) NULL);
+  ASSERT_EQ(find_element(_ffs_tree, key),(void *) NULL);
 }
 
 TEST_F(cpp_ffs_cache, add)
@@ -42,52 +40,37 @@ TEST_F(cpp_ffs_cache, add)
   strcpy(data, "testtest");
   const char * key = "key       ";
 
-  ASSERT_EQ(find_element(_ffs_tree, key),(char *) NULL);
+  ASSERT_EQ(find_element(_ffs_tree, key),(void *) NULL);
   ASSERT_EQ(add_element(_ffs_tree, key, data, &free),0);
-  const void * x= find_element(_ffs_tree, key);
+//  const void * x= find_element(_ffs_tree, key);
   ASSERT_EQ(strcmp((char *)find_element(_ffs_tree, key),data),0);
 
-  ASSERT_EQ(find_element(_ffs_tree, "wrong-key"),(char *) NULL);
-//  free(data);
+  ASSERT_EQ(find_element(_ffs_tree, "wrong-key"),(void *) NULL);
 }
 
-// TEST_F(cpp_fpe_encrypt, simple)
-// {
-//     std::string pt("ABC");
-//     std::vector<std::uint8_t> v;
-//
-//     ASSERT_NO_THROW(
-//         v = ubiq::platform::encrypt(_creds, pt.data(), pt.size()));
-// }
-//
-// TEST(c_fpe_encrypt, simple)
-// {
-//     static const char * const pt = " 01121231231231231& 1 &231120001&-0-8-9";
-// //    static const char * const pt = "00001234567890";//234567890";
-//     static const char * const ffs_name = "ALPHANUM_SSN";
-//
-//     struct ubiq_platform_credentials * creds;
-//     char * ctbuf(nullptr);
-//     size_t ctlen;
-//     char * ptbuf(nullptr);
-//     size_t ptlen;
-//     int res;
-//
-//     res = ubiq_platform_credentials_create(&creds);
-//     ASSERT_EQ(res, 0);
-//
-//     res = ubiq_platform_fpe_encrypt(creds,
-//       ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
-//     EXPECT_EQ(res, 0);
-//
-//     res = ubiq_platform_fpe_decrypt(creds,
-//       ffs_name, NULL, 0, (char *)ctbuf, strlen(ctbuf), &ptbuf, &ptlen);
-//     EXPECT_EQ(res, 0);
-//
-//     EXPECT_EQ(strcmp(pt, ptbuf),0);
-//
-//     ubiq_platform_credentials_destroy(creds);
-//
-//     free(ctbuf);
-//     free(ptbuf);
-// }
+
+TEST_F(cpp_ffs_cache, add_many)
+{
+  char * keys[10];
+  for (int i = 0; i < 10; i++) {
+    char * const data = (char *)calloc(25, sizeof(char));
+    snprintf(data, 25, "test %d data", i);
+    keys[i] = (char *) calloc(25, sizeof(char));
+    snprintf(keys[i], 25, "key %d data", i);
+
+    ASSERT_EQ(find_element(_ffs_tree, keys[i]),(void *) NULL);
+    ASSERT_EQ(add_element(_ffs_tree, keys[i], data, &free),0);
+    const void * x= find_element(_ffs_tree, keys[i]);
+    ASSERT_EQ(strcmp((char *)find_element(_ffs_tree, keys[i]),data),0);
+
+    ASSERT_EQ(find_element(_ffs_tree, "wrong-key"),(char *) NULL);
+  }
+
+  // Random search for first and last and make sure data not the same
+  ASSERT_TRUE(find_element(_ffs_tree, keys[0]) != (void *)NULL);
+  ASSERT_TRUE(find_element(_ffs_tree, keys[9]) != (void *)NULL);
+  ASSERT_TRUE(strcmp((char *)find_element(_ffs_tree, keys[0]),(char *)find_element(_ffs_tree, keys[9])) != 0);
+  for (int i = 0; i < 10; i++) {
+    free(keys[i]);
+  }
+}
