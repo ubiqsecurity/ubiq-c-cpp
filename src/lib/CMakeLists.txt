@@ -20,6 +20,7 @@ add_library(
   decrypt.c
   encrypt.c
   fpe.c
+  ffs_cache.c
   init.c
   parsing.c
   rest.c

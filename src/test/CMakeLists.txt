@@ -9,6 +9,7 @@ add_executable(
   decrypt.cpp
   encrypt.cpp
   fpeencrypt.cpp
+  ffs_cache.cpp
   global.cpp
   parsing.cpp
   request.cpp)

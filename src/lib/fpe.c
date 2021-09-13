@@ -428,6 +428,14 @@ ubiq_platform_fpe_encryption_get_key_helper(
         rsp_json, e->srsa,
         &e->key.buf, &e->key.len);
 
+        printf("\nKEY: ");
+        char * b;
+        b = e->key.buf;
+        for (int i = 0; i < e->key.len; i++) {
+          printf("%x ", b[i] & 0xff);
+        }
+        printf("\n");
+
     if (!res) {
       const cJSON * k = cJSON_GetObjectItemCaseSensitive(
                         rsp_json, "key_number");
@@ -678,6 +686,8 @@ fpe_decrypt(
 
   if (!res) {
     res = ubiq_platform_fpe_decryption_get_key(enc, keynum);
+
+
   }
 
   // Convert trimmed into base 10 to prepare for decrypt
