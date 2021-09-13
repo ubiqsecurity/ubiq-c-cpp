@@ -4,25 +4,28 @@
 
 __BEGIN_DECLS
 
+struct ubiq_platform_cache ;
 
 int
-create_ffs_cache(void ** const ffs_cache);
+ubiq_platform_cache_create(
+  struct ubiq_platform_cache ** const ubiq_cache);
 
 void
-destroy_ffs_cache(void * const ffs_cache);
+ubiq_platform_cache_destroy(
+  struct ubiq_platform_cache * const ubiq_cache);
 
 int
-add_element(
-  void * f,
+ubiq_platform_cache_add_element(
+  struct ubiq_platform_cache * ubiq_cache,
   const char * const key,
   const time_t duration,
-  void * ffs,
+  void * data,
   void (*free_ptr)(void *)
 );
 
 const void *
-find_element(
-  void const *  f,
+ubiq_platform_cache_find_element(
+  struct ubiq_platform_cache const *  ubiq_cache,
   const char * const key
 );
 

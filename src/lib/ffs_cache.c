@@ -18,18 +18,18 @@
 #include <time.h>
 #include <search.h>
 
-struct ffs_cache {
+struct ubiq_platform_cache {
   void * root;
 };
 
 // The element records the expiration time.
 // If it is expired, the find will remove the element automatically
 
-struct ffs_element {
+struct cache_element {
   time_t expires_after;
   char * key;
   void (*free_ptr)(void *);
-  void * ffs;
+  void * data;
 };
 
 static
@@ -37,10 +37,10 @@ void
 destroy_element(
   void * element)
   {
-    struct ffs_element* e = (struct ffs_element*)element;
+    struct cache_element* e = (struct cache_element*)element;
     free(e->key);
-    if (e->free_ptr && e->ffs) {
-      (*e->free_ptr)(e->ffs);
+    if (e->free_ptr && e->data) {
+      (*e->free_ptr)(e->data);
     }
     free(e);
 }
@@ -50,8 +50,8 @@ int
 element_compare(const void *l, const void *r)
 {
   printf("in compare\n");
-    const struct ffs_element *el = l;
-    const struct ffs_element *er = r;
+    const struct cache_element *el = l;
+    const struct cache_element *er = r;
     return strcmp(el->key, er->key);
 }
 
@@ -59,30 +59,30 @@ element_compare(const void *l, const void *r)
 static
 int
 create_element(
-  struct ffs_element ** const element,
+  struct cache_element ** const element,
   const char * const key,
   const time_t duration,
-  void * ffs,
+  void * data,
   void (*free_ptr)(void *))
 {
-  struct ffs_element * e;
+  struct cache_element * e;
   int res = -ENOMEM;
 
-  printf ("sizeof(*ffs_element) %d\n", sizeof(* e));
+  printf ("sizeof(*cache_element) %d\n", sizeof(* e));
   if (duration < 0) {
     res = -EINVAL;
   } else {
     e = calloc(1, sizeof(* e));
     if (e != NULL) {
       e->key = strdup(key);
-      e->ffs = ffs; //strdup(ffs);
+      e->data = data;
       e->free_ptr = free_ptr;
       // current time + 3 days (in seconds)
       e->expires_after = time(NULL) + duration;
 
       printf ("e %p\n", (void *) e);
       printf ("e->key %p\n", (void *) e->key);
-      printf ("e->ffs %p\n", e->ffs);
+      printf ("e->data %p\n", e->data);
 
       if (e->key != NULL) {
         *element = e;
@@ -96,8 +96,8 @@ create_element(
 }
 
 const char *
-find_element(
-  void * const  f,
+ubiq_platform_cache_find_element(
+  struct ubiq_platform_cache * const  ubiq_cache,
   const char * const key
 )
 {
@@ -107,22 +107,13 @@ find_element(
   // Find requires an element but will not insert if
   // it does not exist, so make ffs empty string
 
-  // printf("BEFORE &(((struct ffs_cache const *)f)->root %p\n", (((struct ffs_cache const *)f)->root));
-  // printf ("f %p\n", (void *)f);
-  // printf ("root %p\n", ((struct ffs_cache const *)f)->root);
-
-  // void ** r = NULL;
-
-  // r = &((struct ffs_cache const *)f)->root;
-  // printf ("%s r %p\n", csu, r);
-
   void * root = NULL;
-  struct ffs_element * find_element = NULL;
+  struct cache_element * find_element = NULL;
   void * data = NULL;
   res = create_element(&find_element, key, 0, data, &free);
   if (!res) {
     printf("BEFORE\n");
-    void * const find_node = tfind(find_element, &(((struct ffs_cache const *)f)->root), element_compare);
+    void * const find_node = tfind(find_element, &(((struct ubiq_platform_cache const *)ubiq_cache)->root), element_compare);
     printf("rec '%p'\n", (void *)find_node);
     if (find_node != NULL) {
 
@@ -131,7 +122,7 @@ find_element(
       * cast as a double pointer and then deference to get the actual data.
       */
 
-      struct ffs_element * const rec = *(struct ffs_element ** ) find_node;
+      struct cache_element * const rec = *(struct cache_element ** ) find_node;
       printf("rec '%p'\n", (void *)rec);
 
       printf("rec exp '%d' now '%d'\n", rec->expires_after, time(NULL));
@@ -139,25 +130,26 @@ find_element(
       // If expired after is BEFORE current time, then delete it.
       if (rec->expires_after < time(NULL))
       {
-        tdelete(find_element, &(((struct ffs_cache *)f)->root), element_compare);
+        tdelete(find_element, &(((struct ubiq_platform_cache *)ubiq_cache)->root), element_compare);
+        destroy_element(rec);
       } else {
-        ret = rec->ffs;
+        ret = rec->data;
         printf("%s rec->key '%p'\n", csu, (void *)rec->key);
-        printf("%s rec->ffs '%p'\n", csu, rec->ffs);
+        printf("%s rec->ffs '%p'\n", csu, rec->data);
       }
     }
   }
   destroy_element(find_element);
-  printf("%s AFTER &(((struct ffs_cache const *)f)->root %p\n", csu, (((struct ffs_cache const *)f)->root));
+  printf("%s AFTER &(((struct ubiq_platform_cache const *)ubiq_cache)->root %p\n", csu, (((struct ubiq_platform_cache const *)ubiq_cache)->root));
   return ret;
 }
 
 int
-add_element(
-  void * f,
+ubiq_platform_cache_add_element(
+  struct ubiq_platform_cache * ubiq_cache,
   const char * const key,
   const time_t duration,
-  void * ffs,
+  void * data,
   void (*free_ptr)(void *)
 )
 {
@@ -169,22 +161,22 @@ add_element(
 
   int res = 0;
 
-  struct ffs_element * find_element = NULL;
-  struct ffs_element * inserted_element = NULL;
+  struct cache_element * find_element = NULL;
+  struct cache_element * inserted_element = NULL;
 
-  res = create_element(&find_element, key, duration, ffs, free_ptr);
+  res = create_element(&find_element, key, duration, data, free_ptr);
   if (!res) {
     printf("%s find_element '%p'\n", csu, (void *)find_element);
     printf("%s find_element->key '%p'\n", csu, (void *)find_element->key);
-    printf("%s find_element->ffs '%p'\n", csu, find_element->ffs);
-    inserted_element = tsearch(find_element,&((struct ffs_cache *)f)->root, element_compare);
+    printf("%s find_element->data '%p'\n", csu, find_element->data);
+    inserted_element = tsearch(find_element,&((struct ubiq_platform_cache *)ubiq_cache)->root, element_compare);
     if (inserted_element == NULL) {
       res = -ENOMEM;
     } else {
       /*  We must know if the allocated pointed
           to space was saved in the tree or not. */
-      struct ffs_element *re = 0;
-      re = *(struct ffs_element **)inserted_element;
+      struct cache_element *re = 0;
+      re = *(struct cache_element **)inserted_element;
       if (re != find_element) {
         printf("Add Existing element\n");
         // Record already existed.
@@ -198,11 +190,11 @@ add_element(
           // Delete the NODE, then free the memory for RE
           // Then insert find_element again.
           printf("%s Expired re %d \n", csu, re->expires_after);
-          void * del = tdelete(find_element, &(((struct ffs_cache *)f)->root), element_compare);
+          void * del = tdelete(find_element, &(((struct ubiq_platform_cache *)ubiq_cache)->root), element_compare);
           if (del) {
             destroy_element(re);
           }
-          inserted_element = tsearch(find_element,&((struct ffs_cache *)f)->root, element_compare);
+          inserted_element = tsearch(find_element,&((struct ubiq_platform_cache *)ubiq_cache)->root, element_compare);
           if (inserted_element == NULL) {
             res = -ENOMEM;
           }
@@ -212,7 +204,7 @@ add_element(
       } else {
         printf("%s re '%p'\n", csu, (void *)re);
         printf("%s re->key '%p'\n", csu, (void *)re->key);
-        printf("%s re->ffs '%p'\n", csu, re->ffs);
+        printf("%s re->data '%p'\n", csu, re->data);
         printf("Added new element\n");
       }
     }
@@ -222,27 +214,31 @@ add_element(
 
 
 int
-create_ffs_cache(void ** const ffs_cache) {
-  struct ffs_cache * f;
+ubiq_platform_cache_create(
+  struct ubiq_platform_cache ** const ubiq_cache)
+{
+  struct ubiq_platform_cache * tmp_cache;
   int res = -ENOMEM;
-  printf ("sizeof(* f) %d\n", sizeof(* f));
-  f = calloc(1, sizeof(* f));
-  if (f != NULL) {
-    f->root = NULL;
-    *ffs_cache = f;
+  printf ("sizeof(* tmp_cache) %d\n", sizeof(* tmp_cache));
+  tmp_cache = calloc(1, sizeof(* tmp_cache));
+  if (tmp_cache != NULL) {
+    tmp_cache->root = NULL;
+    *ubiq_cache = tmp_cache;
 
     res = 0;
   }
-  printf ("f %p\n", (void *)f);
-  printf ("root %p\n", f->root);
+  printf ("f %p\n", (void *)tmp_cache);
+  printf ("root %p\n", tmp_cache->root);
 
   return res;
 }
 
 void
-destroy_ffs_cache(void * const ffs_cache) {
+ubiq_platform_cache_destroy(
+  struct ubiq_platform_cache * const ubiq_cache)
+{
   // Walk the list and destroy each node
-  tdestroy(((struct ffs_cache *)ffs_cache)->root, destroy_element);
-  free(ffs_cache );
+  tdestroy(((struct ubiq_platform_cache *)ubiq_cache)->root, destroy_element);
+  free(ubiq_cache );
 
 }
