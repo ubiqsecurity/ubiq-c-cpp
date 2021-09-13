@@ -44,8 +44,8 @@ TEST_F(cpp_ffs_cache, add)
 
   ASSERT_EQ(find_element(_ffs_tree, key),(char *) NULL);
   ASSERT_EQ(add_element(_ffs_tree, key, data, &free),0);
-  const char * x= find_element(_ffs_tree, key);
-  ASSERT_EQ(strcmp(find_element(_ffs_tree, key),data),0);
+  const void * x= find_element(_ffs_tree, key);
+  ASSERT_EQ(strcmp((char *)find_element(_ffs_tree, key),data),0);
 
   ASSERT_EQ(find_element(_ffs_tree, "wrong-key"),(char *) NULL);
 //  free(data);

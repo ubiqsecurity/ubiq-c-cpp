@@ -25,7 +25,7 @@ struct ffs_cache {
 struct ffs_element {
   char * key;
   void (*free_ptr)(void *);
-  char * ffs;
+  void * ffs;
 };
 
 static
@@ -35,7 +35,7 @@ destroy_element(
   {
     struct ffs_element* e = (struct ffs_element*)element;
     free(e->key);
-    if (e->free_ptr) {
+    if (e->free_ptr && e->ffs) {
       (*e->free_ptr)(e->ffs);
     }
     free(e);
@@ -57,7 +57,7 @@ int
 create_element(
   struct ffs_element ** const element,
   const char * const key,
-  char * ffs,
+  void * ffs,
   void (*free_ptr)(void *))
 {
   struct ffs_element * e;
@@ -72,9 +72,9 @@ create_element(
 
     printf ("e %p\n", (void *) e);
     printf ("e->key %p\n", (void *) e->key);
-    printf ("e->ffs %p\n", (void *) e->ffs);
+    printf ("e->ffs %p\n", e->ffs);
 
-    if (e->key != NULL && e->ffs != NULL) {
+    if (e->key != NULL) {
       *element = e;
       res = 0;
     } else {
@@ -107,7 +107,7 @@ find_element(
 
   void * root = NULL;
   struct ffs_element * find_element = NULL;
-  char * data = calloc(1,2);
+  void * data = NULL;
   res = create_element(&find_element, key, data, &free);
   if (!res) {
     printf("BEFORE\n");
@@ -124,7 +124,7 @@ find_element(
       printf("rec '%p'\n", (void *)rec);
       ret = rec->ffs;
       printf("%s rec->key '%p'\n", csu, (void *)rec->key);
-      printf("%s rec->ffs '%p'\n", csu, (void *)rec->ffs);
+      printf("%s rec->ffs '%p'\n", csu, rec->ffs);
     }
   }
   destroy_element(find_element);
@@ -136,7 +136,7 @@ int
 add_element(
   void * f,
   const char * const key,
-  char * ffs,
+  void * ffs,
   void (*free_ptr)(void *)
 )
 {
@@ -155,7 +155,7 @@ add_element(
   if (!res) {
     printf("%s find_element '%p'\n", csu, (void *)find_element);
     printf("%s find_element->key '%p'\n", csu, (void *)find_element->key);
-    printf("%s find_element->ffs '%p'\n", csu, (void *)find_element->ffs);
+    printf("%s find_element->ffs '%p'\n", csu, find_element->ffs);
     inserted_element = tsearch(find_element,&((struct ffs_cache *)f)->root, element_compare);
     if (inserted_element == NULL) {
       res = -ENOMEM;
@@ -171,10 +171,10 @@ add_element(
       } else {
         printf("%s re '%p'\n", csu, (void *)re);
         printf("%s re->key '%p'\n", csu, (void *)re->key);
-        printf("%s re->ffs '%p'\n", csu, (void *)re->ffs);
+        printf("%s re->ffs '%p'\n", csu, re->ffs);
         printf("%s inserted_element '%p'\n", csu, (void *)inserted_element);
         printf("%s inserted_element->key '%p'\n", csu, (void *)inserted_element->key);
-        printf("%s inserted_element->ffs '%p'\n", csu, (void *)inserted_element->ffs);
+        printf("%s inserted_element->ffs '%p'\n", csu, inserted_element->ffs);
         printf("Added new element\n");
       }
     }

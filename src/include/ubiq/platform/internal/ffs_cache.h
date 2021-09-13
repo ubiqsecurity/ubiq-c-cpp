@@ -15,11 +15,11 @@ int
 add_element(
   void * f,
   const char * const key,
-  char * ffs,
+  void * ffs,
   void (*free_ptr)(void *)
 );
 
-const char *
+const void *
 find_element(
   void const *  f,
   const char * const key
