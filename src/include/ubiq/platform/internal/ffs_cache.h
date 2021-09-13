@@ -15,6 +15,7 @@ int
 add_element(
   void * f,
   const char * const key,
+  const time_t duration,
   void * ffs,
   void (*free_ptr)(void *)
 );

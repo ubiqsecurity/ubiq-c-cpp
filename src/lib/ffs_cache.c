@@ -61,6 +61,7 @@ int
 create_element(
   struct ffs_element ** const element,
   const char * const key,
+  const time_t duration,
   void * ffs,
   void (*free_ptr)(void *))
 {
@@ -68,23 +69,27 @@ create_element(
   int res = -ENOMEM;
 
   printf ("sizeof(*ffs_element) %d\n", sizeof(* e));
-  e = calloc(1, sizeof(* e));
-  if (e != NULL) {
-    e->key = strdup(key);
-    e->ffs = ffs; //strdup(ffs);
-    e->free_ptr = free_ptr;
-    // current time + 3 days (in seconds)
-    e->expires_after = time(NULL) + 3 * 24 * 60 * 60;
+  if (duration < 0) {
+    res = -EINVAL;
+  } else {
+    e = calloc(1, sizeof(* e));
+    if (e != NULL) {
+      e->key = strdup(key);
+      e->ffs = ffs; //strdup(ffs);
+      e->free_ptr = free_ptr;
+      // current time + 3 days (in seconds)
+      e->expires_after = time(NULL) + duration;
 
-    printf ("e %p\n", (void *) e);
-    printf ("e->key %p\n", (void *) e->key);
-    printf ("e->ffs %p\n", e->ffs);
+      printf ("e %p\n", (void *) e);
+      printf ("e->key %p\n", (void *) e->key);
+      printf ("e->ffs %p\n", e->ffs);
 
-    if (e->key != NULL) {
-      *element = e;
-      res = 0;
-    } else {
-      destroy_element(e);
+      if (e->key != NULL) {
+        *element = e;
+        res = 0;
+      } else {
+        destroy_element(e);
+      }
     }
   }
   return res;
@@ -114,7 +119,7 @@ find_element(
   void * root = NULL;
   struct ffs_element * find_element = NULL;
   void * data = NULL;
-  res = create_element(&find_element, key, data, &free);
+  res = create_element(&find_element, key, 0, data, &free);
   if (!res) {
     printf("BEFORE\n");
     void * const find_node = tfind(find_element, &(((struct ffs_cache const *)f)->root), element_compare);
@@ -128,6 +133,8 @@ find_element(
 
       struct ffs_element * const rec = *(struct ffs_element ** ) find_node;
       printf("rec '%p'\n", (void *)rec);
+
+      printf("rec exp '%d' now '%d'\n", rec->expires_after, time(NULL));
 
       // If expired after is BEFORE current time, then delete it.
       if (rec->expires_after < time(NULL))
@@ -149,6 +156,7 @@ int
 add_element(
   void * f,
   const char * const key,
+  const time_t duration,
   void * ffs,
   void (*free_ptr)(void *)
 )
@@ -164,7 +172,7 @@ add_element(
   struct ffs_element * find_element = NULL;
   struct ffs_element * inserted_element = NULL;
 
-  res = create_element(&find_element, key, ffs, free_ptr);
+  res = create_element(&find_element, key, duration, ffs, free_ptr);
   if (!res) {
     printf("%s find_element '%p'\n", csu, (void *)find_element);
     printf("%s find_element->key '%p'\n", csu, (void *)find_element->key);
@@ -186,7 +194,14 @@ add_element(
 
         if (re->expires_after < time(NULL))
         {
-          tdelete(find_element, &(((struct ffs_cache *)f)->root), element_compare);
+          // RE already points to node that existed but is now considered expired.
+          // Delete the NODE, then free the memory for RE
+          // Then insert find_element again.
+          printf("%s Expired re %d \n", csu, re->expires_after);
+          void * del = tdelete(find_element, &(((struct ffs_cache *)f)->root), element_compare);
+          if (del) {
+            destroy_element(re);
+          }
           inserted_element = tsearch(find_element,&((struct ffs_cache *)f)->root, element_compare);
           if (inserted_element == NULL) {
             res = -ENOMEM;

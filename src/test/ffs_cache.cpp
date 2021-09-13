@@ -41,11 +41,94 @@ TEST_F(cpp_ffs_cache, add)
   const char * key = "key       ";
 
   ASSERT_EQ(find_element(_ffs_tree, key),(void *) NULL);
-  ASSERT_EQ(add_element(_ffs_tree, key, data, &free),0);
-//  const void * x= find_element(_ffs_tree, key);
+  ASSERT_EQ(add_element(_ffs_tree, key, 24*60*60*3, data, &free),0);
   ASSERT_EQ(strcmp((char *)find_element(_ffs_tree, key),data),0);
+//  const void * x= find_element(_ffs_tree, key);
 
   ASSERT_EQ(find_element(_ffs_tree, "wrong-key"),(void *) NULL);
+}
+
+TEST_F(cpp_ffs_cache, add_expired)
+{
+  char * const data = (char *)calloc(25, sizeof(char));
+  strcpy(data, "testtest");
+  const char * key = "key       ";
+
+  ASSERT_EQ(find_element(_ffs_tree, key),(void *) NULL);
+  ASSERT_EQ(add_element(_ffs_tree, key, 1, data, &free),0);
+  ASSERT_EQ(strcmp((char *)find_element(_ffs_tree, key),data),0);
+  sleep(2);
+  ASSERT_EQ(find_element(_ffs_tree, key),(void *) NULL);
+//  const void * x= find_element(_ffs_tree, key);
+
+  ASSERT_EQ(find_element(_ffs_tree, "wrong-key"),(void *) NULL);
+}
+
+TEST_F(cpp_ffs_cache, add_again)
+{
+  #define data1 "data 1"
+  #define data2 "data 2"
+  const char * first_key = "key1";
+  char * first_data = (char *)calloc(25, sizeof(char));
+  char * second_data = (char *)calloc(25, sizeof(char));
+
+  snprintf(first_data, 25, data1);
+  snprintf(second_data, 25, data2);
+
+  // Attempt to add a second identical record when unexpired, get original data
+
+  ASSERT_EQ(find_element(_ffs_tree, first_key),(void *) NULL);
+  ASSERT_EQ(add_element(_ffs_tree, first_key,  24*60*60*3, first_data, &free),0);
+  ASSERT_EQ(strcmp((char *)find_element(_ffs_tree, first_key),first_data),0);
+  ASSERT_EQ(add_element(_ffs_tree, first_key,  24*60*60*3, second_data, &free),0);
+  ASSERT_EQ(strcmp((char *)find_element(_ffs_tree, first_key),data1),0);
+  ASSERT_EQ(strcmp((char *)find_element(_ffs_tree, first_key),data1),0);
+  ASSERT_TRUE(strcmp((char *)find_element(_ffs_tree, first_key), data2) != 0);
+//  const void * x= find_element(_ffs_tree, key);
+
+
+}
+
+TEST_F(cpp_ffs_cache, add_again_expired)
+{
+  #define data1 "data 1"
+  #define data2 "data 2"
+  const char * first_key = "key1";
+  char * first_data = (char *)calloc(25, sizeof(char));
+  char * second_data = (char *)calloc(25, sizeof(char));
+
+  snprintf(first_data, 25, data1);
+  snprintf(second_data, 25, data2);
+
+  // Attempt to add a second identical record when unexpired, get original data
+  ASSERT_EQ(find_element(_ffs_tree, first_key),(void *) NULL);
+  ASSERT_EQ(add_element(_ffs_tree, first_key,  2, first_data, &free),0);
+  ASSERT_EQ(strcmp((char *)find_element(_ffs_tree, first_key),data1),0);
+  sleep(3);
+  ASSERT_EQ(add_element(_ffs_tree, first_key,  24*60*60*3, second_data, &free),0);
+   ASSERT_TRUE(strcmp((char *)find_element(_ffs_tree, first_key),data1) != 0);
+   ASSERT_EQ(strcmp((char *)find_element(_ffs_tree, first_key),data2),0);
+//  const void * x= find_element(_ffs_tree, key);
+
+
+}
+
+TEST_F(cpp_ffs_cache, add_bad_duration)
+{
+  #define data1 "data 1"
+  #define data2 "data 2"
+  const char * first_key = "key1";
+  char * first_data = (char *)calloc(25, sizeof(char));
+
+  snprintf(first_data, 25, data1);
+
+  // Attempt to add a second identical record when unexpired, get original data
+  ASSERT_EQ(find_element(_ffs_tree, first_key),(void *) NULL);
+  ASSERT_EQ(add_element(_ffs_tree, first_key,  -1, first_data, &free), -EINVAL);
+
+  // Not added, so need to free own memory
+  free(first_data);
+
 }
 
 
@@ -59,7 +142,7 @@ TEST_F(cpp_ffs_cache, add_many)
     snprintf(keys[i], 25, "key %d data", i);
 
     ASSERT_EQ(find_element(_ffs_tree, keys[i]),(void *) NULL);
-    ASSERT_EQ(add_element(_ffs_tree, keys[i], data, &free),0);
+    ASSERT_EQ(add_element(_ffs_tree, keys[i], 0, data, &free),0);
     const void * x= find_element(_ffs_tree, keys[i]);
     ASSERT_EQ(strcmp((char *)find_element(_ffs_tree, keys[i]),data),0);
 
