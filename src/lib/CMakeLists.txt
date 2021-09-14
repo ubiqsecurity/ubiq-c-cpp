@@ -15,12 +15,12 @@ add_library(
   OBJECT
 
   algorithm.c
+  cache.c
   common.c
   credentials.c
   decrypt.c
   encrypt.c
   fpe.c
-  ffs_cache.c
   init.c
   parsing.c
   rest.c

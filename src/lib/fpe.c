@@ -6,6 +6,7 @@
 #include "ubiq/platform/internal/common.h"
 #include "ubiq/platform/internal/support.h"
 #include "ubiq/platform/internal/parsing.h"
+#include "ubiq/platform/internal/cache.h"
 #include <ubiq/fpe/ff1.h>
 #include <ubiq/fpe/internal/ffx.h>
 
@@ -72,6 +73,7 @@ struct ubiq_platform_fpe_encryption
             unsigned int key_number;
     } key;
 
+    struct ubiq_platform_cache * ffs_cache;
 };
 
 
@@ -236,6 +238,7 @@ ubiq_platform_fpe_encryption_destroy(
     free(e->restapi);
     free(e->encoded_papi);
     free(e->srsa);
+    ubiq_platform_cache_destroy(e->ffs_cache);
     free(e);
 }
 
@@ -269,6 +272,9 @@ ubiq_platform_fpe_encryption_new(
           if (e->srsa == NULL) {
             res = -ENOMEM;
           }
+        }
+        if (!res) {
+          res = ubiq_platform_cache_create(&e->ffs_cache);
         }
     }
 
@@ -369,11 +375,19 @@ ubiq_platform_fpe_encryption_get_ffs(
 
   free(encoded_name);
 
-  res = ubiq_platform_rest_request(
-      e->rest,
-      HTTP_RM_GET, url, "application/json", NULL, 0);
+  const char * content = ubiq_platform_cache_find_element(e->ffs_cache, url);
+  printf("Checked cache %s\n", content);
+  if (content == NULL) {
+    res = ubiq_platform_rest_request(
+        e->rest,
+        HTTP_RM_GET, url, "application/json", NULL, 0);
 
-  const char * content = ubiq_platform_rest_response_content(e->rest, &len);
+    content = ubiq_platform_rest_response_content(e->rest, &len);
+
+    ubiq_platform_cache_add_element(e->ffs_cache, url, 24*60*60*3,strndup(content, len), &free);
+    printf("Cache added %s\n", ubiq_platform_cache_find_element(e->ffs_cache, url));
+
+  }
 
   if (content) {
 //    printf("FFS => '%s'\n", content);
@@ -479,7 +493,7 @@ ubiq_platform_fpe_encryption_get_key(
   free(encoded_name);
   res = ubiq_platform_fpe_encryption_get_key_helper(e, url);
   free(url);
-
+  return res;
 }
 
 static
@@ -504,6 +518,7 @@ ubiq_platform_fpe_decryption_get_key(
   free(encoded_name);
   res = ubiq_platform_fpe_encryption_get_key_helper(e, url);
   free(url);
+  return res;
 }
 
 

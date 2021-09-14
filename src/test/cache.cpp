@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "ubiq/platform.h"
-#include "ubiq/platform/internal/ffs_cache.h"
+#include "ubiq/platform/internal/cache.h"
 
 
 class cpp_ffs_cache: public ::testing::Test
@@ -85,9 +85,6 @@ TEST_F(cpp_ffs_cache, add_again)
   ASSERT_EQ(strcmp((char *)ubiq_platform_cache_find_element(_ffs_tree, first_key),data1),0);
   ASSERT_EQ(strcmp((char *)ubiq_platform_cache_find_element(_ffs_tree, first_key),data1),0);
   ASSERT_TRUE(strcmp((char *)ubiq_platform_cache_find_element(_ffs_tree, first_key), data2) != 0);
-//  const void * x= ubiq_platform_cache_find_element(_ffs_tree, key);
-
-
 }
 
 TEST_F(cpp_ffs_cache, add_again_expired)
@@ -107,11 +104,8 @@ TEST_F(cpp_ffs_cache, add_again_expired)
   ASSERT_EQ(strcmp((char *)ubiq_platform_cache_find_element(_ffs_tree, first_key),data1),0);
   sleep(3);
   ASSERT_EQ(ubiq_platform_cache_add_element(_ffs_tree, first_key,  24*60*60*3, second_data, &free),0);
-   ASSERT_TRUE(strcmp((char *)ubiq_platform_cache_find_element(_ffs_tree, first_key),data1) != 0);
-   ASSERT_EQ(strcmp((char *)ubiq_platform_cache_find_element(_ffs_tree, first_key),data2),0);
-//  const void * x= ubiq_platform_cache_find_element(_ffs_tree, key);
-
-
+  ASSERT_TRUE(strcmp((char *)ubiq_platform_cache_find_element(_ffs_tree, first_key),data1) != 0);
+  ASSERT_EQ(strcmp((char *)ubiq_platform_cache_find_element(_ffs_tree, first_key),data2),0);
 }
 
 TEST_F(cpp_ffs_cache, add_bad_duration)

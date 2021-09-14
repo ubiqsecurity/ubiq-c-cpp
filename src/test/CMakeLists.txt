@@ -5,11 +5,11 @@ add_subdirectory(googletest)
 add_executable(
   unittests
 
+  cache.cpp
   credentials.cpp
   decrypt.cpp
   encrypt.cpp
   fpeencrypt.cpp
-  ffs_cache.cpp
   global.cpp
   parsing.cpp
   request.cpp)
