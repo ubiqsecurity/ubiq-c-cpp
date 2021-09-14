@@ -2,6 +2,7 @@
 
 #include <ubiq/platform/compat/cdefs.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #include <ubiq/platform/credentials.h>
 
@@ -41,6 +42,8 @@ ubiq_platform_fpe_encrypt(
 
 /* Opaque encryption object */
 struct ubiq_platform_encryption;
+
+struct ubiq_platform_fpe_encryption;
 
 /*
  * Create an encryption object that can be used to encrypt some number
@@ -129,6 +132,34 @@ int
 ubiq_platform_encryption_end(
     struct ubiq_platform_encryption * const enc,
     void ** const ctbuf, size_t * const ctlen);
+
+
+/*
+ * *******************************************
+ *                  FPE
+ * *******************************************
+ */
+
+UBIQ_PLATFORM_API
+int
+ubiq_platform_fpe_encryption_create(
+    const struct ubiq_platform_credentials * const creds,
+    struct ubiq_platform_fpe_encryption ** const enc);
+
+UBIQ_PLATFORM_API
+int
+ubiq_platform_fpe_encrypt_data(
+  struct ubiq_platform_fpe_encryption * const enc,
+  const char * const ffs_name,
+  const uint8_t * const tweak, const size_t tweaklen,
+  const char * const ptbuf, const size_t ptlen,
+  char ** const ctbuf, size_t * const ctlen
+);
+
+UBIQ_PLATFORM_API
+void
+ubiq_platform_fpe_encryption_destroy(
+    struct ubiq_platform_fpe_encryption * const e);
 
 __END_DECLS
 
