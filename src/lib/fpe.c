@@ -535,7 +535,7 @@ ubiq_platform_fpe_encryption_get_ffs_def(
   size_t len;
   int res = 0;
 
-  struct ubiq_platform_ffs * ffs;
+  struct ubiq_platform_ffs * ffs = NULL;
 
   char * encoded_name = NULL;
   res = ubiq_platform_rest_uri_escape(e->rest, ffs_name, &encoded_name);
@@ -547,7 +547,9 @@ ubiq_platform_fpe_encryption_get_ffs_def(
   free(encoded_name);
 
   ffs = (const struct ubiq_platform_ffs *)ubiq_platform_cache_find_element(e->ffs_cache, url);
-  if (ffs == NULL) {
+  if (ffs != NULL) {
+    *ffs_definition = ffs;
+  } else {
     const char * content = NULL;
     res = ubiq_platform_rest_request(
         e->rest,
@@ -1019,19 +1021,26 @@ fpe_decrypt(
   * Need to parse the CT to get the encryption algorithm and key number
   */
 
-  const char * alg = "FF1"; // DEBUG Hard coded for now
+//  const char * alg = "FF1"; // DEBUG Hard coded for now
 
   res = ubiq_platform_fpe_encryption_get_ffs_def(enc, ffs_name, &ffs_definition);
+  printf("After ubiq_platform_fpe_encryption_get_ffs_def res(%d)\n", res);
+  printf("After ubiq_platform_fpe_encryption_get_ffs_def ffs_definition(%p)\n", (void *)ffs_definition);
+  printf("After ubiq_platform_fpe_encryption_get_ffs_def name(%s)\n", ffs_definition->name);
 
   if (!res) {res = fpe_ffs_parsed_create(&parsed, ctlen);}
+  printf("After fpe_ffs_parsed_create res(%d)\n", res);
   if (!res) {res = ubiq_platform_fpe_string_parse(ffs_definition, -1, ctbuf, ctlen, parsed);}
+  printf("After ubiq_platform_fpe_string_parse res(%d)\n", res);
 
   // TODO - Need to manipulate the trimmed_buf[0] - removing the
   // embedded information
   unsigned int keynum = decode_keynum(ffs_definition, &parsed->trimmed_buf[0]);
+  printf("After decode_keynum keynum(%d)\n", keynum);
 
   if (!res) {
     res = ubiq_platform_fpe_decryption_get_key(enc, ffs_name, keynum, &key);
+    printf("After ubiq_platform_fpe_decryption_get_key res(%d)\n", res);
 //    res = ubiq_platform_fpe_decryption_get_key_old(enc, ffs_name, keynum);
 
 

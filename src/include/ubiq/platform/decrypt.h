@@ -126,6 +126,22 @@ ubiq_platform_decryption_end(
     struct ubiq_platform_decryption * const dec,
     void ** const ptbuf, size_t * const ptlen);
 
+/*
+ * *******************************************
+ *                  FPE
+ * *******************************************
+ */
+
+UBIQ_PLATFORM_API
+int
+ubiq_platform_fpe_decrypt_data(
+  struct ubiq_platform_fpe_encryption * const enc,
+  const char * const ffs_name,
+  const uint8_t * const tweak, const size_t tweaklen,
+  const char * const ctbuf, const size_t ctlen,
+  char ** const ptbuf, size_t * const ptlen
+);
+
 __END_DECLS
 
 #if defined(__cplusplus)
