@@ -35,24 +35,23 @@ struct cache_element {
 static
 void
 destroy_element(
-  void * element)
-  {
-    struct cache_element* e = (struct cache_element*)element;
-    free(e->key);
-    if (e->free_ptr && e->data) {
-      (*e->free_ptr)(e->data);
-    }
-    free(e);
+void * element)
+{
+  struct cache_element* e = (struct cache_element*)element;
+  free(e->key);
+  if (e->free_ptr && e->data) {
+    (*e->free_ptr)(e->data);
+  }
+  free(e);
 }
 
 static
 int
 element_compare(const void *l, const void *r)
 {
-  printf("in compare\n");
-    const struct cache_element *el = l;
-    const struct cache_element *er = r;
-    return strcmp(el->key, er->key);
+  const struct cache_element *el = l;
+  const struct cache_element *er = r;
+  return strcmp(el->key, er->key);
 }
 
 
@@ -68,7 +67,6 @@ create_element(
   struct cache_element * e;
   int res = -ENOMEM;
 
-  printf ("sizeof(*cache_element) %d\n", sizeof(* e));
   if (duration < 0) {
     res = -EINVAL;
   } else {
@@ -79,10 +77,6 @@ create_element(
       e->free_ptr = free_ptr;
       // current time + 3 days (in seconds)
       e->expires_after = time(NULL) + duration;
-
-      printf ("e %p\n", (void *) e);
-      printf ("e->key %p\n", (void *) e->key);
-      printf ("e->data %p\n", e->data);
 
       if (e->key != NULL) {
         *element = e;
@@ -112,9 +106,7 @@ ubiq_platform_cache_find_element(
   void * data = NULL;
   res = create_element(&find_element, key, 0, data, &free);
   if (!res) {
-    printf("BEFORE\n");
     void * const find_node = tfind(find_element, &(((struct ubiq_platform_cache const *)ubiq_cache)->root), element_compare);
-    printf("rec '%p'\n", (void *)find_node);
     if (find_node != NULL) {
 
       /*
@@ -123,10 +115,6 @@ ubiq_platform_cache_find_element(
       */
 
       struct cache_element * const rec = *(struct cache_element ** ) find_node;
-      printf("rec '%p'\n", (void *)rec);
-
-      printf("rec exp '%d' now '%d'\n", rec->expires_after, time(NULL));
-
       // If expired after is BEFORE current time, then delete it.
       if (rec->expires_after < time(NULL))
       {
@@ -134,13 +122,10 @@ ubiq_platform_cache_find_element(
         destroy_element(rec);
       } else {
         ret = rec->data;
-        printf("%s rec->key '%p'\n", csu, (void *)rec->key);
-        printf("%s rec->ffs '%p'\n", csu, rec->data);
       }
     }
   }
   destroy_element(find_element);
-  printf("%s AFTER &(((struct ubiq_platform_cache const *)ubiq_cache)->root %p\n", csu, (((struct ubiq_platform_cache const *)ubiq_cache)->root));
   return ret;
 }
 
@@ -166,9 +151,6 @@ ubiq_platform_cache_add_element(
 
   res = create_element(&find_element, key, duration, data, free_ptr);
   if (!res) {
-    printf("%s find_element '%p'\n", csu, (void *)find_element);
-    printf("%s find_element->key '%p'\n", csu, (void *)find_element->key);
-    printf("%s find_element->data '%p'\n", csu, find_element->data);
     inserted_element = tsearch(find_element,&((struct ubiq_platform_cache *)ubiq_cache)->root, element_compare);
     if (inserted_element == NULL) {
       res = -ENOMEM;
@@ -178,7 +160,6 @@ ubiq_platform_cache_add_element(
       struct cache_element *re = 0;
       re = *(struct cache_element **)inserted_element;
       if (re != find_element) {
-        printf("Add Existing element\n");
         // Record already existed.
 
         // Check expiration date and delete OLD, then add new if necessary
@@ -189,7 +170,6 @@ ubiq_platform_cache_add_element(
           // RE already points to node that existed but is now considered expired.
           // Delete the NODE, then free the memory for RE
           // Then insert find_element again.
-          printf("%s Expired re %d \n", csu, re->expires_after);
           void * del = tdelete(find_element, &(((struct ubiq_platform_cache *)ubiq_cache)->root), element_compare);
           if (del) {
             destroy_element(re);
@@ -201,11 +181,6 @@ ubiq_platform_cache_add_element(
         } else {
           destroy_element(find_element);
         }
-      } else {
-        printf("%s re '%p'\n", csu, (void *)re);
-        printf("%s re->key '%p'\n", csu, (void *)re->key);
-        printf("%s re->data '%p'\n", csu, re->data);
-        printf("Added new element\n");
       }
     }
   }
@@ -219,7 +194,6 @@ ubiq_platform_cache_create(
 {
   struct ubiq_platform_cache * tmp_cache;
   int res = -ENOMEM;
-  printf ("sizeof(* tmp_cache) %d\n", sizeof(* tmp_cache));
   tmp_cache = calloc(1, sizeof(* tmp_cache));
   if (tmp_cache != NULL) {
     tmp_cache->root = NULL;
@@ -227,8 +201,6 @@ ubiq_platform_cache_create(
 
     res = 0;
   }
-  printf ("f %p\n", (void *)tmp_cache);
-  printf ("root %p\n", tmp_cache->root);
 
   return res;
 }

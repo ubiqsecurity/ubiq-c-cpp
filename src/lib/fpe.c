@@ -24,7 +24,7 @@
 
 static const char * base2_charset = "01";
 static const int FF1_base2_min_length = 20; // NIST requirement ceil(log2(1000000))
-
+static const time_t CACHE_DURATION = 3 * 24 * 60 * 60;
 typedef enum {encrypt=0, decrypt=1}  action_type ;
 
 
@@ -244,20 +244,6 @@ ubiq_platform_ffs_destroy(
   free(ffs);
 }
 
-#ifdef NODEF
-static
-int
-ubiq_platform_ffs_app_destroy(
-    struct ubiq_platform_ffs_app * const ffs_app)
-{
-  if (ffs_app) {
-//    free(ffs_app->app);
-    ubiq_platform_ffs_destroy(ffs_app->ffs);
-  }
-  free(ffs_app);
-}
-#endif
-
 void
 ubiq_platform_fpe_encryption_destroy(
     struct ubiq_platform_fpe_encryption * const e)
@@ -329,71 +315,6 @@ ubiq_platform_fpe_encryption_new(
     return res;
 }
 
-#ifdef NODEF
-static
-int
-ubiq_platform_ffs_app_create(
-    cJSON * ffs_data,
-    struct ubiq_platform_ffs_app ** const ffs_app)
-{
-  int res = 0;
-
-  // Going to allocate memory as a single block
-  // First with the structure.  Then with the
-  // length of strings.  This will allow simple copy and
-  // avoid fragmented memory
-
-  struct ubiq_platform_ffs_app * e = NULL;
-  e = calloc(1, sizeof(*e));
-  if (!e) {
-    res = -ENOMEM;
-  } else {
-//    e->app = calloc(1, sizeof(struct ubiq_platform_app));
-    e->ffs = calloc(1, sizeof(struct ubiq_platform_ffs));
-  }
-
-  if (!res) {res = set_ffs_string(ffs_data, "name", &e->ffs->name);}
-  if (!res) {res = set_ffs_string(ffs_data, "tweak_source", &e->ffs->tweak_source);}
-  if (!res) {res = set_ffs_string(ffs_data, "regex", &e->ffs->regex);}
-  if (!res) {res = set_ffs_string(ffs_data, "input_character_set", &e->ffs->input_character_set);}
-  if (!res) {res = set_ffs_string(ffs_data, "output_character_set", &e->ffs->output_character_set);}
-  if (!res) {res = set_ffs_string(ffs_data, "passthrough", &e->ffs->passthrough_character_set);}
-  if (!res) {res = set_ffs_int(ffs_data, "min_input_length", &e->ffs->min_input_length);}
-  if (!res) {res = set_ffs_int(ffs_data, "max_input_length", &e->ffs->max_input_length);}
-//  if (!res) {res = set_ffs_int(ffs_data, "max_key_rotations", &e->ffs->max_key_rotations);}
-  if (!res) {res = set_ffs_int(ffs_data, "msb_encoding_bits", &e->ffs->msb_encoding_bits);}
-
-  if (!res) {res = set_ffs_int(ffs_data, "tweak_min_len", &e->ffs->tweak_min_len);}
-  if (!res) {res = set_ffs_int(ffs_data, "tweak_max_len", &e->ffs->tweak_max_len);}
-
-  if (!res && strcmp(e->ffs->tweak_source, "constant") == 0) {
-    char * s = NULL;
-    res = set_ffs_string(ffs_data, "tweak", &s);
-    // printf("DEBUG %s\n", s);
-    e->ffs->tweak.len = ubiq_support_base64_decode(
-        &e->ffs->tweak.buf, s, strlen(s));
-    free(s);
-
-    // printf("tweak value: ");
-    // char * b;
-    // b = e->ffs->tweak.buf;
-    // for (int i = 0; i < e->ffs->tweak.len; i++) {
-    //   printf("%x ", b[i] & 0xff);
-    // }
-    // printf("\n");
-
-  }
-
-  if (!res) {
-    e->ffs->efpe_flag = 1; // DEBUG just to indicate this is an eFPE field
-    *ffs_app = e;
-  } else {
-    ubiq_platform_ffs_app_destroy(e);
-  }
-
-  return res;
-}
-#endif
 
 static
 int
@@ -456,76 +377,12 @@ ubiq_platform_ffs_create(
   return res;
 }
 
-#ifdef NODEF
-static
-int
-ubiq_platform_fpe_encryption_get_ffs(
-  struct ubiq_platform_fpe_encryption * const e,
-  const char * const ffs_name)
-{
-  const char * const csu = "ubiq_platform_fpe_encryption_get_ffs";
-  const char * const fmt = "%s/ffs?ffs_name=%s&papi=%s";
-
-  cJSON * json;
-  char * url;
-  size_t len;
-  int res = 0;
-
-  char * encoded_name = NULL;
-  res = ubiq_platform_rest_uri_escape(e->rest, ffs_name, &encoded_name);
-
-  len = snprintf(NULL, 0, fmt, e->restapi, encoded_name, e->encoded_papi);
-  url = malloc(len + 1);
-  snprintf(url, len + 1, fmt, e->restapi, encoded_name, e->encoded_papi);
-
-  free(encoded_name);
-
-  const char * content = ubiq_platform_cache_find_element(e->ffs_cache, url);
-  printf("Checked cache %s\n", content);
-  if (content != NULL) {
-    len = strlen(content);
-  } else {
-
-    res = ubiq_platform_rest_request(
-        e->rest,
-        HTTP_RM_GET, url, "application/json", NULL, 0);
-
-    content = ubiq_platform_rest_response_content(e->rest, &len);
-
-    ubiq_platform_cache_add_element(e->ffs_cache, url, 24*60*60*3,strndup(content, len), &free);
-    printf("Cache added %s\n", ubiq_platform_cache_find_element(e->ffs_cache, url));
-
-  }
-
-  if (content) {
-//    printf("FFS => '%s'\n", content);
-    cJSON * ffs_json;
-    res = (ffs_json = cJSON_ParseWithLength(content, len)) ? 0 : INT_MIN;
-    if (!res) {
-      char * str = cJSON_Print(ffs_json);
-      printf("FFS => %s\n", str);
-      free(str);
-    }
-
-//    cJSON * ffs_json = cJSON_Parse(content);
-    if (ffs_json) {
-//      printf("before ubiq_platform_ffs_app_create\n");
-      res = ubiq_platform_ffs_app_create(ffs_json,  &e->ffs_app);
-    }
-    cJSON_Delete(ffs_json);
-  }
-  free(url);
-//  printf("DEBUG %s END %d \n", csu, res);
-  return res;
-}
-#endif
-
 static
 int
 ubiq_platform_fpe_encryption_get_ffs_def(
   struct ubiq_platform_fpe_encryption * const e,
   const char * const ffs_name,
-  struct ubiq_platform_ffs ** ffs_definition)
+  const struct ubiq_platform_ffs ** ffs_definition)
 {
   const char * const csu = "ubiq_platform_fpe_encryption_get_ffs_def";
   const char * const fmt = "%s/ffs?ffs_name=%s&papi=%s";
@@ -535,7 +392,7 @@ ubiq_platform_fpe_encryption_get_ffs_def(
   size_t len;
   int res = 0;
 
-  struct ubiq_platform_ffs * ffs = NULL;
+  const struct ubiq_platform_ffs * ffs = NULL;
 
   char * encoded_name = NULL;
   res = ubiq_platform_rest_uri_escape(e->rest, ffs_name, &encoded_name);
@@ -548,8 +405,10 @@ ubiq_platform_fpe_encryption_get_ffs_def(
 
   ffs = (const struct ubiq_platform_ffs *)ubiq_platform_cache_find_element(e->ffs_cache, url);
   if (ffs != NULL) {
+    printf("ffs cache HIT for %s\n", url);
     *ffs_definition = ffs;
   } else {
+    printf("ffs cache MISS for %s\n", url);
     const char * content = NULL;
     res = ubiq_platform_rest_request(
         e->rest,
@@ -557,11 +416,7 @@ ubiq_platform_fpe_encryption_get_ffs_def(
 
     content = ubiq_platform_rest_response_content(e->rest, &len);
 
-//    ubiq_platform_cache_add_element(e->ffs_cache, url, 24*60*60*3,strndup(content, len), &free);
-//    printf("Cache added %s\n", ubiq_platform_cache_find_element(e->ffs_cache, url));
-
     if (content) {
-  //    printf("FFS => '%s'\n", content);
       cJSON * ffs_json;
       res = (ffs_json = cJSON_ParseWithLength(content, len)) ? 0 : INT_MIN;
       if (!res) {
@@ -569,155 +424,20 @@ ubiq_platform_fpe_encryption_get_ffs_def(
         printf("FFS => %s\n", str);
         free(str);
       }
-      printf("DEBUG 1\n");
-
-  //    cJSON * ffs_json = cJSON_Parse(content);
       if (ffs_json) {
-  //      printf("before ubiq_platform_ffs_app_create\n");
         struct ubiq_platform_ffs * f = NULL;
-        printf("DEBUG 2\n");
-
         res = ubiq_platform_ffs_create(ffs_json,  &f);
-        printf("DEBUG 3 res(%d)\n", res);
         if (!res) {
-          printf("DEBUG f(%p)\n", (void *)f);
-          printf("DEBUG name(%s)\n", f->name);
-          ubiq_platform_cache_add_element(e->ffs_cache, url, 24*60*60*3, f, &ubiq_platform_ffs_destroy);
+          ubiq_platform_cache_add_element(e->ffs_cache, url, CACHE_DURATION, f, &ubiq_platform_ffs_destroy);
           *ffs_definition = f;
-          printf("DEBUG name(%s)\n", (*ffs_definition)->name);
         }
       }
       cJSON_Delete(ffs_json);
     }
   }
   free(url);
-//  printf("DEBUG %s END %d \n", csu, res);
   return res;
 }
-
-#ifdef NODEF
-static
-int
-ubiq_platform_fpe_encryption_get_key_helper_old(
-  struct ubiq_platform_fpe_encryption * const e,
-  const char * const url)
-{
-  cJSON * json;
-  size_t len;
-  int res = 0;
-
-  const char * content = ubiq_platform_cache_find_element(e->key_cache, url);
-  printf("Checked key cache %s\n", content);
-  if (content != NULL) {
-    len = strlen(content);
-  }
-  else {
-
-    res = ubiq_platform_rest_request(
-      e->rest,
-      HTTP_RM_GET, url, "application/json", NULL , 0);
-
-    content = ubiq_platform_rest_response_content(e->rest, &len);
-
-    ubiq_platform_cache_add_element(e->key_cache, url, 24*60*60*3,strndup(content, len), &free);
-    printf("Key Cache added %s\n", ubiq_platform_cache_find_element(e->key_cache, url));
-  }
-
-//  printf("contents %.*s\n", len, content);
-  if (content) {
-    cJSON * rsp_json;
-    res = (rsp_json = cJSON_ParseWithLength(content, len)) ? 0 : INT_MIN;
-    {
-      char * str = cJSON_Print(rsp_json);
-      printf("contents %s\n", str);
-      free(str);
-    }
-
-    res = ubiq_platform_common_fpe_parse_new_key(
-        rsp_json, e->srsa,
-        &e->key.buf, &e->key.len);
-
-        printf("\nKEY: ");
-        char * b;
-        b = e->key.buf;
-        for (int i = 0; i < e->key.len; i++) {
-          printf("%x ", b[i] & 0xff);
-        }
-        printf("\n");
-
-    if (!res) {
-      const cJSON * k = cJSON_GetObjectItemCaseSensitive(
-                        rsp_json, "key_number");
-      if (cJSON_IsString(k) && k->valuestring != NULL) {
-        const char * errstr = NULL;
-        uintmax_t n = strtoumax(k->valuestring, NULL, 10);
-        if (n == UINTMAX_MAX && errno == ERANGE) {
-          res = -ERANGE;
-        } else {
-          e->key.key_number = (unsigned int)n;
-//          printf("get key %d\n", e->key.key_number );
-        }
-      } else {
-        res = -EBADMSG;
-      }
-    }
-
-    cJSON_Delete(rsp_json);
-  }
-  return res;
-}
-
-static
-int
-ubiq_platform_fpe_encryption_get_key_old(
-  struct ubiq_platform_fpe_encryption * const e,
-  const char * const ffs_name)
-{
-  const char * const fmt = "%s/fpe/key?ffs_name=%s&papi=%s";
-
-  char * url;
-  size_t len;
-  int res = 0;
-
-  char * encoded_name = NULL;
-  res = ubiq_platform_rest_uri_escape(e->rest, ffs_name, &encoded_name);
-
-  len = snprintf(NULL, 0, fmt, e->restapi, encoded_name, e->encoded_papi);
-  url = malloc(len + 1);
-  snprintf(url, len + 1, fmt, e->restapi, encoded_name, e->encoded_papi);
-
-  free(encoded_name);
-  res = ubiq_platform_fpe_encryption_get_key_helper_old(e, url);
-  free(url);
-  return res;
-}
-
-static
-int
-ubiq_platform_fpe_decryption_get_key_old(
-  struct ubiq_platform_fpe_encryption * const e,
-  const char * const ffs_name,
-  const unsigned int key_number)
-{
-  const char * const fmt = "%s/fpe/key?ffs_name=%s&papi=%s&key_number=%d";
-
-  char * url;
-  size_t len;
-  int res = 0;
-
-  char * encoded_name = NULL;
-  res = ubiq_platform_rest_uri_escape(e->rest, ffs_name, &encoded_name);
-
-  len = snprintf(NULL, 0, fmt, e->restapi, encoded_name, e->encoded_papi, key_number);
-  url = malloc(len + 1);
-  snprintf(url, len + 1, fmt, e->restapi, encoded_name, e->encoded_papi, key_number);
-
-  free(encoded_name);
-  res = ubiq_platform_fpe_encryption_get_key_helper_old(e, url);
-  free(url);
-  return res;
-}
-#endif
 
 static
 int
@@ -734,11 +454,12 @@ ubiq_platform_fpe_encryption_get_key_helper(
   res = fpe_key_create(&k);
   if (!res) {
     const char * content = ubiq_platform_cache_find_element(e->key_cache, url);
-    printf("Checked key cache %s\n", content);
     if (content != NULL) {
+      printf("key cache HIT for %s\n", url);
       len = strlen(content);
     }
     else {
+      printf("key cache MISS for %s\n", url);
 
       res = ubiq_platform_rest_request(
         e->rest,
@@ -746,11 +467,9 @@ ubiq_platform_fpe_encryption_get_key_helper(
 
       content = ubiq_platform_rest_response_content(e->rest, &len);
 
-      ubiq_platform_cache_add_element(e->key_cache, url, 24*60*60*3,strndup(content, len), &free);
-      printf("Key Cache added %s\n", ubiq_platform_cache_find_element(e->key_cache, url));
+      ubiq_platform_cache_add_element(e->key_cache, url, CACHE_DURATION,strndup(content, len), &free);
     }
 
-  //  printf("contents %.*s\n", len, content);
     if (content) {
       cJSON * rsp_json;
       res = (rsp_json = cJSON_ParseWithLength(content, len)) ? 0 : INT_MIN;
@@ -764,14 +483,6 @@ ubiq_platform_fpe_encryption_get_key_helper(
           rsp_json, e->srsa,
           &k->buf, &k->len);
 
-      printf("\nKEY: ");
-      char * b;
-      b = k->buf;
-      for (int i = 0; i < k->len; i++) {
-        printf("%x ", b[i] & 0xff);
-      }
-      printf("\n");
-
       if (!res) {
         const cJSON * kn = cJSON_GetObjectItemCaseSensitive(
                           rsp_json, "key_number");
@@ -782,7 +493,6 @@ ubiq_platform_fpe_encryption_get_key_helper(
             res = -ERANGE;
           } else {
             k->key_number = (unsigned int)n;
-  //          printf("get key %d\n", e->key.key_number );
           }
         } else {
           res = -EBADMSG;
@@ -874,24 +584,6 @@ int ubiq_platform_fpe_encryption_create(
 
     return res;
 }
-
-#ifdef NODEF
-static
-int
-ubiq_platform_encryption_fpe_parse_new_key(
-    struct ubiq_platform_fpe_encryption * const e,
-    const char * const srsa, const cJSON * const json)
-{
-    const cJSON * j;
-    int res;
-
-    res = ubiq_platform_common_fpe_parse_new_key(
-        json, srsa,
-        &e->key.buf, &e->key.len);
-
-    return res;
-}
-#endif
 
 int ubiq_platform_fpe_string_parse(
   const struct ubiq_platform_ffs * ffs,
@@ -1014,36 +706,21 @@ fpe_decrypt(
   char * pt_trimmed = NULL;
 
   const struct ubiq_platform_ffs * ffs_definition = NULL;
-  const struct ubiq_platform_fpe_key * key = NULL;
-  // Trim pt
+  struct ubiq_platform_fpe_key * key = NULL;
 
   /*
   * Need to parse the CT to get the encryption algorithm and key number
   */
 
-//  const char * alg = "FF1"; // DEBUG Hard coded for now
-
   res = ubiq_platform_fpe_encryption_get_ffs_def(enc, ffs_name, &ffs_definition);
-  printf("After ubiq_platform_fpe_encryption_get_ffs_def res(%d)\n", res);
-  printf("After ubiq_platform_fpe_encryption_get_ffs_def ffs_definition(%p)\n", (void *)ffs_definition);
-  printf("After ubiq_platform_fpe_encryption_get_ffs_def name(%s)\n", ffs_definition->name);
 
   if (!res) {res = fpe_ffs_parsed_create(&parsed, ctlen);}
-  printf("After fpe_ffs_parsed_create res(%d)\n", res);
   if (!res) {res = ubiq_platform_fpe_string_parse(ffs_definition, -1, ctbuf, ctlen, parsed);}
-  printf("After ubiq_platform_fpe_string_parse res(%d)\n", res);
 
-  // TODO - Need to manipulate the trimmed_buf[0] - removing the
-  // embedded information
   unsigned int keynum = decode_keynum(ffs_definition, &parsed->trimmed_buf[0]);
-  printf("After decode_keynum keynum(%d)\n", keynum);
 
   if (!res) {
     res = ubiq_platform_fpe_decryption_get_key(enc, ffs_name, keynum, &key);
-    printf("After ubiq_platform_fpe_decryption_get_key res(%d)\n", res);
-//    res = ubiq_platform_fpe_decryption_get_key_old(enc, ffs_name, keynum);
-
-
   }
 
   // Convert trimmed into base 10 to prepare for decrypt
@@ -1062,9 +739,6 @@ fpe_decrypt(
     if (pt_base2 == NULL) {
       res = -ENOMEM;
     }
-
-//    printf("DEBUG '%s' trimmed '%s' to '%s' base2\n", csu, parsed->trimmed_buf, ct_base2);
-
   }
 
   // TODO - Need logic to check tweak source and error out depending on supplied tweak
@@ -1166,7 +840,7 @@ fpe_encrypt(
   char * pt_base2 = NULL;
   char * ct_trimmed = NULL;
   const struct ubiq_platform_ffs * ffs_definition = NULL;
-  const struct ubiq_platform_fpe_key * key = NULL;
+  struct ubiq_platform_fpe_key * key = NULL;
 
   // ffs_definition is cached so do not delete
   res = ubiq_platform_fpe_encryption_get_ffs_def(enc, ffs_name, &ffs_definition);
@@ -1229,12 +903,9 @@ fpe_encrypt(
   if (!res) {
     struct ff1_ctx * ctx;
 
-    printf("Before ff1_ctx_create\n");
     res = ff1_ctx_create(&ctx, key->buf, key->len, ffs_definition->tweak.buf, ffs_definition->tweak.len, ffs_definition->tweak_min_len, ffs_definition->tweak_max_len, strlen(base2_charset));
-    printf("After ff1_ctx_create res(%d)\n", res);
     if (!res) {
 
-      printf("Before ff1_encrypt\n");
       res = ff1_encrypt(ctx, ct_base2, pt_base2, NULL, 0);
 
       printf("DEBUG '%s' %d \n",csu, res);
@@ -1294,9 +965,7 @@ fpe_encrypt(
     */
     char * pos = parsed->formatted_dest_buf;
     while ((*pos != '\0') && (NULL != strchr(ffs_definition->passthrough_character_set, *pos))) {pos++;};
-//    printf("first non-passthrough %s\n", pos);
     res = encode_keynum(ffs_definition, key->key_number, pos);
-//    printf("ct %s\n", ct_trimmed);
 
   }
 
@@ -1418,7 +1087,6 @@ ubiq_platform_fpe_billing(
 
     const char * content = ubiq_platform_rest_response_content(e->rest, &len);
 
-//  free(guid_hex);
   free(str);
   free(url);
   return res;
@@ -1443,17 +1111,8 @@ ubiq_platform_fpe_encrypt(
   enc = NULL;
   res = ubiq_platform_fpe_encryption_create(creds,  &enc);
 
-  // if (!res) {
-  //   res = ubiq_platform_fpe_encryption_get_ffs(enc, ffs_name);
-  // }
-
-  /*
-  * Key is retrieved in the encrypt call
-  */
-
   if (!res) {
      res  = fpe_encrypt(enc, ffs_name,
-//       enc->key.buf, enc->key.len, enc->key.key_number,
        tweak, tweaklen, ptbuf, ptlen, ctbuf, ctlen);
      ubiq_platform_fpe_billing(enc, ffs_name, encrypt, 1);
   }
@@ -1477,10 +1136,6 @@ ubiq_platform_fpe_decrypt(
   enc = NULL;
   res = ubiq_platform_fpe_encryption_create(creds, &enc);
 
-  // if (!res) {
-  //   res = ubiq_platform_fpe_encryption_get_ffs(enc, ffs_name);
-  // }
-
   if (!res) {
     res  = fpe_decrypt(enc, ffs_name, tweak, tweaklen, ctbuf, ctlen, ptbuf, ptlen);
     res = ubiq_platform_fpe_billing(enc, ffs_name, decrypt, 1);
@@ -1499,35 +1154,10 @@ ubiq_platform_fpe_encrypt_data(
 )
 {
   int res = 0;
-  // const struct ubiq_platform_ffs * ffs_definition;
-//  const struct ubiq_platform_fpe_key * fpe_key;
-   /*
-    * Fetch the FFS information, use CACHE if available
-    * Consider case where Cache could expire during middle of this
-    * so retrive it all now.
-    */
-   // res = ubiq_platform_fpe_encryption_get_ffs_def(enc, ffs_name, &ffs_definition);
-   //
-   // printf("After ubiq_platform_fpe_encryption_get_ffs_def res(%d) name(%s)\n", res, ffs_definition->name);
-   //
-   // res = ubiq_platform_fpe_encryption_get_ffs_def(enc, ffs_name, &ffs_definition);
-   //
-   // printf("After ubiq_platform_fpe_encryption_get_ffs_def res(%d) name(%s)\n", res, ffs_definition->name);
 
-   // res = ubiq_platform_fpe_encryption_get_key(enc, ffs_name, &fpe_key);
-   // fpe_key_destroy(fpe_key);
-   //
-   // res = ubiq_platform_fpe_encryption_get_key(enc, ffs_name, &fpe_key);
-
-   if (!res) {
-      res  = fpe_encrypt(enc, ffs_name,
-//        fpe_key->buf, fpe_key->len, fpe_key->key_number,
-        tweak, tweaklen, ptbuf, ptlen, ctbuf, ctlen);
-      printf("After fpe_encrypt res(%d) ct(%.*s)\n", res, *ctlen, *ctbuf);
-      ubiq_platform_fpe_billing(enc, ffs_name, encrypt, 1);
-   }
-
-//   fpe_key_destroy(fpe_key);
+  res  = fpe_encrypt(enc, ffs_name,
+    tweak, tweaklen, ptbuf, ptlen, ctbuf, ctlen);
+  ubiq_platform_fpe_billing(enc, ffs_name, encrypt, 1);
 
    return res;
 }
@@ -1542,29 +1172,10 @@ ubiq_platform_fpe_decrypt_data(
 )
 {
   int res = 0;
-  // const struct ubiq_platform_ffs * ffs_definition;
-  // const struct ubiq_platform_fpe_key * fpe_key;
-   /*
-    * Fetch the FFS information, use CACHE if available
-    * Consider case where Cache could expire during middle of this
-    * so retrive it all now.
-    */
-   // res = ubiq_platform_fpe_encryption_get_ffs_def(enc, ffs_name, &ffs_definition);
-   //
-   // printf("After ubiq_platform_fpe_encryption_get_ffs_def res(%d) name(%s)\n", res, ffs_definition->name);
-   //
-   //
-   // printf("After ubiq_platform_fpe_encryption_get_ffs_def res(%d) name(%s)\n", res, ffs_definition->name);
 
-   if (!res) {
-      res  = fpe_decrypt(enc, ffs_name,
-//        fpe_key->buf, fpe_key->len, fpe_key->key_number,
-        tweak, tweaklen, ctbuf, ctlen, ptbuf, ptlen);
-      printf("After fpe_encrypt res(%d) ct(%.*s)\n", res, *ptlen, *ptbuf);
-      ubiq_platform_fpe_billing(enc, ffs_name, encrypt, 1);
-   }
-
-   // fpe_key_destroy(fpe_key);
+  res  = fpe_decrypt(enc, ffs_name,
+    tweak, tweaklen, ctbuf, ctlen, ptbuf, ptlen);
+  ubiq_platform_fpe_billing(enc, ffs_name, encrypt, 1);
 
    return res;
 }
