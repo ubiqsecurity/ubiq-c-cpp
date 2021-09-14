@@ -19,6 +19,7 @@
 #include <string.h>
 #include <assert.h>
 #include <math.h>
+#include <sys/queue.h>
 
 #include "cJSON/cJSON.h"
 
@@ -28,6 +29,10 @@ static const time_t CACHE_DURATION = 3 * 24 * 60 * 60;
 typedef enum {encrypt=0, decrypt=1}  action_type ;
 
 
+static
+int
+ubiq_platform_process_billing(
+  struct ubiq_platform_fpe_encryption * const e);
 
 struct ubiq_platform_ffs {
   char * name;
@@ -65,6 +70,7 @@ struct ubiq_platform_fpe_encryption
     char * srsa;
     struct ubiq_platform_rest_handle * rest;
 
+    cJSON * billing_elements;
 //    struct ubiq_platform_ffs_app * ffs_app;
 
     // struct {
@@ -255,6 +261,8 @@ ubiq_platform_fpe_encryption_destroy(
      * of uses
      */
 
+    ubiq_platform_process_billing(e);
+    cJSON_Delete(e->billing_elements);
     ubiq_platform_rest_handle_destroy(e->rest);
 //    ubiq_platform_ffs_app_destroy(e->ffs_app);
 //    free(e->key.buf);
@@ -302,6 +310,9 @@ ubiq_platform_fpe_encryption_new(
         }
         if (!res) {
           res = ubiq_platform_cache_create(&e->key_cache);
+        }
+        if (!res) {
+          e->billing_elements = cJSON_CreateArray();
         }
     }
 
@@ -969,8 +980,6 @@ fpe_encrypt(
 
   }
 
-
-
   if (!res) {
     *ctbuf = strdup(parsed->formatted_dest_buf);
 
@@ -992,63 +1001,73 @@ fpe_encrypt(
 
 static
 int
-ubiq_platform_fpe_billing(
+ubiq_platform_add_billing(
   struct ubiq_platform_fpe_encryption * const e,
   const char * ffs_name,
   const action_type action,
-  unsigned int count) {
+  unsigned int count)
+{
+  int res = 0;
+  cJSON * json;
+  time_t now;
+  char guid_hex[37]; // 8 - 4 - 4 - 4 - 12
+  uint16_t guid[8];
 
-    static const char * const fmt = "%s/fpe/billing/%s";
-    time_t now;
+  ubiq_support_getrandom(&guid, sizeof(guid));
+  snprintf(guid_hex, sizeof(guid_hex), "%04x%04x-%04x-%04x-%04x-%04x%04x%04x",
+    guid[0], guid[1], guid[2], guid[3],
+    guid[4], guid[5], guid[6], guid[7]);
 
-    cJSON * json;
-    char * url;
-    size_t len;
-    int res = 0;
+  json = cJSON_CreateObject();
+  cJSON_AddItemToObject(json, "count", cJSON_CreateNumber(count));
+
+  time(&now);
+  char buf[sizeof("2011-10-08T07:07:09Z   ")];
+  strftime(buf, sizeof(buf), "%FT%TZ", gmtime(&now));
+
+  cJSON_AddItemToObject(json, "id", cJSON_CreateString(guid_hex));
+  cJSON_AddItemToObject(json, "timestamp", cJSON_CreateString(buf));
+  cJSON_AddItemToObject(json, "ffs_name", cJSON_CreateString(ffs_name));
+  printf("ACTION: %d %d %d\n", action, encrypt, decrypt);
+  if (action == encrypt) {
+    cJSON_AddItemToObject(json, "action", cJSON_CreateString("encrypt"));
+  } else {
+    cJSON_AddItemToObject(json, "action", cJSON_CreateString("decrypt"));
+  }
+
+  cJSON_AddItemToArray(e->billing_elements, json);
+
+  return res;
+}
+
+static
+int
+ubiq_platform_process_billing(
+  struct ubiq_platform_fpe_encryption * const e) {
+  static const char * const fmt = "%s/fpe/billing/%s";
+  time_t now;
+
+  cJSON * json;
+  char * url;
+  size_t len;
+  int res = 0;
 
 
-    len = snprintf(NULL, 0, fmt, e->restapi, e->encoded_papi);
-    url = malloc(len + 1);
-    snprintf(url, len + 1, fmt, e->restapi, e->encoded_papi);
+  len = snprintf(NULL, 0, fmt, e->restapi, e->encoded_papi);
+  url = malloc(len + 1);
+  snprintf(url, len + 1, fmt, e->restapi, e->encoded_papi);
 
-    char guid_hex[37]; // 8 - 4 - 4 - 4 - 12
-    uint16_t guid[8];
+  char guid_hex[37]; // 8 - 4 - 4 - 4 - 12
+  uint16_t guid[8];
 
-    ubiq_support_getrandom(&guid, sizeof(guid));
-    snprintf(guid_hex, sizeof(guid_hex), "%04x%04x-%04x-%04x-%04x-%04x%04x%04x",
-			guid[0], guid[1], guid[2], guid[3],
-			guid[4], guid[5], guid[6], guid[7]);
+  char * str = cJSON_Print(e->billing_elements);
 
-    json = cJSON_CreateObject();
-    cJSON * array = cJSON_CreateArray();
-    cJSON_AddItemToObject(json, "count", cJSON_CreateNumber(count));
 
-    time(&now);
-    char buf[sizeof("2011-10-08T07:07:09Z   ")];
-    strftime(buf, sizeof(buf), "%FT%TZ", gmtime(&now));
+  unsigned int array_size = cJSON_GetArraySize(e->billing_elements);
+  printf("BILLING Payload: size(%d) %s\n", array_size, str);
+  //  free(str);
 
-    cJSON_AddItemToObject(json, "id", cJSON_CreateString(guid_hex));
-    cJSON_AddItemToObject(json, "timestamp", cJSON_CreateString(buf));
-    cJSON_AddItemToObject(json, "ffs_name", cJSON_CreateString(ffs_name));
-    if (action == encrypt) {
-      cJSON_AddItemToObject(json, "action", cJSON_CreateString("encrypt"));
-    } else {
-      cJSON_AddItemToObject(json, "action", cJSON_CreateString("decrypt"));
-    }
-
-    cJSON_AddItemToArray(array, cJSON_Duplicate(json, cJSON_True));
-
-    // Intentionally create an invalid item to test error payload
-    cJSON_DeleteItemFromObject(json, "id");
-    cJSON_AddItemToObject(json, "id", cJSON_CreateString("1"));
-    cJSON_DeleteItemFromObject(json, "count");
-    cJSON_AddItemToObject(json, "count", cJSON_CreateNumber(-1 * (int)count));
-    cJSON_AddItemToArray(array, json);
-
-    char * str = cJSON_Print(array);
-    cJSON_Delete(array);
-
-    printf("BILLING Payload: %s\n", str);
+  if (array_size > 0) {
 
     res = ubiq_platform_rest_request(
         e->rest,
@@ -1067,26 +1086,65 @@ ubiq_platform_fpe_billing(
           rsp = ubiq_platform_rest_response_content(e->rest, &len);
           res = (json = cJSON_ParseWithLength(rsp, len)) ? 0 : INT_MIN;
 
+          // {
+          //   char * str = cJSON_Print(json);
+          //   printf("RESULTS => %s\n", str);
+          //   free(str);
+          // }
+
           if (res == 0) {
-            char * str = cJSON_Print(json);
-            printf("RESULTS => %s\n", str);
+            cJSON * last_valid = cJSON_GetObjectItemCaseSensitive(json, "last_valid");
+            if (cJSON_IsObject(last_valid)) {
+              printf("last_valid is NOT NULL\n");
+              cJSON * id = cJSON_GetObjectItemCaseSensitive(last_valid, "id");
+              if (cJSON_IsString(id) && id->valuestring != NULL) {
+                printf("   last_valid '%s'\n", id->valuestring);
+
+                unsigned int i = 0;
+                int match = 0;
+                while (array_size > 0 && !match){
+                  cJSON * item = cJSON_DetachItemFromArray(e->billing_elements, i);
+                  if (cJSON_IsObject(item)) {
+                    cJSON * element_id = cJSON_GetObjectItemCaseSensitive(item, "id");
+                    if (cJSON_IsString(element_id) && element_id->valuestring != NULL) {
+                      printf("   Element '%s'\n", element_id->valuestring);
+                      match = (strcmp(id->valuestring, element_id->valuestring) == 0);
+                      cJSON_Delete(item);
+                      array_size--;
+                    }
+                  }
+                }
+              }
+            }
+
+            str = cJSON_Print(e->billing_elements);
+            array_size = cJSON_GetArraySize(e->billing_elements);
+            printf("AFTER Payload: size(%d) %s\n", array_size, str);
+
+            // {
+            //   char * str = cJSON_Print(e->billing_elements);
+            //
+            //   printf("After removing successfull elements: %s\n", str);
+            //   free(str);
+            // }
+
             // TODO - Loops through json array and remove items UNTIL we find
             // record with the provided ID.
             // NOTE - It is possible that there were NOT any records successfully
             // processed which means everything would need to be resent.
-            free(str);
           }
           cJSON_Delete(json);
       } else if (rc == HTTP_RC_CREATED) {
+          cJSON_Delete(e->billing_elements);
+          e->billing_elements = cJSON_CreateArray();
           res = 0;
       } else {
         res = ubiq_platform_http_error(rc);
       }
     }
 
-
-    const char * content = ubiq_platform_rest_response_content(e->rest, &len);
-
+//    const char * content = ubiq_platform_rest_response_content(e->rest, &len);
+  }
   free(str);
   free(url);
   return res;
@@ -1112,9 +1170,9 @@ ubiq_platform_fpe_encrypt(
   res = ubiq_platform_fpe_encryption_create(creds,  &enc);
 
   if (!res) {
-     res  = fpe_encrypt(enc, ffs_name,
+     res = fpe_encrypt(enc, ffs_name,
        tweak, tweaklen, ptbuf, ptlen, ctbuf, ctlen);
-     ubiq_platform_fpe_billing(enc, ffs_name, encrypt, 1);
+     if (res) {res = ubiq_platform_add_billing(enc, ffs_name, encrypt, 1);}
   }
   ubiq_platform_fpe_encryption_destroy(enc);
 
@@ -1138,7 +1196,7 @@ ubiq_platform_fpe_decrypt(
 
   if (!res) {
     res  = fpe_decrypt(enc, ffs_name, tweak, tweaklen, ctbuf, ctlen, ptbuf, ptlen);
-    res = ubiq_platform_fpe_billing(enc, ffs_name, decrypt, 1);
+    res = ubiq_platform_add_billing(enc, ffs_name, decrypt, 1);
   }
     ubiq_platform_fpe_encryption_destroy(enc);
   return res;
@@ -1157,9 +1215,9 @@ ubiq_platform_fpe_encrypt_data(
 
   res  = fpe_encrypt(enc, ffs_name,
     tweak, tweaklen, ptbuf, ptlen, ctbuf, ctlen);
-  ubiq_platform_fpe_billing(enc, ffs_name, encrypt, 1);
+  if (!res) {res = ubiq_platform_add_billing(enc, ffs_name, encrypt, 1);}
 
-   return res;
+  return res;
 }
 
 int
@@ -1175,7 +1233,7 @@ ubiq_platform_fpe_decrypt_data(
 
   res  = fpe_decrypt(enc, ffs_name,
     tweak, tweaklen, ctbuf, ctlen, ptbuf, ptlen);
-  ubiq_platform_fpe_billing(enc, ffs_name, encrypt, 1);
+  if (!res) {res = ubiq_platform_add_billing(enc, ffs_name, decrypt, 1);}
 
-   return res;
+  return res;
 }

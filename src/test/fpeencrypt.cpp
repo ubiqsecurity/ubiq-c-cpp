@@ -205,3 +205,45 @@ TEST(c_fpe_encrypt, mixed_backwards)
     free(ctbuf);
     free(ptbuf);
 }
+
+TEST(c_fpe_encrypt, 50_cycles)
+{
+    static const char * const pt = " 01121231231231231& 1 &231120001&-0-8-9";
+//    static const char * const pt = "00001234567890";//234567890";
+    static const char * const ffs_name = "ALPHANUM_SSN";
+
+    struct ubiq_platform_credentials * creds;
+    struct ubiq_platform_fpe_encryption *enc;
+
+    int res;
+
+    res = ubiq_platform_credentials_create(&creds);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_encryption_create(creds, &enc);
+    ASSERT_EQ(res, 0);
+
+    for (int i = 0; i < 50; i++) {
+      char * ctbuf(nullptr);
+      size_t ctlen;
+      char * ptbuf(nullptr);
+      size_t ptlen;
+
+      res = ubiq_platform_fpe_encrypt_data(enc,
+        ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+      EXPECT_EQ(res, 0);
+      EXPECT_EQ(strlen(pt), ctlen);
+
+      res = ubiq_platform_fpe_decrypt_data(enc,
+         ffs_name, NULL, 0, (char *)ctbuf, ctlen, &ptbuf, &ptlen);
+      EXPECT_EQ(res, 0);
+
+      EXPECT_EQ(ptlen, ctlen);
+      EXPECT_EQ(strcmp(pt, ptbuf),0);
+      free(ctbuf);
+      free(ptbuf);
+    }
+    ubiq_platform_fpe_encryption_destroy(enc);
+    ubiq_platform_credentials_destroy(creds);
+
+}
