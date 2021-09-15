@@ -79,6 +79,7 @@ struct ubiq_platform_fpe_encryption
     cJSON * billing_elements;
     pthread_mutex_t billing_lock;
     pthread_t process_billing_thread;
+    pthread_cond_t process_billing_cond;
 
     struct ubiq_platform_cache * ffs_cache; // URL / ubiq_platform_ffs
     struct ubiq_platform_cache * key_cache; // URL / JSON response from server
@@ -255,6 +256,8 @@ void
 ubiq_platform_fpe_encryption_destroy(
     struct ubiq_platform_fpe_encryption * const e)
 {
+  const char * csu = "ubiq_platform_fpe_encryption_destroy";
+
     /*
      * if there is a session and a fingerprint
      * and the key was used less times than requested,
@@ -262,10 +265,19 @@ ubiq_platform_fpe_encryption_destroy(
      * of uses
      */
 
+    printf("%s BEFORE pthread_cond_signal\n", csu);
+
+    pthread_cond_signal(&e->process_billing_cond);
+    printf("%s BEFORE pthread_mutex_lock\n", csu);
     pthread_mutex_lock(&e->billing_lock);
+    printf("%s After pthread_mutex_lock\n", csu);
     cJSON * json_array = e->billing_elements;
     e->billing_elements = NULL;
+    printf("%s clear billing_elements\n", csu);
     pthread_mutex_unlock(&e->billing_lock);
+    printf("%s after pthread_mutex_unlock\n", csu);
+    pthread_cond_signal(&e->process_billing_cond);
+    printf("%s after signal\n", csu);
     pthread_join(e->process_billing_thread, NULL);
     printf("BEFRE json_array isArray ? %d\n", cJSON_IsArray(json_array));
     ubiq_platform_process_billing(e, &json_array);
@@ -327,7 +339,8 @@ ubiq_platform_fpe_encryption_new(
         }
       }
       if (!res) {
-        int x = pthread_create(&e->process_billing_thread, NULL, &process_billing, e);
+        res = pthread_cond_init(&e->process_billing_cond, NULL);
+        res = pthread_create(&e->process_billing_thread, NULL, &process_billing, e);
       }
     }
 
@@ -1016,6 +1029,7 @@ ubiq_platform_add_billing(
   const action_type action,
   unsigned int count)
 {
+  const char * csu = "ubiq_platform_add_billing";
   int res = 0;
   cJSON * json;
   time_t now;
@@ -1037,14 +1051,26 @@ ubiq_platform_add_billing(
   cJSON_AddItemToObject(json, "id", cJSON_CreateString(guid_hex));
   cJSON_AddItemToObject(json, "timestamp", cJSON_CreateString(buf));
   cJSON_AddItemToObject(json, "ffs_name", cJSON_CreateString(ffs_name));
-  printf("ACTION: %d %d %d\n", action, encrypt, decrypt);
   if (action == encrypt) {
     cJSON_AddItemToObject(json, "action", cJSON_CreateString("encrypt"));
   } else {
     cJSON_AddItemToObject(json, "action", cJSON_CreateString("decrypt"));
   }
 
+  printf("%s Adding billing\n", csu);
+  pthread_mutex_lock(&e->billing_lock);
+  printf("%s   Locked - Adding Item\n", csu);
   cJSON_AddItemToArray(e->billing_elements, json);
+  unsigned int array_size = cJSON_GetArraySize(e->billing_elements);
+  printf("%s   Array Size %d\n", csu, array_size);
+  pthread_mutex_unlock(&e->billing_lock); // Make sure locked before trying to unlock
+  printf("%s   Unlocked\n", csu);
+
+  if (array_size > 5) {
+    printf("%s   Signal\n", csu);
+    pthread_cond_signal(&e->process_billing_cond);
+  }
+  printf("%s   Done\n", csu);
 
   return res;
 }
@@ -1166,35 +1192,46 @@ ubiq_platform_process_billing(
 static
 void *
 process_billing(void * data) {
+  const char * csu = "process_billing";
   struct ubiq_platform_fpe_encryption * e = (struct ubiq_platform_fpe_encryption *)data;
 
   while (1) {
-    printf("process_billing Wake \n");
-    pthread_mutex_lock(&e->billing_lock);
-    if (!cJSON_IsArray(e->billing_elements)) {
-      printf("   BREAK\n");
+    printf("%s   Lock before cond \n", csu);
+    pthread_mutex_lock(&e->billing_lock); // Make sure locked before trying to unlock
+    printf("%s   After Lock \n", csu);
+//    pthread_cond_wait(&e->process_billing_cond, &e->billing_lock);
+    printf("%s Testing DONE? \n", csu);
+    if (e->billing_elements == NULL || cJSON_IsNull(e->billing_elements) || !cJSON_IsArray(e->billing_elements)) {
+      printf("%s   BREAK\n",csu);
       pthread_mutex_unlock(&e->billing_lock);
       break;
     }
-    unsigned int array_size = cJSON_GetArraySize(e->billing_elements);
-    printf("   array_size (%d)\n", array_size);
 
-    // If there are more than 50 elements, send
-    if (array_size > 5) {
-      printf("   Process Billing\n");
+//    pthread_mutex_lock(&e->billing_lock); // Make sure locked before trying to unlock
+    printf("%s   Not Done \n", csu);
+    pthread_cond_wait(&e->process_billing_cond, &e->billing_lock);
+
+    unsigned int array_size = cJSON_GetArraySize(e->billing_elements);
+    printf("%s   array_size (%d)\n", csu, array_size);
+
+    // If there are any elements.  Will only be woken when time to process
+    if (array_size > 0) {
+      printf("%s   Process Billing\n", csu);
       cJSON * json_array = e->billing_elements;
       e->billing_elements = cJSON_CreateArray();
       pthread_mutex_unlock(&e->billing_lock);
+      printf("%s   Process Billing unlock\n", csu);
       ubiq_platform_process_billing(e, &json_array);
+      printf("%s   Process Billing aftr ubiq_platform_process_billing\n", csu);
       // If results are empty, then delete orphanned object
       if (cJSON_GetArraySize(json_array) == 0) {
+        printf("%s   Process Billing cJSON_GetArraySize empty\n", csu);
         cJSON_Delete(json_array);
       }
     } else {
-      printf("   Sleep\n");
+      printf("%s   Else - Unlocking\n", csu);
       pthread_mutex_unlock(&e->billing_lock);
     }
-    sleep(2);
   }
 }
 

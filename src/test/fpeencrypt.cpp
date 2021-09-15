@@ -242,7 +242,7 @@ TEST(c_fpe_encrypt, 50_cycles)
       EXPECT_EQ(strcmp(pt, ptbuf),0);
       free(ctbuf);
       free(ptbuf);
-      if ((i % 10) == 0) sleep(6);
+//      if ((i % 10) == 0) sleep(6);
     }
     ubiq_platform_fpe_encryption_destroy(enc);
     ubiq_platform_credentials_destroy(creds);
