@@ -19,7 +19,8 @@
 #include <string.h>
 #include <assert.h>
 #include <math.h>
-#include <sys/queue.h>
+#include <pthread.h>
+#include <unistd.h>
 
 #include "cJSON/cJSON.h"
 
@@ -32,7 +33,12 @@ typedef enum {encrypt=0, decrypt=1}  action_type ;
 static
 int
 ubiq_platform_process_billing(
-  struct ubiq_platform_fpe_encryption * const e);
+  struct ubiq_platform_fpe_encryption * const e,
+  cJSON ** json_array);
+
+static
+void *
+process_billing(void * data);
 
 struct ubiq_platform_ffs {
   char * name;
@@ -71,13 +77,8 @@ struct ubiq_platform_fpe_encryption
     struct ubiq_platform_rest_handle * rest;
 
     cJSON * billing_elements;
-//    struct ubiq_platform_ffs_app * ffs_app;
-
-    // struct {
-    //         void * buf;
-    //         size_t len;
-    //         unsigned int key_number;
-    // } key;
+    pthread_mutex_t billing_lock;
+    pthread_t process_billing_thread;
 
     struct ubiq_platform_cache * ffs_cache; // URL / ubiq_platform_ffs
     struct ubiq_platform_cache * key_cache; // URL / JSON response from server
@@ -261,11 +262,17 @@ ubiq_platform_fpe_encryption_destroy(
      * of uses
      */
 
-    ubiq_platform_process_billing(e);
-    cJSON_Delete(e->billing_elements);
+    pthread_mutex_lock(&e->billing_lock);
+    cJSON * json_array = e->billing_elements;
+    e->billing_elements = NULL;
+    pthread_mutex_unlock(&e->billing_lock);
+    pthread_join(e->process_billing_thread, NULL);
+    printf("BEFRE json_array isArray ? %d\n", cJSON_IsArray(json_array));
+    ubiq_platform_process_billing(e, &json_array);
+    printf("AFTER json_array isArray ? %d\n", cJSON_IsArray(json_array));
+    pthread_mutex_destroy(&e->billing_lock);
+    cJSON_Delete(json_array);
     ubiq_platform_rest_handle_destroy(e->rest);
-//    ubiq_platform_ffs_app_destroy(e->ffs_app);
-//    free(e->key.buf);
     free(e->restapi);
     free(e->encoded_papi);
     free(e->srsa);
@@ -292,28 +299,36 @@ ubiq_platform_fpe_encryption_new(
     res = -ENOMEM;
     e = calloc(1, sizeof(*e));
     if (e) {
-        len = ubiq_platform_snprintf_api_url(NULL, 0, host, api_path) + 1;
-        e->restapi = calloc(len, 1);
-        ubiq_platform_snprintf_api_url(e->restapi, len, host, api_path);
-        res = ubiq_platform_rest_handle_create(papi, sapi, &e->rest);
-        if (!res) {
-          res = ubiq_platform_rest_uri_escape(e->rest, papi, &e->encoded_papi);
+      len = ubiq_platform_snprintf_api_url(NULL, 0, host, api_path) + 1;
+      e->restapi = calloc(len, 1);
+      ubiq_platform_snprintf_api_url(e->restapi, len, host, api_path);
+      res = ubiq_platform_rest_handle_create(papi, sapi, &e->rest);
+      if (!res) {
+        res = ubiq_platform_rest_uri_escape(e->rest, papi, &e->encoded_papi);
+      }
+      if (!res) {
+        e->srsa = strdup(srsa);
+        if (e->srsa == NULL) {
+          res = -ENOMEM;
         }
-        if (!res) {
-          e->srsa = strdup(srsa);
-          if (e->srsa == NULL) {
-            res = -ENOMEM;
-          }
+      }
+      if (!res) {
+        res = ubiq_platform_cache_create(&e->ffs_cache);
+      }
+      if (!res) {
+        res = ubiq_platform_cache_create(&e->key_cache);
+      }
+      if (!res) {
+        e->billing_elements = cJSON_CreateArray();
+      }
+      if (!res) {
+        if (pthread_mutex_init(&e->billing_lock, NULL) != 0) {
+          res = -errno;
         }
-        if (!res) {
-          res = ubiq_platform_cache_create(&e->ffs_cache);
-        }
-        if (!res) {
-          res = ubiq_platform_cache_create(&e->key_cache);
-        }
-        if (!res) {
-          e->billing_elements = cJSON_CreateArray();
-        }
+      }
+      if (!res) {
+        int x = pthread_create(&e->process_billing_thread, NULL, &process_billing, e);
+      }
     }
 
     if (res) {
@@ -616,7 +631,6 @@ int ubiq_platform_fpe_string_parse(
     dest_zeroth_char = ffs->input_character_set[0];
     src_char_set = ffs->output_character_set;
   }
-  // res = fpe_ffs_parsed_create(&p, source_len);
 
   if (!res) {
     memset(parsed->trimmed_buf, src_char_set[0], source_len);
@@ -626,13 +640,8 @@ int ubiq_platform_fpe_string_parse(
       source_string, src_char_set, ffs->passthrough_character_set,
       parsed->trimmed_buf, parsed->formatted_dest_buf);
 
-//    printf("trimmed '%s'  empty_formatted_output '%s'\n", parsed->trimmed_buf, parsed->formatted_dest_buf);
   }
 
-  // if (res) {
-  //   res = -ENOMEM;
-  //   // *parsed = p;
-  // }
   return res;
 }
 
@@ -1043,7 +1052,9 @@ ubiq_platform_add_billing(
 static
 int
 ubiq_platform_process_billing(
-  struct ubiq_platform_fpe_encryption * const e) {
+  struct ubiq_platform_fpe_encryption * const e,
+  cJSON ** json_array)
+{
   static const char * const fmt = "%s/fpe/billing/%s";
   time_t now;
 
@@ -1060,10 +1071,10 @@ ubiq_platform_process_billing(
   char guid_hex[37]; // 8 - 4 - 4 - 4 - 12
   uint16_t guid[8];
 
-  char * str = cJSON_Print(e->billing_elements);
+  char * str = cJSON_Print(*json_array);
 
 
-  unsigned int array_size = cJSON_GetArraySize(e->billing_elements);
+  unsigned int array_size = cJSON_GetArraySize(*json_array);
   printf("BILLING Payload: size(%d) %s\n", array_size, str);
   //  free(str);
 
@@ -1103,7 +1114,7 @@ ubiq_platform_process_billing(
                 unsigned int i = 0;
                 int match = 0;
                 while (array_size > 0 && !match){
-                  cJSON * item = cJSON_DetachItemFromArray(e->billing_elements, i);
+                  cJSON * item = cJSON_DetachItemFromArray(*json_array, i);
                   if (cJSON_IsObject(item)) {
                     cJSON * element_id = cJSON_GetObjectItemCaseSensitive(item, "id");
                     if (cJSON_IsString(element_id) && element_id->valuestring != NULL) {
@@ -1117,8 +1128,8 @@ ubiq_platform_process_billing(
               }
             }
 
-            str = cJSON_Print(e->billing_elements);
-            array_size = cJSON_GetArraySize(e->billing_elements);
+            str = cJSON_Print(*json_array);
+            array_size = cJSON_GetArraySize(*json_array);
             printf("AFTER Payload: size(%d) %s\n", array_size, str);
 
             // {
@@ -1135,8 +1146,8 @@ ubiq_platform_process_billing(
           }
           cJSON_Delete(json);
       } else if (rc == HTTP_RC_CREATED) {
-          cJSON_Delete(e->billing_elements);
-          e->billing_elements = cJSON_CreateArray();
+          cJSON_Delete(*json_array);
+          *json_array = cJSON_CreateArray();
           res = 0;
       } else {
         res = ubiq_platform_http_error(rc);
@@ -1150,6 +1161,43 @@ ubiq_platform_process_billing(
   return res;
 
 }
+
+
+static
+void *
+process_billing(void * data) {
+  struct ubiq_platform_fpe_encryption * e = (struct ubiq_platform_fpe_encryption *)data;
+
+  while (1) {
+    printf("process_billing Wake \n");
+    pthread_mutex_lock(&e->billing_lock);
+    if (!cJSON_IsArray(e->billing_elements)) {
+      printf("   BREAK\n");
+      pthread_mutex_unlock(&e->billing_lock);
+      break;
+    }
+    unsigned int array_size = cJSON_GetArraySize(e->billing_elements);
+    printf("   array_size (%d)\n", array_size);
+
+    // If there are more than 50 elements, send
+    if (array_size > 5) {
+      printf("   Process Billing\n");
+      cJSON * json_array = e->billing_elements;
+      e->billing_elements = cJSON_CreateArray();
+      pthread_mutex_unlock(&e->billing_lock);
+      ubiq_platform_process_billing(e, &json_array);
+      // If results are empty, then delete orphanned object
+      if (cJSON_GetArraySize(json_array) == 0) {
+        cJSON_Delete(json_array);
+      }
+    } else {
+      printf("   Sleep\n");
+      pthread_mutex_unlock(&e->billing_lock);
+    }
+    sleep(2);
+  }
+}
+
 
 int
 ubiq_platform_fpe_encrypt(
