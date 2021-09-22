@@ -52,32 +52,65 @@ ubiq_fpe_simple_decrypt(
 
 static
 int
-ubiq_sample_simple_decrypt(
+ubiq_fpe_bulk_encrypt(
     const struct ubiq_platform_credentials * const creds,
-    FILE * const ifp, FILE * const ofp,
-    const size_t ilen)
+    const char * const ffs_name,
+    const char * const pt)
 {
-    void * ibuf, * obuf;
-    size_t olen;
-    int res;
+  struct ubiq_platform_fpe_encryption *enc = NULL;
+  char * ctbuf = NULL;
+  size_t ctlen = 0;
+  int res;
 
-    ibuf = malloc(ilen);
-    fread(ibuf, 1, ilen, ifp);
+  res = ubiq_platform_fpe_encryption_create(creds, &enc);
 
-    res = ubiq_platform_decrypt(creds, ibuf, ilen, &obuf, &olen);
-    if (res == 0) {
-        fwrite(obuf, 1, olen, ofp);
-        free(obuf);
+  if (!res) {
+    res = ubiq_platform_fpe_encrypt_data(enc,
+      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+
+    if (!res) {
+      printf("FPE Encrypted Data Results => '%.*s'\n", ctlen, ctbuf);
+    } else {
+      fprintf(stderr, "Encryption Error Code: %d\n\n", res);
     }
-
-    free(ibuf);
-
-    return 0;
+  }
+  free(ctbuf);
+  ubiq_platform_fpe_encryption_destroy(enc);
+  return res;
 }
 
+static
+int
+ubiq_fpe_bulk_decrypt(
+    const struct ubiq_platform_credentials * const creds,
+    const char * const ffs_name,
+    const char * const ct)
+{
+  struct ubiq_platform_fpe_encryption *enc = NULL;
+  char * ptbuf = NULL;
+  size_t ptlen = 0;
+  int res;
+
+  res = ubiq_platform_fpe_encryption_create(creds, &enc);
+  if (!res) {
+
+    res = ubiq_platform_fpe_decrypt_data(enc,
+      ffs_name, NULL, 0, ct, strlen(ct), &ptbuf, &ptlen);
+
+    if (!res) {
+      printf("FPE Decrypt Data Results => '%.*s'\n", ptlen, ptbuf);
+    } else {
+      fprintf(stderr, "Decryption Error Code: %d\n\n", res);
+    }
+  }
+  free(ptbuf);
+  ubiq_platform_fpe_encryption_destroy(enc);
+  return res;
+}
 
 int main(const int argc, char * const argv[])
 {
+    ubiq_sample_method_t method;
     ubiq_sample_mode_t mode;
     const char * inputstring, * ffsname, * credfile, * profile;
 
@@ -101,7 +134,7 @@ int main(const int argc, char * const argv[])
      * NULL upon return from the call.
      */
     ubiq_fpe_getopt(argc, argv,
-                      &mode,
+                      &mode, &method,
                       &ffsname, &inputstring,
                       &credfile, &profile);
 
@@ -124,19 +157,18 @@ int main(const int argc, char * const argv[])
         exit(EXIT_FAILURE);
     }
 
-    if (1) { //method == UBIQ_SAMPLE_METHOD_SIMPLE) {
+    if ( method == UBIQ_SAMPLE_METHOD_SIMPLE) {
         if (mode == UBIQ_SAMPLE_MODE_ENCRYPT) {
-          printf("DEBUG ffname (%s) input (%s)\n", ffsname, inputstring);
             res = ubiq_fpe_simple_encrypt(creds, ffsname, inputstring);
         } else /* decrypt */ {
             res = ubiq_fpe_simple_decrypt(creds, ffsname, inputstring);
         }
     } else /* piecewise */{
-        // if (mode == UBIQ_SAMPLE_MODE_ENCRYPT) {
-        //     res = ubiq_sample_piecewise_encrypt(creds, ifp, ofp);
-        // } else {
-        //     res = ubiq_sample_piecewise_decrypt(creds, ifp, ofp);
-        // }
+        if (mode == UBIQ_SAMPLE_MODE_ENCRYPT) {
+            res = ubiq_fpe_bulk_encrypt(creds, ffsname, inputstring);
+        } else {
+            res = ubiq_fpe_bulk_decrypt(creds, ffsname, inputstring);
+        }
     }
 
     ubiq_platform_credentials_destroy(creds);

@@ -32,6 +32,7 @@ int
 ubiq_fpe_getopt(
     const int argc, char * const argv[],
     ubiq_sample_mode_t * const mode,
+    ubiq_sample_method_t * const method,
     const char ** const ffsname, const char ** const inputstring,
     const char ** const credfile, const char ** const profile);
 
