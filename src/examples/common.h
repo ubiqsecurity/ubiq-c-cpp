@@ -28,6 +28,13 @@ ubiq_sample_getopt(
     const char ** const infile, const char ** const outfile,
     const char ** const credfile, const char ** const profile);
 
+int
+ubiq_fpe_getopt(
+    const int argc, char * const argv[],
+    ubiq_sample_mode_t * const mode,
+    const char ** const ffsname, const char ** const inputstring,
+    const char ** const credfile, const char ** const profile);
+
 #if defined(__cplusplus)
 }
 #endif

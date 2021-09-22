@@ -261,3 +261,124 @@ ubiq_sample_getopt(
 
     return 0;
 }
+
+static
+void
+ubiq_fpe_usage(
+    const char * const cmd, const char * const err)
+{
+    if (err) {
+        fprintf(stderr, "%s\n\n", err);
+    }
+
+    fprintf(stderr, "Usage: %s -e|-d INPUT -n FFS [-c CREDENTIALS] [-P PROFILE]\n", cmd);
+    fprintf(stderr, "Encrypt or decrypt files using the Ubiq service\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "  -h                       Show this help message and exit\n");
+    fprintf(stderr, "  -V                       Show program's version number and exit\n");
+    fprintf(stderr, "  -e INPUT                 Encrypt the supplied input string\n");
+    fprintf(stderr, "                             escape or use quotes if input string\n");
+    fprintf(stderr, "                             contains special characters\n");
+    fprintf(stderr, "  -d INPUT                 Decrypt the supplied input string\n");
+    fprintf(stderr, "                             escape or use quotes if input string\n");
+    fprintf(stderr, "                             contains special characters\n");
+    fprintf(stderr, "  -n FFS                   Use the supplied Field Format Specification\n");
+    fprintf(stderr, "  -c CREDENTIALS           Set the file name with the API credentials\n");
+    fprintf(stderr, "                             (default: ~/.ubiq/credentials)\n");
+    fprintf(stderr, "  -P PROFILE               Identify the profile within the credentials file\n");
+}
+
+int
+ubiq_fpe_getopt(
+    const int argc, char * const argv[],
+    ubiq_sample_mode_t * const mode,
+    const char ** const ffsname, const char ** const inputstring,
+    const char ** const credfile, const char ** const profile)
+{
+    int opt;
+
+    optind = 1;
+    opterr = 0;
+
+    *mode = UBIQ_SAMPLE_MODE_UNSPEC;
+    *inputstring = *ffsname = *credfile = *profile = NULL;
+
+    while ((opt = getopt(argc, argv, "+:hVe:d:c:P:n:")) != -1) {
+        switch (opt) {
+        case 'h':
+            ubiq_fpe_usage(argv[0], NULL);
+            exit(EXIT_SUCCESS);
+            break;
+        case 'V':
+            fprintf(stderr, "version %s\n", UBIQ_SAMPLE_VERSION);
+            exit(EXIT_SUCCESS);
+        case 'e':
+        case 'd':
+            if (*mode != UBIQ_SAMPLE_MODE_UNSPEC) {
+                ubiq_fpe_usage(
+                    argv[0], "please specify one of encrypt or decrypt once");
+                exit(EXIT_FAILURE);
+            }
+
+            *mode = (opt == 'e') ?
+                UBIQ_SAMPLE_MODE_ENCRYPT : UBIQ_SAMPLE_MODE_DECRYPT;
+
+            *inputstring = optarg;
+
+            break;
+        case 'n':
+            if (*ffsname) {
+                ubiq_fpe_usage(
+                    argv[0], "please specify only one Field Format Specification (FFS)");
+                exit(EXIT_FAILURE);
+            }
+
+            *ffsname = optarg;
+
+            break;
+        case 'c':
+            if (*credfile) {
+                ubiq_fpe_usage(
+                    argv[0], "please specify only one credentials file");
+                exit(EXIT_FAILURE);
+            }
+
+            *credfile = optarg;
+
+            break;
+        case 'P':
+            if (*profile) {
+                ubiq_fpe_usage(
+                    argv[0], "please specify only one profile name");
+                exit(EXIT_FAILURE);
+            }
+
+            *profile = optarg;
+
+            break;
+        case '?':
+            fprintf(stderr, "unrecognized option: %s\n\n", argv[optind - 1]);
+            ubiq_fpe_usage(argv[0], NULL);
+            exit(EXIT_FAILURE);
+        case ':':
+            fprintf(stderr,
+                    "missing argument for option: %s\n\n",
+                    argv[optind - 1]);
+            ubiq_fpe_usage(argv[0], NULL);
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    if (*mode == UBIQ_SAMPLE_MODE_UNSPEC) {
+        ubiq_fpe_usage(argv[0], "encrypt / decrypt operation not specified");
+        exit(EXIT_FAILURE);
+    }
+
+
+    if (!*inputstring) {
+        ubiq_fpe_usage(argv[0], "input string not specified");
+        exit(EXIT_FAILURE);
+    }
+
+    return 0;
+}
