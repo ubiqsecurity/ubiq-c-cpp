@@ -13,8 +13,8 @@ ubiq_fpe_simple_encrypt(
     const char * const ffs_name,
     const char * const pt)
 {
-  char * ctbuf;
-  size_t ctlen;
+  char * ctbuf = NULL;
+  size_t ctlen = 0;
   int res;
   res = ubiq_platform_fpe_encrypt(creds,
     ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
@@ -24,6 +24,7 @@ ubiq_fpe_simple_encrypt(
   } else {
     fprintf(stderr, "Encryption Error Code: %d\n\n", res);
   }
+  free(ctbuf);
   return res;
 }
 
@@ -34,8 +35,8 @@ ubiq_fpe_simple_decrypt(
     const char * const ffs_name,
     const char * const ct)
 {
-  char * ptbuf;
-  size_t ptlen;
+  char * ptbuf = NULL;
+  size_t ptlen = 0;
   int res;
   res = ubiq_platform_fpe_decrypt(creds,
     ffs_name, NULL, 0, ct, strlen(ct), &ptbuf, &ptlen);
@@ -45,6 +46,7 @@ ubiq_fpe_simple_decrypt(
   } else {
     fprintf(stderr, "Decryption Error Code: %d\n\n", res);
   }
+  free(ptbuf);
   return res;
 }
 
@@ -82,6 +84,9 @@ int main(const int argc, char * const argv[])
     struct ubiq_platform_credentials * creds;
     size_t size;
     int res;
+
+    /* library must be initialized */
+    ubiq_platform_init();
 
     /*
      * the getopt function will parse the command line for arguments
@@ -135,6 +140,8 @@ int main(const int argc, char * const argv[])
     }
 
     ubiq_platform_credentials_destroy(creds);
+
+    ubiq_platform_exit();
 
     if (res) {
       exit(EXIT_FAILURE);
