@@ -223,8 +223,73 @@ namespace ubiq {
         private:
             std::shared_ptr<::ubiq_platform_decryption> _dec;
         };
-    }
-}
+
+        UBIQ_PLATFORM_API
+        std::string
+        fpe_decrypt(const credentials & creds,
+                const std::string & ffs_name,
+                const std::string & ct);
+
+        UBIQ_PLATFORM_API
+        std::string
+        fpe_decrypt(const credentials & creds,
+                const std::string & ffs_name,
+                const std::vector<std::uint8_t> & tweak,
+                const std::string & ct);
+
+        namespace fpe {
+          class decryption
+          {
+          public:
+            UBIQ_PLATFORM_API
+            virtual ~decryption(void) = default;
+
+            /*
+             * The default constructor creates an empty decryption object.
+             * This object cannot be used to perform an decryption, and
+             * the constructor is provided for convenience.
+             */
+            UBIQ_PLATFORM_API
+            decryption(void) = default;
+
+            decryption(const decryption &) = delete;
+            UBIQ_PLATFORM_API
+            decryption(decryption &&) = default;
+            decryption & operator =(const decryption &) = delete;
+            UBIQ_PLATFORM_API
+            decryption & operator =(decryption &&) = default;
+
+            /*
+             * This constructor is equivalent to
+             * ubiq_platform_encryption_create(), and the constructor throws
+             * an exception if it fails to properly construct the object.
+             */
+            UBIQ_PLATFORM_API
+            decryption(const credentials & creds);
+
+            UBIQ_PLATFORM_API
+            virtual
+            std::string
+            decrypt(
+              const std::string & ffs_name,
+              const std::string & pt
+            ) ;
+
+            UBIQ_PLATFORM_API
+            virtual
+            std::string
+            decrypt(
+              const std::string & ffs_name,
+              const std::vector<std::uint8_t> & tweak,
+              const std::string & pt
+            ) ;
+
+          private:
+            std::shared_ptr<::ubiq_platform_fpe_encryption> _dec;
+          };
+        } // fpe
+    } // platform
+} // ubiq
 
 #endif /* __cplusplus */
 

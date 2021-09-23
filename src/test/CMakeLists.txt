@@ -9,6 +9,7 @@ add_executable(
   credentials.cpp
   decrypt.cpp
   encrypt.cpp
+  fpedecrypt.cpp
   fpeencrypt.cpp
   global.cpp
   parsing.cpp

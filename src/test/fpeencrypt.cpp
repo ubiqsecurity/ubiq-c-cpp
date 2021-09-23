@@ -31,20 +31,30 @@ TEST_F(cpp_fpe_encrypt, none)
 TEST_F(cpp_fpe_encrypt, simple)
 {
     std::string pt("ABC");
-    std::string ct;
+    std::string ct, ct2;
 
     ASSERT_NO_THROW(
         ct = ubiq::platform::fpe_encrypt(_creds, "ALPHANUM_SSN", pt));
+
+    ASSERT_NO_THROW(
+        ct2 = ubiq::platform::fpe_encrypt(_creds, "ALPHANUM_SSN", std::vector<std::uint8_t>(), pt));
+
+    EXPECT_EQ(ct, ct2);
 }
 
 TEST_F(cpp_fpe_encrypt, bulk)
 {
     std::string pt("ABC");
-    std::string ct;
+    std::string ct, ct2;
 
     _enc = ubiq::platform::fpe::encryption(_creds);
     ASSERT_NO_THROW(
         ct = _enc.encrypt("ALPHANUM_SSN", pt));
+
+    ASSERT_NO_THROW(
+        ct2 = _enc.encrypt("ALPHANUM_SSN", std::vector<std::uint8_t>(), pt));
+
+    EXPECT_EQ(ct, ct2);
 }
 
 TEST(c_fpe_encrypt, simple)

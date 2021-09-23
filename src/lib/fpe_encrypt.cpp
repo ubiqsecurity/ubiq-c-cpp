@@ -43,7 +43,7 @@ encryption::encrypt(
 
   res = ubiq_platform_fpe_encrypt_data(
     _enc.get(), ffs_name.data(),
-    NULL, 0, //tweak.data(), tweak.size(),
+    tweak.data(), tweak.size(),
     pt.data(), pt.length(),
     &ctbuf, &ctlen);
   if (res != 0) {
@@ -60,6 +60,7 @@ std::string
 ubiq::platform::fpe_encrypt(
     const credentials & creds,
     const std::string & ffs_name,
+    const std::vector<std::uint8_t> & tweak,
     const std::string & pt)
 {
     std::string v;
@@ -68,7 +69,7 @@ ubiq::platform::fpe_encrypt(
     int res;
 
     res = ubiq_platform_fpe_encrypt(&*creds, ffs_name.data(),
-    NULL, 0,
+    tweak.data(), tweak.size(),
     pt.data(), pt.length(),
     &ctbuf, &ctlen);
     if (res != 0) {
@@ -81,4 +82,13 @@ ubiq::platform::fpe_encrypt(
     std::free(ctbuf);
 
     return v;
+}
+
+std::string
+ubiq::platform::fpe_encrypt(
+    const credentials & creds,
+    const std::string & ffs_name,
+    const std::string & pt)
+{
+  return fpe_encrypt(creds, ffs_name, std::vector<std::uint8_t>(), pt);
 }
