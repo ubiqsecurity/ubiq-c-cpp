@@ -10,7 +10,7 @@ public:
 
 protected:
     ubiq::platform::credentials _creds;
-    ubiq::platform::encryption _enc;
+    ubiq::platform::fpe::encryption _enc;
 };
 
 void cpp_fpe_encrypt::SetUp(void)
@@ -25,16 +25,26 @@ void cpp_fpe_encrypt::TearDown(void)
 TEST_F(cpp_fpe_encrypt, none)
 {
     ASSERT_NO_THROW(
-        _enc = ubiq::platform::encryption(_creds, 1));
+        _enc = ubiq::platform::fpe::encryption(_creds));
 }
 
 TEST_F(cpp_fpe_encrypt, simple)
 {
     std::string pt("ABC");
-    std::vector<std::uint8_t> v;
+    std::string ct;
 
     ASSERT_NO_THROW(
-        v = ubiq::platform::encrypt(_creds, pt.data(), pt.size()));
+        ct = ubiq::platform::fpe_encrypt(_creds, "ALPHANUM_SSN", pt));
+}
+
+TEST_F(cpp_fpe_encrypt, bulk)
+{
+    std::string pt("ABC");
+    std::string ct;
+
+    _enc = ubiq::platform::fpe::encryption(_creds);
+    ASSERT_NO_THROW(
+        ct = _enc.encrypt("ALPHANUM_SSN", pt));
 }
 
 TEST(c_fpe_encrypt, simple)

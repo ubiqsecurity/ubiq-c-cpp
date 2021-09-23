@@ -283,7 +283,7 @@ ubiq_fpe_usage(
     fprintf(stderr, "                             escape or use quotes if input string\n");
     fprintf(stderr, "                             contains special characters\n");
     fprintf(stderr, "  -s                       Use the simple FPE encryption / decryption interfaces\n");
-    fprintf(stderr, "  -p                       Use the piecewise (bulk) FPE encryption / decryption interfaces\n");
+    fprintf(stderr, "  -b                       Use the bulk FPE encryption / decryption interfaces\n");
     fprintf(stderr, "  -n FFS                   Use the supplied Field Format Specification\n");
     fprintf(stderr, "  -c CREDENTIALS           Set the file name with the API credentials\n");
     fprintf(stderr, "                             (default: ~/.ubiq/credentials)\n");
@@ -306,7 +306,7 @@ ubiq_fpe_getopt(
     *mode = UBIQ_SAMPLE_MODE_UNSPEC;
     *inputstring = *ffsname = *credfile = *profile = NULL;
 
-    while ((opt = getopt(argc, argv, "+:hVspe:d:c:P:n:")) != -1) {
+    while ((opt = getopt(argc, argv, "+:hVsbe:d:c:P:n:")) != -1) {
         switch (opt) {
         case 'h':
             ubiq_fpe_usage(argv[0], NULL);
@@ -329,18 +329,18 @@ ubiq_fpe_getopt(
             *inputstring = optarg;
 
             break;
-            case 's':
-            case 'p':
-                if (*method != UBIQ_SAMPLE_METHOD_UNSPEC) {
-                    ubiq_sample_usage(
-                        argv[0], "please specify one of simple or piecewise once");
-                    exit(EXIT_FAILURE);
-                }
+        case 's':
+        case 'b':
+            if (*method != UBIQ_SAMPLE_METHOD_UNSPEC) {
+                ubiq_sample_usage(
+                    argv[0], "please specify one of simple or piecewise once");
+                exit(EXIT_FAILURE);
+            }
 
-                *method = (opt == 's') ?
-                    UBIQ_SAMPLE_METHOD_SIMPLE : UBIQ_SAMPLE_METHOD_PIECEWISE;
+            *method = (opt == 's') ?
+                UBIQ_SAMPLE_METHOD_SIMPLE : UBIQ_SAMPLE_METHOD_PIECEWISE;
 
-                break;
+            break;
         case 'n':
             if (*ffsname) {
                 ubiq_fpe_usage(

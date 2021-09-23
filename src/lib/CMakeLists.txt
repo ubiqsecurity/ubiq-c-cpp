@@ -82,6 +82,7 @@ add_library(
   credentials.cpp
   decrypt.cpp
   encrypt.cpp
+  fpe_encrypt.cpp
   init.cpp)
 if(WIN32)
   target_compile_definitions(

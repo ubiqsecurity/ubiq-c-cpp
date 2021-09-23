@@ -41,6 +41,40 @@ namespace ubiq {
             std::vector<std::uint8_t>
             end(void) = 0;
         };
+
+        class fpe_encrypt_transform
+        {
+        public:
+            virtual ~fpe_encrypt_transform(void) = default;
+            fpe_encrypt_transform(void) = default;
+
+            fpe_encrypt_transform(const fpe_encrypt_transform &) = delete;
+            fpe_encrypt_transform(fpe_encrypt_transform &&) = default;
+
+            fpe_encrypt_transform & operator =(const fpe_encrypt_transform &) = delete;
+            fpe_encrypt_transform & operator =(fpe_encrypt_transform &&) = default;
+
+            /*
+             * Once constructed the, transform object works by calling
+             * begin() followed by some number of calls to update() and
+             * calling end() once all data has been passed to update().
+             */
+
+            virtual
+            std::string
+            encrypt(
+              const std::string & ffs_name,
+              const std::string & pt
+            ) = 0;
+
+            virtual
+            std::string
+            encrypt(
+              const std::string & ffs_name,
+              const std::vector<std::uint8_t> & tweak,
+              const std::string & pt
+            ) = 0;
+        };
     }
 }
 

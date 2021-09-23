@@ -1237,10 +1237,9 @@ ubiq_platform_fpe_encrypt(
   if (!res) {
      res = fpe_encrypt(enc, ffs_name,
        tweak, tweaklen, ptbuf, ptlen, ctbuf, ctlen);
-     if (res) {res = ubiq_platform_add_billing(enc, ffs_name, encrypt, 1);}
+     if (!res) {res = ubiq_platform_add_billing(enc, ffs_name, encrypt, 1);}
   }
   ubiq_platform_fpe_encryption_destroy(enc);
-
 
   return res;
 }

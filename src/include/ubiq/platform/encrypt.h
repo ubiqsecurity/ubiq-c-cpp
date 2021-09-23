@@ -242,8 +242,66 @@ namespace ubiq {
         private:
             std::shared_ptr<::ubiq_platform_encryption> _enc;
         };
-    }
-}
+
+        UBIQ_PLATFORM_API
+        std::string
+        fpe_encrypt(const credentials & creds,
+                const std::string & ffs_name,
+                const std::string & pt);
+        namespace fpe {
+          class encryption : public fpe_encrypt_transform
+          {
+          public:
+
+            UBIQ_PLATFORM_API
+            virtual ~encryption(void) = default;
+
+            /*
+             * The default constructor creates an empty encryption object.
+             * This object cannot be used to perform an encryption, and
+             * the constructor is provided for convenience.
+             */
+            UBIQ_PLATFORM_API
+            encryption(void) = default;
+
+            encryption(const encryption &) = delete;
+            UBIQ_PLATFORM_API
+            encryption(encryption &&) = default;
+            encryption & operator =(const encryption &) = delete;
+            UBIQ_PLATFORM_API
+            encryption & operator =(encryption &&) = default;
+
+            /*
+             * This constructor is equivalent to
+             * ubiq_platform_encryption_create(), and the constructor throws
+             * an exception if it fails to properly construct the object.
+             */
+            UBIQ_PLATFORM_API
+            encryption(const credentials & creds);
+
+            UBIQ_PLATFORM_API
+            virtual
+            std::string
+            encrypt(
+              const std::string & ffs_name,
+              const std::string & pt
+            ) override;
+
+            UBIQ_PLATFORM_API
+            virtual
+            std::string
+            encrypt(
+              const std::string & ffs_name,
+              const std::vector<std::uint8_t> & tweak,
+              const std::string & pt
+            ) override;
+
+          private:
+            std::shared_ptr<::ubiq_platform_fpe_encryption> _enc;
+          };
+        } // fpe
+    } // platform
+} // ubiq
 
 #endif /* __cplusplus */
 
