@@ -342,7 +342,6 @@ ubiq_platform_fpe_encryption_new(
     }
 
     *enc = e;
-//    printf("DEBUG %s END %d \n", csu, res);
     return res;
 }
 
@@ -1054,7 +1053,7 @@ ubiq_platform_add_billing(
   unsigned int array_size = cJSON_GetArraySize(e->billing_elements);
   pthread_mutex_unlock(&e->billing_lock); // Make sure locked before trying to unlock
 
-  if (array_size > 25) {
+  if (array_size > 50) {
     pthread_cond_signal(&e->process_billing_cond);
   }
 

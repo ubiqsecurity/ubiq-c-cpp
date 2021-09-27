@@ -319,7 +319,7 @@ ubiq_fpe_getopt(
         case 'd':
             if (*mode != UBIQ_SAMPLE_MODE_UNSPEC) {
                 ubiq_fpe_usage(
-                    argv[0], "please specify one of encrypt or decrypt once");
+                    argv[0], "please specify either encrypt or decrypt once");
                 exit(EXIT_FAILURE);
             }
 
@@ -333,7 +333,7 @@ ubiq_fpe_getopt(
         case 'b':
             if (*method != UBIQ_SAMPLE_METHOD_UNSPEC) {
                 ubiq_sample_usage(
-                    argv[0], "please specify one of simple or piecewise once");
+                    argv[0], "please specify either simple or bulk once");
                 exit(EXIT_FAILURE);
             }
 
