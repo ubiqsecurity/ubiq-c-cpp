@@ -127,3 +127,89 @@ $ ./ubiq_sample-c -i /tmp/readme.enc -o /tmp/README.out -d -p -c credentials
 ```
 
 ##### _All of the above commands can be used with the C++ example by subsituting `ubiq_sample-c` with `ubiq_sample-c++`_
+
+
+
+## Documentation for ubiq_sample_fpe.c and ubiq_sample_fpe.cpp
+Format preserving encryption (FPE/eFPE) is an optionally available feature. Please contact support@ubiqsecurity.com to add this capability to your account.
+
+
+See the [C API docs](https://dev.ubiqsecurity.com/docs/api).
+
+## Installation
+
+Install or build the library as described [here](/README.md#installation).
+
+## Build the examples
+
+If you installed the libraries and development headers via the `.deb` or `.rpm`
+packages, then you can build the examples directly from the installation
+(note that these commands will only work on a Linux system where the
+package files have been installed):
+
+```console
+$ mkdir ~/ubiq_sample
+$ cd ~/ubiq_sample
+$ cmake /usr/share/doc/libubiqclient-dev/examples
+$ cmake --build . --target all
+```
+
+## View Program Options
+
+```console
+$ ./ubiq_sample_fpe-c -h
+
+$ ./ubiq_sample_fpe-c++ -h
+```
+
+<pre>
+Encrypt or decrypt data using the Ubiq (e)FPE service
+
+  -h                       Show this help message and exit
+  -V                       Show program's version number and exit
+  -e INPUT                 Encrypt the supplied input string
+                             escape or use quotes if input string
+                             contains special characters
+  -d INPUT                 Decrypt the supplied input string
+                             escape or use quotes if input string
+                             contains special characters
+  -s                       Use the simple FPE encryption / decryption interfaces
+  -b                       Use the bulk FPE encryption / decryption interfaces
+  -n FFS                   Use the supplied Field Format Specification
+  -c CREDENTIALS           Set the file name with the API credentials
+                             (default: ~/.ubiq/credentials)
+  -P PROFILE               Identify the profile within the credentials file
+</pre>
+
+
+
+#### Demonstrate encrypting a social security number and returning a cipher text
+
+```console
+$ ./ubiq_sample_fpe-c -e '123-45-6789' -n ALPHANUM_SSN -s
+```
+
+#### Demonstrate decrypting a social security number and returning the plain text
+
+```console
+$ ./ubiq_sample_fpe-c -d 'W#]-iV-`,"j' -n ALPHANUM_SSN -s
+```
+
+
+
+#### Other FFS models to explore
+
+Depending on your installation, there are a wide variety of FFS models that are available. Each FFS model
+imposes its own set of rules revolving around how the data is formatted and what characters are legal for the
+given format. For example, you would not expect to see alpha characters in a social security number and the model
+will identify that as a formatting error. A few models to consider are:
+
+-   ALPHANUM_SSN 
+-   BIRTH_DATE 
+-   GENERIC_STRING 
+-   SO_ALPHANUM_PIN
+
+Additional information on how to use these FFS models in your own applications is available by contacting
+Ubiq. You may also view some use-cases implemented in the unit test source files "fpeencrypt.cpp" and "fpedecrypt.cpp"
+
+
