@@ -15,17 +15,16 @@ variables:
     DOCKER_TLS_CERTDIR: ""
 
 cache:
-  key: ${CI_COMMIT_REF_SLUG}
-  paths:
-    - build
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+        - build
 
 stages:
     - build
     - test
     - deploy
 
-build-debian:
-    image: debian:stable
+build:
     variables:
         GIT_SUBMODULE_STRATEGY: recursive
     stage: build
@@ -39,22 +38,7 @@ build-debian:
         - cmake --build build -- -j$(nproc)
         - cmake --build build --target package -- -j$(nproc)
 
-build-centos:
-    image: centos:8
-    variables:
-        GIT_SUBMODULE_STRATEGY: recursive
-    stage: build
-    before_script:
-        - yum -y update
-        - yum install -y gcc gcc-c++ make gmp-c++ gmp-devel 
-        - yum install -y openssl-devel libcurl-devel file rpm-build cmake
-    script:
-        - cmake -S. -Bbuild
-        - cmake --build build -- -j$(nproc)
-        - cmake --build build --target package -- -j$(nproc)
-
-test-debian:
-    image: debian:stable
+test:
     stage: test
     before_script:
         - apt -y update
@@ -62,16 +46,14 @@ test-debian:
     script:
         - build/src/test/unittests
 
-test-centos:
-    image: centos:8
+sast:
+    variables:
+        SAST_EXCLUDED_PATHS: src/test, build
     stage: test
-    before_script:
-        - yum -y update
-    script:
-        - build/src/test/unittests
+include:
+    - template: Security/SAST.gitlab-ci.yml
 
 deploy:
-    image: debian:stable
     stage: deploy
     before_script:
         - apt -y update
