@@ -38,7 +38,6 @@ TEST(c_parsing, simple)
     static const char * const input_character_set = "0123456789";
     static const char * const passthrough_character_set = "-";
     char empty_formatted_output[12];
-//     = "AAAAAAAAAAA";
     char trimmed_output [15];
 
     memset(empty_formatted_output, 'A', sizeof(empty_formatted_output));
@@ -48,9 +47,6 @@ TEST(c_parsing, simple)
 
     int x = ubiq_platform_efpe_parsing_parse_input(pt, input_character_set, passthrough_character_set,
     trimmed_output, empty_formatted_output);
-
-    std::cout << "trimmed_output '" << (char *)(&trimmed_output[0]) << "'" << std::endl;
-    std::cout << "empty_formatted_output '" << (char *)(&empty_formatted_output[0]) << "'" << std::endl;
 
     ASSERT_EQ(x, 0);
     ASSERT_STREQ(trimmed_output, "123456789");
@@ -63,7 +59,6 @@ TEST(c_parsing, no_passthrough)
     static const char * const input_character_set = "0123456789-";
     static const char * const passthrough_character_set = NULL;
     char empty_formatted_output[12];
-//     = "AAAAAAAAAAA";
     char trimmed_output [15];
 
     memset(empty_formatted_output, 'A', sizeof(empty_formatted_output));
@@ -74,12 +69,8 @@ TEST(c_parsing, no_passthrough)
     int x = ubiq_platform_efpe_parsing_parse_input(pt, input_character_set, passthrough_character_set,
     trimmed_output, empty_formatted_output);
 
-    std::cout << "trimmed_output '" << (char *)(&trimmed_output[0]) << "'" << std::endl;
-    std::cout << "empty_formatted_output '" << (char *)(&empty_formatted_output[0]) << "'" << std::endl;
-
     ASSERT_EQ(x, 0);
     ASSERT_STREQ(trimmed_output, pt);
-//    ASSERT_STREQ(empty_formatted_output, "AAA-AA-AAAA");
 }
 
 TEST(c_parsing, invalid_data)
@@ -97,9 +88,6 @@ TEST(c_parsing, invalid_data)
 
     int x = ubiq_platform_efpe_parsing_parse_input(pt, input_character_set, passthrough_character_set,
     trimmed_output, empty_formatted_output);
-
-    std::cout << "trimmed_output '" << (char *)(&trimmed_output[0]) << "'" << std::endl;
-    std::cout << "empty_formatted_output '" << (char *)(&empty_formatted_output[0]) << "'" << std::endl;
 
     ASSERT_EQ(x, -EINVAL);
 }
@@ -129,18 +117,14 @@ TEST(c_parsing, auto)
   srand(time(NULL));
   for (int j = 0; j < sizeof(pt) - 1; j++) {
     pt[j] = (rand() % 255) + 1;
-    // printf("char %c", pt[j]);
     // Duplicate character ?
     if (!strchr(input_character_set, pt[j]) && !strchr(passthrough_character_set, pt[j])) {
       if ((rand() % 4) != 0) {
-        // printf(" (input)");
         *i++ = pt[j];
       } else {
-        // printf(" (passthrough)");
         *p++ = pt[j];
       }
     }
-    // printf("\n");
     if (strchr(input_character_set, pt[j])) {
       *t++ = pt[j];
     } else {
@@ -148,8 +132,6 @@ TEST(c_parsing, auto)
     }
   }
   pt[sizeof(pt)] = '\n';
-  // printf("res_trimmed '%s'\n", res_trimmed);
-  // printf("res_formatted '%s'\n", res_formatted);
 
   char empty_formatted_output[50];
   char trimmed_output [50];
@@ -162,9 +144,6 @@ TEST(c_parsing, auto)
 
   int x = ubiq_platform_efpe_parsing_parse_input(pt, input_character_set, passthrough_character_set,
   trimmed_output, empty_formatted_output);
-
-  // std::cout << "trimmed_output '" << (char *)(&trimmed_output[0]) << "'" << std::endl;
-  // std::cout << "empty_formatted_output '" << (char *)(&empty_formatted_output[0]) << "'" << std::endl;
 
   ASSERT_EQ(x, 0);
   ASSERT_STREQ(trimmed_output, res_trimmed);

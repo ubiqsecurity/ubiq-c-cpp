@@ -200,7 +200,6 @@ static unsigned int decode_keynum(
 
 
   *encoded_char = ffs->output_character_set[encoded_value - (key_num << ffs->msb_encoding_bits)];
-  printf("Key number is %d\n", key_num);
   return key_num;
 }
 
@@ -382,18 +381,9 @@ ubiq_platform_ffs_create(
   if (!res && strcmp(e->tweak_source, "constant") == 0) {
     char * s = NULL;
     res = set_ffs_string(ffs_data, "tweak", &s);
-    // printf("DEBUG %s\n", s);
     e->tweak.len = ubiq_support_base64_decode(
         &e->tweak.buf, s, strlen(s));
     free(s);
-
-    // printf("tweak value: ");
-    // char * b;
-    // b = e->ffs->tweak.buf;
-    // for (int i = 0; i < e->ffs->tweak.len; i++) {
-    //   printf("%x ", b[i] & 0xff);
-    // }
-    // printf("\n");
 
   }
 
@@ -435,10 +425,8 @@ ubiq_platform_fpe_encryption_get_ffs_def(
 
   ffs = (const struct ubiq_platform_ffs *)ubiq_platform_cache_find_element(e->ffs_cache, url);
   if (ffs != NULL) {
-    printf("ffs cache HIT for %s\n", url);
     *ffs_definition = ffs;
   } else {
-    printf("ffs cache MISS for %s\n", url);
     const char * content = NULL;
     res = ubiq_platform_rest_request(
         e->rest,
@@ -449,11 +437,6 @@ ubiq_platform_fpe_encryption_get_ffs_def(
     if (content) {
       cJSON * ffs_json;
       res = (ffs_json = cJSON_ParseWithLength(content, len)) ? 0 : INT_MIN;
-      if (!res) {
-        char * str = cJSON_Print(ffs_json);
-        printf("FFS => %s\n", str);
-        free(str);
-      }
       if (ffs_json) {
         struct ubiq_platform_ffs * f = NULL;
         res = ubiq_platform_ffs_create(ffs_json,  &f);
@@ -485,12 +468,9 @@ ubiq_platform_fpe_encryption_get_key_helper(
   if (!res) {
     const char * content = ubiq_platform_cache_find_element(e->key_cache, url);
     if (content != NULL) {
-      printf("key cache HIT for %s\n", url);
       len = strlen(content);
     }
     else {
-      printf("key cache MISS for %s\n", url);
-
       res = ubiq_platform_rest_request(
         e->rest,
         HTTP_RM_GET, url, "application/json", NULL , 0);
@@ -503,11 +483,6 @@ ubiq_platform_fpe_encryption_get_key_helper(
     if (content) {
       cJSON * rsp_json;
       res = (rsp_json = cJSON_ParseWithLength(content, len)) ? 0 : INT_MIN;
-      {
-        char * str = cJSON_Print(rsp_json);
-        printf("contents %s\n", str);
-        free(str);
-      }
 
       res = ubiq_platform_common_fpe_parse_new_key(
           rsp_json, e->srsa,
@@ -683,9 +658,6 @@ str_convert_radix(
   }
   bigint_deinit(&n);
 
-   // printf("\n\tDEBUG %s res(%d) src '%s'  => '%s' \n", csu, res, src_str, *out_str);
-   // printf("\n\t\t Radix input '%s'  output '%s' \n", input_radix, output_radix);
-
   return res;
 }
 
@@ -707,7 +679,6 @@ pad_text(char ** str, const size_t minlen, const char c)
       *str = p;
     }
   }
-//  printf("debug: trimmed %s\n", *str);
   return res;
 }
 
@@ -766,29 +737,12 @@ fpe_decrypt(
   }
 
   // TODO - Need logic to check tweak source and error out depending on supplied tweak
-  printf("\nTWEAK: ");
-  char * b;
-  b = ffs_definition->tweak.buf;
-  for (int i = 0; i < ffs_definition->tweak.len; i++) {
-    printf("%x ", b[i] & 0xff);
-  }
-  printf("\n");
-
-
   if (!res) {
     struct ff1_ctx * ctx;
     res = ff1_ctx_create(&ctx, key->buf, key->len, ffs_definition->tweak.buf, ffs_definition->tweak.len, ffs_definition->tweak_min_len, ffs_definition->tweak_max_len, strlen(base2_charset));
 
     if (!res) {
-
       res = ff1_decrypt(ctx, pt_base2, ct_base2, NULL, 0);
-
-      printf("DEBUG '%s' %d \n",csu, res);
-      printf("\t     ct '%.*s'\n", ctlen, ctbuf);
-      printf("\ttrimmed '%s'\n",parsed->trimmed_buf);
-      printf("\tpadded base2 '%s'\n", ct_base2);
-      printf("\t    pt base2 '%s'\n", pt_base2);
-      printf("\tformatted_dest_buf '%s'\n", parsed->formatted_dest_buf);
     }
     ff1_ctx_destroy(ctx);
 
@@ -805,7 +759,6 @@ fpe_decrypt(
     if (pt_trimmed == NULL) {
       res = -ENOMEM;
     }
-    printf("\ttrimmed   PT '%s' \n", pt_trimmed);
   }
 
   // Merge PT to formatted output
@@ -826,8 +779,6 @@ fpe_decrypt(
       s--;
       d--;
     }
-
-    printf("\t          PT '%s' \n", parsed->formatted_dest_buf);
   }
 
   if (!res) {
@@ -907,37 +858,13 @@ fpe_encrypt(
 
   // TODO - Need logic to check tweak source and error out depending on supplied tweak
 
-  printf("\nKey: ");
-  char * b;
-  b = key->buf;
-  for (int i = 0; i < key->len; i++) {
-    printf("%x ", b[i] & 0xff);
-  }
-  printf("\n");
-
-  printf("\nTWEAK: ");
-  b = ffs_definition->tweak.buf;
-  for (int i = 0; i < ffs_definition->tweak.len; i++) {
-    printf("%x ", b[i] & 0xff);
-  }
-  printf("\n");
-
-
   // Encrypt
   if (!res) {
     struct ff1_ctx * ctx;
 
     res = ff1_ctx_create(&ctx, key->buf, key->len, ffs_definition->tweak.buf, ffs_definition->tweak.len, ffs_definition->tweak_min_len, ffs_definition->tweak_max_len, strlen(base2_charset));
     if (!res) {
-
       res = ff1_encrypt(ctx, ct_base2, pt_base2, NULL, 0);
-
-      printf("DEBUG '%s' %d \n",csu, res);
-      printf("\t     pt '%.*s'\n", ptlen, ptbuf);
-      printf("\ttrimmed '%s'\n",parsed->trimmed_buf);
-      printf("\tpadded base2 '%s'\n", pt_base2);
-      printf("\t    ct base2 '%s'\n", ct_base2);
-      printf("\tformatted_dest_buf '%s'\n", parsed->formatted_dest_buf);
     }
     ff1_ctx_destroy(ctx);
   }
@@ -953,7 +880,6 @@ fpe_encrypt(
     if (ct_trimmed == NULL) {
       res = -ENOMEM;
     }
-    printf("\ttrimmed   CT '%s' \n", ct_trimmed);
   }
 
   // Merge PT to formatted output
@@ -975,8 +901,6 @@ fpe_encrypt(
       s--;
       d--;
     }
-    printf("\tUnencoded CT '%s' \n", parsed->formatted_dest_buf);
-
   }
 
   /*
@@ -1002,8 +926,6 @@ fpe_encrypt(
       res = -ENOMEM;
     }
   }
-  printf("\t  Encoded CT '%s' \n", *ctbuf);
-
   fpe_key_destroy(key);
   fpe_ffs_parsed_destroy(parsed);
   free(ct_base2);
@@ -1086,8 +1008,6 @@ ubiq_platform_process_billing(
 
 
   unsigned int array_size = cJSON_GetArraySize(*json_array);
-  printf("BILLING Payload: size(%d) %s\n", array_size, str);
-  //  free(str);
 
   if (array_size > 0) {
 
@@ -1107,12 +1027,6 @@ ubiq_platform_process_billing(
 
           rsp = ubiq_platform_rest_response_content(e->rest, &len);
           res = (json = cJSON_ParseWithLength(rsp, len)) ? 0 : INT_MIN;
-
-          // {
-          //   char * str = cJSON_Print(json);
-          //   printf("ERROR ELEMENT INFO => %s\n", str);
-          //   free(str);
-          // }
 
           if (res == 0) {
             cJSON * last_valid = cJSON_GetObjectItemCaseSensitive(json, "last_valid");
@@ -1134,23 +1048,6 @@ ubiq_platform_process_billing(
                 }
               }
             }
-            // { // DEBUG
-            //   char * str = cJSON_Print(*json_array);
-            //   array_size = cJSON_GetArraySize(*json_array);
-            //   printf("AFTER Payload: size(%d) %s\n", array_size, str);
-            //   free(str);
-            // }
-            // {
-            //   char * str = cJSON_Print(e->billing_elements);
-            //
-            //   printf("After removing successfull elements: %s\n", str);
-            //   free(str);
-            // }
-
-            // TODO - Loops through json array and remove items UNTIL we find
-            // record with the provided ID.
-            // NOTE - It is possible that there were NOT any records successfully
-            // processed which means everything would need to be resent.
           }
           cJSON_Delete(json);
       } else if (rc == HTTP_RC_CREATED) {

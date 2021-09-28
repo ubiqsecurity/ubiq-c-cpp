@@ -15,12 +15,6 @@ ubiq_platform_efpe_parsing_parse_input(
   {
     int err;
 
-    // printf( "input_string '%s'\n",input_string );
-    // printf( "input_character_set '%s'\n",input_character_set );
-    // printf( "passthrough_character_set '%s'\n",passthrough_character_set );
-    // printf( "trimmed_characters '%s'\n",trimmed_characters );
-    // printf( "empty_formatted_output '%s'\n",empty_formatted_output );
-
     const char * i = input_string;
     char * f = empty_formatted_output;
     char * t = trimmed_characters;
@@ -29,7 +23,6 @@ ubiq_platform_efpe_parsing_parse_input(
 
     while (*i && (0 == err))
     {
-//      printf("i %c (%d)\n", *i, err);
       // If the input string matches a passthrough character, copy
       // to empty formatted output string
       if (passthrough_character_set && strchr(passthrough_character_set, *i))
@@ -46,14 +39,11 @@ ubiq_platform_efpe_parsing_parse_input(
         // after last character
         *t = '\0';
       } else {
-//        printf("   Invalid Character %c\n", *i);
         err = -EINVAL;
       }
 
       i++;
       f++;
     }
-//    printf("\n");
-
     return err;
   }

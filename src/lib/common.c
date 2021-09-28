@@ -216,12 +216,8 @@ ubiq_platform_common_fpe_parse_new_key(
         if (cJSON_IsString(j) && j->valuestring != NULL) {
             void * buf;
             int len;
-
-//            printf("DEBUG ubiq_platform_common_fpe_parse_new_key j->valuestring '%s'\n", j->valuestring);
             len = ubiq_support_base64_decode(
                 &buf, j->valuestring, strlen(j->valuestring));
-//            printf("DEBUG ubiq_platform_common_fpe_parse_new_key len(%d)\n", len);
-
             res = ubiq_support_asymmetric_decrypt(
                 prvpem, srsa, buf, len, keybuf, keylen);
 
