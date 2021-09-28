@@ -25,7 +25,7 @@ stages:
     - deploy
 
 build-debian:
-   image: debian:stable
+    image: debian:stable
     variables:
         GIT_SUBMODULE_STRATEGY: recursive
     stage: build
@@ -40,7 +40,7 @@ build-debian:
         - cmake --build build --target package -- -j$(nproc)
 
 build-centos:
-   image: centos:8
+    image: centos:8
     variables:
         GIT_SUBMODULE_STRATEGY: recursive
     stage: build
@@ -71,6 +71,7 @@ test-centos:
         - build/src/test/unittests
 
 deploy:
+    image: debian:stable
     stage: deploy
     before_script:
         - apt -y update
