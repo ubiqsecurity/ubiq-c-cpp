@@ -107,3 +107,9 @@ TEST_F(cpp_fpe_decrypt, bulk)
 {
     encrypt_decrypt_bulk("ALPHANUM_SSN", "123 456 789");
 }
+
+
+TEST_F(cpp_fpe_decrypt, bulk_generic_string)
+{
+    encrypt_decrypt_bulk("GENERIC_STRING", "1234567890ABCDEFGHIJKLMNOP");
+}

@@ -391,7 +391,7 @@ ubiq_fpe_getopt(
 
 
     if (*method == UBIQ_SAMPLE_METHOD_UNSPEC) {
-        ubiq_fpe_usage(argv[0], "simple / piecewise method not specified");
+        ubiq_fpe_usage(argv[0], "simple / bulk method not specified");
         exit(EXIT_FAILURE);
     }
 

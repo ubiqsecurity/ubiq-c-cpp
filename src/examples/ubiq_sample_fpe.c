@@ -163,7 +163,7 @@ int main(const int argc, char * const argv[])
         } else /* decrypt */ {
             res = ubiq_fpe_simple_decrypt(creds, ffsname, inputstring);
         }
-    } else /* piecewise */{
+    } else /* bulk */{
         if (mode == UBIQ_SAMPLE_MODE_ENCRYPT) {
             res = ubiq_fpe_bulk_encrypt(creds, ffsname, inputstring);
         } else {
