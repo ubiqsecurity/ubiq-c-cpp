@@ -75,7 +75,7 @@ create_element(
       e->key = strdup(key);
       e->data = data;
       e->free_ptr = free_ptr;
-      // current time + 3 days (in seconds)
+      // current time + duration in seconds
       e->expires_after = time(NULL) + duration;
 
       if (e->key != NULL) {

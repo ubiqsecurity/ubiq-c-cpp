@@ -24,10 +24,10 @@
 
 #include "cJSON/cJSON.h"
 
-static const char * base2_charset = "01";
-static const int FF1_base2_min_length = 20; // NIST requirement ceil(log2(1000000))
+static const char * BASE2_CHARSET = "01";
+static const int FF1_BASE2_MIN_LENGTH = 20; // NIST requirement ceil(log2(1000000))
 static const time_t CACHE_DURATION = 3 * 24 * 60 * 60;
-typedef enum {encrypt=0, decrypt=1}  action_type ;
+typedef enum {ENCRYPT=0, DECRYPT=1}  action_type ;
 
 
 static
@@ -723,12 +723,12 @@ fpe_decrypt(
     res = str_convert_radix(
       parsed->trimmed_buf,
       ffs_definition->output_character_set,
-      base2_charset,
+      BASE2_CHARSET,
       &ct_base2);
 
-      int padlen = ceil(fmax(FF1_base2_min_length,log2(strlen(ffs_definition->input_character_set)) * strlen(parsed->trimmed_buf)));
+      int padlen = ceil(fmax(FF1_BASE2_MIN_LENGTH,log2(strlen(ffs_definition->input_character_set)) * strlen(parsed->trimmed_buf)));
 
-      pad_text(&ct_base2,padlen, base2_charset[0]);
+      pad_text(&ct_base2,padlen, BASE2_CHARSET[0]);
 
     if (!res) {pt_base2 = calloc(strlen(ct_base2) + 1, 1);}
     if (pt_base2 == NULL) {
@@ -739,7 +739,7 @@ fpe_decrypt(
   // TODO - Need logic to check tweak source and error out depending on supplied tweak
   if (!res) {
     struct ff1_ctx * ctx;
-    res = ff1_ctx_create(&ctx, key->buf, key->len, ffs_definition->tweak.buf, ffs_definition->tweak.len, ffs_definition->tweak_min_len, ffs_definition->tweak_max_len, strlen(base2_charset));
+    res = ff1_ctx_create(&ctx, key->buf, key->len, ffs_definition->tweak.buf, ffs_definition->tweak.len, ffs_definition->tweak_min_len, ffs_definition->tweak_max_len, strlen(BASE2_CHARSET));
 
     if (!res) {
       res = ff1_decrypt(ctx, pt_base2, ct_base2, NULL, 0);
@@ -752,7 +752,7 @@ fpe_decrypt(
   if (!res) {
     res = str_convert_radix(
       pt_base2,
-      base2_charset,
+      BASE2_CHARSET,
       ffs_definition->input_character_set,
       &pt_trimmed);
 
@@ -835,17 +835,17 @@ fpe_encrypt(
     res = str_convert_radix(
       parsed->trimmed_buf,
       ffs_definition->input_character_set,
-      base2_charset,
+      BASE2_CHARSET,
       &pt_base2);
 
     if (!res) {
       // Figure out how long to pad the binary string.  Formula is input_radix^len = 2^Y which is log2(input_radix) * len
       // Due to FF1 constraints, the there is a minimum length for a base2 string, so make sure to be at least that long too
       // or fpe will fail
-      int padlen = ceil(fmax(FF1_base2_min_length,log2(strlen(ffs_definition->input_character_set)) * strlen(parsed->trimmed_buf)));
+      int padlen = ceil(fmax(FF1_BASE2_MIN_LENGTH,log2(strlen(ffs_definition->input_character_set)) * strlen(parsed->trimmed_buf)));
 
       // The padding may re-allocate so make sure to allow for pt_base2 to change pointer
-      res = pad_text(&pt_base2, padlen, base2_charset[0]);
+      res = pad_text(&pt_base2, padlen, BASE2_CHARSET[0]);
     }
     // Allocate buffer of same size for ct_base2
     if (!res) {
@@ -862,7 +862,7 @@ fpe_encrypt(
   if (!res) {
     struct ff1_ctx * ctx;
 
-    res = ff1_ctx_create(&ctx, key->buf, key->len, ffs_definition->tweak.buf, ffs_definition->tweak.len, ffs_definition->tweak_min_len, ffs_definition->tweak_max_len, strlen(base2_charset));
+    res = ff1_ctx_create(&ctx, key->buf, key->len, ffs_definition->tweak.buf, ffs_definition->tweak.len, ffs_definition->tweak_min_len, ffs_definition->tweak_max_len, strlen(BASE2_CHARSET));
     if (!res) {
       res = ff1_encrypt(ctx, ct_base2, pt_base2, NULL, 0);
     }
@@ -873,7 +873,7 @@ fpe_encrypt(
   if (!res) {
     res = str_convert_radix(
       ct_base2,
-      base2_charset,
+      BASE2_CHARSET,
       ffs_definition->output_character_set,
       &ct_trimmed);
 
@@ -964,7 +964,7 @@ ubiq_platform_add_billing(
   cJSON_AddItemToObject(json, "id", cJSON_CreateString(guid_hex));
   cJSON_AddItemToObject(json, "timestamp", cJSON_CreateString(buf));
   cJSON_AddItemToObject(json, "ffs_name", cJSON_CreateString(ffs_name));
-  if (action == encrypt) {
+  if (action == ENCRYPT) {
     cJSON_AddItemToObject(json, "action", cJSON_CreateString("encrypt"));
   } else {
     cJSON_AddItemToObject(json, "action", cJSON_CreateString("decrypt"));
@@ -1133,7 +1133,7 @@ ubiq_platform_fpe_encrypt(
   if (!res) {
      res = fpe_encrypt(enc, ffs_name,
        tweak, tweaklen, ptbuf, ptlen, ctbuf, ctlen);
-     if (!res) {res = ubiq_platform_add_billing(enc, ffs_name, encrypt, 1);}
+     if (!res) {res = ubiq_platform_add_billing(enc, ffs_name, ENCRYPT, 1);}
   }
   ubiq_platform_fpe_encryption_destroy(enc);
 
@@ -1156,7 +1156,7 @@ ubiq_platform_fpe_decrypt(
 
   if (!res) {
     res  = fpe_decrypt(enc, ffs_name, tweak, tweaklen, ctbuf, ctlen, ptbuf, ptlen);
-    res = ubiq_platform_add_billing(enc, ffs_name, decrypt, 1);
+    res = ubiq_platform_add_billing(enc, ffs_name, DECRYPT, 1);
   }
     ubiq_platform_fpe_encryption_destroy(enc);
   return res;
@@ -1175,7 +1175,7 @@ ubiq_platform_fpe_encrypt_data(
 
   res  = fpe_encrypt(enc, ffs_name,
     tweak, tweaklen, ptbuf, ptlen, ctbuf, ctlen);
-  if (!res) {res = ubiq_platform_add_billing(enc, ffs_name, encrypt, 1);}
+  if (!res) {res = ubiq_platform_add_billing(enc, ffs_name, ENCRYPT, 1);}
 
   return res;
 }
@@ -1193,7 +1193,7 @@ ubiq_platform_fpe_decrypt_data(
 
   res  = fpe_decrypt(enc, ffs_name,
     tweak, tweaklen, ctbuf, ctlen, ptbuf, ptlen);
-  if (!res) {res = ubiq_platform_add_billing(enc, ffs_name, decrypt, 1);}
+  if (!res) {res = ubiq_platform_add_billing(enc, ffs_name, DECRYPT, 1);}
 
   return res;
 }

@@ -57,16 +57,16 @@ decryption::decrypt(
 
 
 std::string
-ubiq::platform::fpe_decrypt(
+ubiq::platform::fpe::decrypt(
     const credentials & creds,
     const std::string & ffs_name,
     const std::string & ct)
 {
-  return fpe_decrypt(creds, ffs_name, std::vector<std::uint8_t>(), ct);
+  return decrypt(creds, ffs_name, std::vector<std::uint8_t>(), ct);
 }
 
 std::string
-ubiq::platform::fpe_decrypt(
+ubiq::platform::fpe::decrypt(
     const credentials & creds,
     const std::string & ffs_name,
     const std::vector<std::uint8_t> & tweak,

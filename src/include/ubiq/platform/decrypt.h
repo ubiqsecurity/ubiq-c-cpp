@@ -36,8 +36,8 @@ ubiq_platform_fpe_decrypt(
     const struct ubiq_platform_credentials * const creds,
     const char * const ffs_name,
     const void * const tweak, const size_t tweaklen,
-    const void * const ptbuf, const size_t ptlen,
-    char ** const ctbuf, size_t * const ctlen);
+    const void * const ctbuf, const size_t ctlen,
+    char ** const ptbuf, size_t * const ptlen);
 
 
 /* Opaque decryption object */
@@ -224,20 +224,22 @@ namespace ubiq {
             std::shared_ptr<::ubiq_platform_decryption> _dec;
         };
 
-        UBIQ_PLATFORM_API
-        std::string
-        fpe_decrypt(const credentials & creds,
-                const std::string & ffs_name,
-                const std::string & ct);
-
-        UBIQ_PLATFORM_API
-        std::string
-        fpe_decrypt(const credentials & creds,
-                const std::string & ffs_name,
-                const std::vector<std::uint8_t> & tweak,
-                const std::string & ct);
 
         namespace fpe {
+
+          UBIQ_PLATFORM_API
+          std::string
+          decrypt(const credentials & creds,
+                  const std::string & ffs_name,
+                  const std::string & ct);
+
+          UBIQ_PLATFORM_API
+          std::string
+          decrypt(const credentials & creds,
+                  const std::string & ffs_name,
+                  const std::vector<std::uint8_t> & tweak,
+                  const std::string & ct);
+
           class decryption
           {
           public:

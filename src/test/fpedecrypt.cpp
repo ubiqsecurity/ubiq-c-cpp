@@ -45,11 +45,11 @@ cpp_fpe_decrypt::encrypt_decrypt(
 
     /* encrypt the data */
     ASSERT_NO_THROW(
-        ct = ubiq::platform::fpe_encrypt(_creds, ffsname, pt));
+        ct = ubiq::platform::fpe::encrypt(_creds, ffsname, pt));
 
     /* decrypt the data */
     ASSERT_NO_THROW(
-        rec = ubiq::platform::fpe_decrypt(_creds, ffsname,  ct));
+        rec = ubiq::platform::fpe::decrypt(_creds, ffsname,  ct));
 
     /* verify that the recovered data matches the plain text */
     ASSERT_EQ(pt.size(), rec.size());

@@ -57,7 +57,7 @@ encryption::encrypt(
 
 
 std::string
-ubiq::platform::fpe_encrypt(
+ubiq::platform::fpe::encrypt(
     const credentials & creds,
     const std::string & ffs_name,
     const std::vector<std::uint8_t> & tweak,
@@ -85,10 +85,10 @@ ubiq::platform::fpe_encrypt(
 }
 
 std::string
-ubiq::platform::fpe_encrypt(
+ubiq::platform::fpe::encrypt(
     const credentials & creds,
     const std::string & ffs_name,
     const std::string & pt)
 {
-  return fpe_encrypt(creds, ffs_name, std::vector<std::uint8_t>(), pt);
+  return encrypt(creds, ffs_name, std::vector<std::uint8_t>(), pt);
 }

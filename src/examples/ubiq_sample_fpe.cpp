@@ -12,7 +12,7 @@ ubiq_fpe_simple_encrypt(
   const char * const pt)
 {
   std::string ct;
-  ct = ubiq::platform::fpe_encrypt(creds, ffs_name, pt);
+  ct = ubiq::platform::fpe::encrypt(creds, ffs_name, pt);
 
   std::cout << "FPE Encrypted Data Results => '" << ct << "'" << std::endl;
 }
@@ -25,7 +25,7 @@ ubiq_fpe_simple_decrypt(
   const char * const ct)
 {
   std::string pt;
-  pt = ubiq::platform::fpe_decrypt(creds, ffs_name, ct);
+  pt = ubiq::platform::fpe::decrypt(creds, ffs_name, ct);
 
   std::cout << "FPE Decrypt Data Results => '" << pt << "'" << std::endl;
 
@@ -78,7 +78,7 @@ int main(const int argc, char * const argv[])
      * specific to the sample application and return the found options
      * in the variables below.
      *
-     * `mode`, `method`, `infile`, and `outfile`
+     * `mode`, `method`, `ffnsname`, and `inputstring`
      * are required and will be set to the options found on the command
      * line.
      *

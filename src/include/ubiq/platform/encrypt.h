@@ -243,20 +243,22 @@ namespace ubiq {
             std::shared_ptr<::ubiq_platform_encryption> _enc;
         };
 
-        UBIQ_PLATFORM_API
-        std::string
-        fpe_encrypt(const credentials & creds,
-                const std::string & ffs_name,
-                const std::string & pt);
-
-        UBIQ_PLATFORM_API
-        std::string
-        fpe_encrypt(const credentials & creds,
-                const std::string & ffs_name,
-                const std::vector<std::uint8_t> & tweak,
-                const std::string & pt);
 
         namespace fpe {
+
+          UBIQ_PLATFORM_API
+          std::string
+          encrypt(const credentials & creds,
+                  const std::string & ffs_name,
+                  const std::string & pt);
+
+          UBIQ_PLATFORM_API
+          std::string
+          encrypt(const credentials & creds,
+                  const std::string & ffs_name,
+                  const std::vector<std::uint8_t> & tweak,
+                  const std::string & pt);
+
           class encryption
           {
           public:

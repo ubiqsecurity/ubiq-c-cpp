@@ -34,10 +34,10 @@ TEST_F(cpp_fpe_encrypt, simple)
     std::string ct, ct2;
 
     ASSERT_NO_THROW(
-        ct = ubiq::platform::fpe_encrypt(_creds, "ALPHANUM_SSN", pt));
+        ct = ubiq::platform::fpe::encrypt(_creds, "ALPHANUM_SSN", pt));
 
     ASSERT_NO_THROW(
-        ct2 = ubiq::platform::fpe_encrypt(_creds, "ALPHANUM_SSN", std::vector<std::uint8_t>(), pt));
+        ct2 = ubiq::platform::fpe::encrypt(_creds, "ALPHANUM_SSN", std::vector<std::uint8_t>(), pt));
 
     EXPECT_EQ(ct, ct2);
 }

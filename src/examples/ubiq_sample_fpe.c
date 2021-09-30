@@ -126,7 +126,7 @@ int main(const int argc, char * const argv[])
      * specific to the sample application and return the found options
      * in the variables below.
      *
-     * `mode`, `method`, `infile`, and `outfile`
+     * `mode`, `method`, `ffnsname`, and `inputstring`
      * are required and will be set to the options found on the command
      * line.
      *

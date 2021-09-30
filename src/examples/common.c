@@ -400,5 +400,11 @@ ubiq_fpe_getopt(
         exit(EXIT_FAILURE);
     }
 
+    if (!*ffsname) {
+      ubiq_fpe_usage(argv[0], "Field Format Specification name not specified");
+      exit(EXIT_FAILURE);
+    }
+
+
     return 0;
 }
