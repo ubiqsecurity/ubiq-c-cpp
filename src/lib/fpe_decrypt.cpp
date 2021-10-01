@@ -43,7 +43,7 @@ decryption::decrypt(
 
   res = ubiq_platform_fpe_decrypt_data(
     _dec.get(), ffs_name.data(),
-    NULL, 0, //tweak.data(), tweak.size(),
+    tweak.data(), tweak.size(),
     ct.data(), ct.length(),
     &ptbuf, &ptlen);
   if (res != 0) {

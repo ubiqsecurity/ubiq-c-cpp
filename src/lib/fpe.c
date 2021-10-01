@@ -28,7 +28,8 @@ static const char * BASE2_CHARSET = "01";
 static const int FF1_BASE2_MIN_LENGTH = 20; // NIST requirement ceil(log2(1000000))
 static const time_t CACHE_DURATION = 3 * 24 * 60 * 60;
 typedef enum {ENCRYPT=0, DECRYPT=1}  action_type ;
-
+static const char * EFPE_TYPE = "EfpeDefinition";
+static const char * FPE_TYPE = "FpeDefinition";
 
 static
 int
@@ -94,9 +95,7 @@ struct ubiq_platform_fpe_key {
 struct fpe_ffs_parsed
 {
   char * trimmed_buf;
-  size_t trimmed_len;
   char * formatted_dest_buf;
-  size_t formatted_dest_len;
 };
 
 static
@@ -158,8 +157,6 @@ int fpe_ffs_parsed_create(
     p->trimmed_buf = calloc(1, buf_len + 1);
     p->formatted_dest_buf = calloc(1, buf_len + 1);
     if (p->trimmed_buf && p->formatted_dest_buf) {
-      p->trimmed_len = buf_len;
-      p->formatted_dest_len = buf_len;
       res = 0;
     } else {
       fpe_ffs_parsed_destroy(p);
@@ -203,7 +200,7 @@ static unsigned int decode_keynum(
   return key_num;
 }
 
-static int set_ffs_string(
+static int get_json_string(
   cJSON * ffs_data,
   char * field_name,
   char **  destination)
@@ -219,7 +216,7 @@ static int set_ffs_string(
   return res;
 }
 
-static int set_ffs_int(
+static int get_json_int(
   cJSON * ffs_data,
   char * field_name,
   int *  destination)
@@ -325,13 +322,19 @@ ubiq_platform_fpe_encryption_new(
         e->billing_elements = cJSON_CreateArray();
       }
       if (!res) {
-        if (pthread_mutex_init(&e->billing_lock, NULL) != 0) {
+        if ((res = pthread_mutex_init(&e->billing_lock, NULL)) != 0) {
           res = -errno;
         }
       }
       if (!res) {
-        res = pthread_cond_init(&e->process_billing_cond, NULL);
-        res = pthread_create(&e->process_billing_thread, NULL, &process_billing, e);
+        if ((res = pthread_cond_init(&e->process_billing_cond, NULL)) != 0) {
+          res = -res;
+        }
+      }
+      if (!res) {
+        if ((res = pthread_create(&e->process_billing_thread, NULL, &process_billing, e)) != 0) {
+          res = -res;
+        }
       }
     }
 
@@ -364,31 +367,37 @@ ubiq_platform_ffs_create(
     res = -ENOMEM;
   }
 
-  if (!res) {res = set_ffs_string(ffs_data, "name", &e->name);}
-  if (!res) {res = set_ffs_string(ffs_data, "tweak_source", &e->tweak_source);}
-  if (!res) {res = set_ffs_string(ffs_data, "regex", &e->regex);}
-  if (!res) {res = set_ffs_string(ffs_data, "input_character_set", &e->input_character_set);}
-  if (!res) {res = set_ffs_string(ffs_data, "output_character_set", &e->output_character_set);}
-  if (!res) {res = set_ffs_string(ffs_data, "passthrough", &e->passthrough_character_set);}
-  if (!res) {res = set_ffs_int(ffs_data, "min_input_length", &e->min_input_length);}
-  if (!res) {res = set_ffs_int(ffs_data, "max_input_length", &e->max_input_length);}
-//  if (!res) {res = set_ffs_int(ffs_data, "max_key_rotations", &e->ffs->max_key_rotations);}
-  if (!res) {res = set_ffs_int(ffs_data, "msb_encoding_bits", &e->msb_encoding_bits);}
+  if (!res) {res = get_json_string(ffs_data, "name", &e->name);}
+  if (!res) {res = get_json_string(ffs_data, "tweak_source", &e->tweak_source);}
+  if (!res) {res = get_json_string(ffs_data, "regex", &e->regex);}
+  if (!res) {res = get_json_string(ffs_data, "input_character_set", &e->input_character_set);}
+  if (!res) {res = get_json_string(ffs_data, "output_character_set", &e->output_character_set);}
+  if (!res) {res = get_json_string(ffs_data, "passthrough", &e->passthrough_character_set);}
+  if (!res) {res = get_json_int(ffs_data, "min_input_length", &e->min_input_length);}
+  if (!res) {res = get_json_int(ffs_data, "max_input_length", &e->max_input_length);}
+  if (!res) {res = get_json_int(ffs_data, "msb_encoding_bits", &e->msb_encoding_bits);}
 
-  if (!res) {res = set_ffs_int(ffs_data, "tweak_min_len", &e->tweak_min_len);}
-  if (!res) {res = set_ffs_int(ffs_data, "tweak_max_len", &e->tweak_max_len);}
+  if (!res) {res = get_json_int(ffs_data, "tweak_min_len", &e->tweak_min_len);}
+  if (!res) {res = get_json_int(ffs_data, "tweak_max_len", &e->tweak_max_len);}
 
   if (!res && strcmp(e->tweak_source, "constant") == 0) {
     char * s = NULL;
-    res = set_ffs_string(ffs_data, "tweak", &s);
-    e->tweak.len = ubiq_support_base64_decode(
-        &e->tweak.buf, s, strlen(s));
+    if ((res = get_json_string(ffs_data, "tweak", &s)) == 0) {
+      e->tweak.len = ubiq_support_base64_decode(
+          &e->tweak.buf, s, strlen(s));
+    }
     free(s);
-
   }
 
   if (!res) {
-    e->efpe_flag = 1; // DEBUG just to indicate this is an eFPE field
+    char * s = NULL;
+
+    if ((res = get_json_string(ffs_data, "fpe_definable_type", &s)) == 0) {
+      e->efpe_flag = (strcmp(s, EFPE_TYPE) == 0);
+    }
+    free(s);
+  }
+  if (!res) {
     *ffs = e;
   } else {
     ubiq_platform_ffs_destroy(e);
@@ -943,6 +952,7 @@ ubiq_platform_add_billing(
   unsigned int count)
 {
   const char * csu = "ubiq_platform_add_billing";
+  static const int MAX_BILLING_ARRAY_SIZE = 50;
   int res = 0;
   cJSON * json;
   time_t now;
@@ -975,7 +985,7 @@ ubiq_platform_add_billing(
   unsigned int array_size = cJSON_GetArraySize(e->billing_elements);
   pthread_mutex_unlock(&e->billing_lock); // Make sure locked before trying to unlock
 
-  if (array_size > 50) {
+  if (array_size > MAX_BILLING_ARRAY_SIZE) {
     pthread_cond_signal(&e->process_billing_cond);
   }
 
