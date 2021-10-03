@@ -43,7 +43,7 @@ ubiq_platform_fpe_encrypt(
 /* Opaque encryption object */
 struct ubiq_platform_encryption;
 
-struct ubiq_platform_fpe_encryption;
+struct ubiq_platform_fpe_enc_dec_obj;
 
 /*
  * Create an encryption object that can be used to encrypt some number
@@ -144,12 +144,12 @@ UBIQ_PLATFORM_API
 int
 ubiq_platform_fpe_encryption_create(
     const struct ubiq_platform_credentials * const creds,
-    struct ubiq_platform_fpe_encryption ** const enc);
+    struct ubiq_platform_fpe_enc_dec_obj ** const enc);
 
 UBIQ_PLATFORM_API
 int
 ubiq_platform_fpe_encrypt_data(
-  struct ubiq_platform_fpe_encryption * const enc,
+  struct ubiq_platform_fpe_enc_dec_obj * const enc,
   const char * const ffs_name,
   const uint8_t * const tweak, const size_t tweaklen,
   const char * const ptbuf, const size_t ptlen,
@@ -159,7 +159,7 @@ ubiq_platform_fpe_encrypt_data(
 UBIQ_PLATFORM_API
 void
 ubiq_platform_fpe_encryption_destroy(
-    struct ubiq_platform_fpe_encryption * const e);
+    struct ubiq_platform_fpe_enc_dec_obj * const e);
 
 __END_DECLS
 
@@ -307,7 +307,7 @@ namespace ubiq {
             ) ;
 
           private:
-            std::shared_ptr<::ubiq_platform_fpe_encryption> _enc;
+            std::shared_ptr<::ubiq_platform_fpe_enc_dec_obj> _enc;
           };
         } // fpe
     } // platform

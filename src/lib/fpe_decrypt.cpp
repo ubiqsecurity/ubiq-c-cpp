@@ -9,7 +9,7 @@ using namespace ubiq::platform::fpe;
 
 decryption::decryption(const credentials & creds)
 {
-    struct ubiq_platform_fpe_encryption * enc;
+    struct ubiq_platform_fpe_enc_dec_obj * enc;
     int res;
 
     res = ubiq_platform_fpe_encryption_create(&*creds, &enc);

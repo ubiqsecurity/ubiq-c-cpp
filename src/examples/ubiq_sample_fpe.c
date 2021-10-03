@@ -57,7 +57,7 @@ ubiq_fpe_bulk_encrypt(
     const char * const ffs_name,
     const char * const pt)
 {
-  struct ubiq_platform_fpe_encryption *enc = NULL;
+  struct ubiq_platform_fpe_enc_dec_obj *enc = NULL;
   char * ctbuf = NULL;
   size_t ctlen = 0;
   int res;
@@ -86,7 +86,7 @@ ubiq_fpe_bulk_decrypt(
     const char * const ffs_name,
     const char * const ct)
 {
-  struct ubiq_platform_fpe_encryption *enc = NULL;
+  struct ubiq_platform_fpe_enc_dec_obj *enc = NULL;
   char * ptbuf = NULL;
   size_t ptlen = 0;
   int res;

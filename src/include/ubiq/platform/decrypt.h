@@ -135,7 +135,7 @@ ubiq_platform_decryption_end(
 UBIQ_PLATFORM_API
 int
 ubiq_platform_fpe_decrypt_data(
-  struct ubiq_platform_fpe_encryption * const enc,
+  struct ubiq_platform_fpe_enc_dec_obj * const enc,
   const char * const ffs_name,
   const uint8_t * const tweak, const size_t tweaklen,
   const char * const ctbuf, const size_t ctlen,
@@ -287,7 +287,7 @@ namespace ubiq {
             ) ;
 
           private:
-            std::shared_ptr<::ubiq_platform_fpe_encryption> _dec;
+            std::shared_ptr<::ubiq_platform_fpe_enc_dec_obj> _dec;
           };
         } // fpe
     } // platform

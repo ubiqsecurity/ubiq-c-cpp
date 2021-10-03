@@ -96,7 +96,7 @@ TEST(c_fpe_encrypt, piecewise)
     static const char * const ffs_name = "ALPHANUM_SSN";
 
     struct ubiq_platform_credentials * creds;
-    struct ubiq_platform_fpe_encryption *enc;
+    struct ubiq_platform_fpe_enc_dec_obj *enc;
     char * ctbuf(nullptr);
     size_t ctlen;
     char * ctbuf2(nullptr);
@@ -152,7 +152,7 @@ TEST(c_fpe_encrypt, mixed_forward)
     static const char * const ffs_name = "ALPHANUM_SSN";
 
     struct ubiq_platform_credentials * creds;
-    struct ubiq_platform_fpe_encryption *enc;
+    struct ubiq_platform_fpe_enc_dec_obj *enc;
 
     char * ctbuf(nullptr);
     size_t ctlen;
@@ -192,7 +192,7 @@ TEST(c_fpe_encrypt, mixed_backwards)
     static const char * const ffs_name = "ALPHANUM_SSN";
 
     struct ubiq_platform_credentials * creds;
-    struct ubiq_platform_fpe_encryption *enc;
+    struct ubiq_platform_fpe_enc_dec_obj *enc;
 
     char * ctbuf(nullptr);
     size_t ctlen;
@@ -233,7 +233,7 @@ TEST(c_fpe_encrypt, 50_cycles)
     static const char * const ffs_name = "ALPHANUM_SSN";
 
     struct ubiq_platform_credentials * creds;
-    struct ubiq_platform_fpe_encryption *enc;
+    struct ubiq_platform_fpe_enc_dec_obj *enc;
 
     int res;
 

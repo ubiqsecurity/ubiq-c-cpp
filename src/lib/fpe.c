@@ -34,7 +34,7 @@ static const char * FPE_TYPE = "FpeDefinition";
 static
 int
 ubiq_platform_process_billing(
-  struct ubiq_platform_fpe_encryption * const e,
+  struct ubiq_platform_fpe_enc_dec_obj * const e,
   cJSON ** json_array);
 
 static
@@ -60,16 +60,7 @@ struct ubiq_platform_ffs {
   int tweak_max_len;
 };
 
-// struct ubiq_platform_app {
-//   char * papi;
-// };
-
-// struct ubiq_platform_ffs_app {
-//   // struct ubiq_platform_app * app;
-//   struct ubiq_platform_ffs * ffs;
-// };
-
-struct ubiq_platform_fpe_encryption
+struct ubiq_platform_fpe_enc_dec_obj
 {
     /* http[s]://host/api/v0 */
     char * restapi;
@@ -250,7 +241,7 @@ ubiq_platform_ffs_destroy(
 
 void
 ubiq_platform_fpe_encryption_destroy(
-    struct ubiq_platform_fpe_encryption * const e)
+    struct ubiq_platform_fpe_enc_dec_obj * const e)
 {
   const char * csu = "ubiq_platform_fpe_encryption_destroy";
 
@@ -287,12 +278,12 @@ ubiq_platform_fpe_encryption_new(
     const char * const host,
     const char * const papi, const char * const sapi,
     const char * const srsa,
-    struct ubiq_platform_fpe_encryption ** const enc)
+    struct ubiq_platform_fpe_enc_dec_obj ** const enc)
 {
     static const char * const csu = "ubiq_platform_fpe_encryption_new";
     static const char * const api_path = "api/v0";
 
-    struct ubiq_platform_fpe_encryption * e;
+    struct ubiq_platform_fpe_enc_dec_obj * e;
     size_t len;
     int res;
 
@@ -409,7 +400,7 @@ ubiq_platform_ffs_create(
 static
 int
 ubiq_platform_fpe_encryption_get_ffs_def(
-  struct ubiq_platform_fpe_encryption * const e,
+  struct ubiq_platform_fpe_enc_dec_obj * const e,
   const char * const ffs_name,
   const struct ubiq_platform_ffs ** ffs_definition)
 {
@@ -464,7 +455,7 @@ ubiq_platform_fpe_encryption_get_ffs_def(
 static
 int
 ubiq_platform_fpe_encryption_get_key_helper(
-  struct ubiq_platform_fpe_encryption * const e,
+  struct ubiq_platform_fpe_enc_dec_obj * const e,
   const char * const url,
   struct ubiq_platform_fpe_key ** const key)
 {
@@ -524,7 +515,7 @@ ubiq_platform_fpe_encryption_get_key_helper(
 static
 int
 ubiq_platform_fpe_encryption_get_key(
-  struct ubiq_platform_fpe_encryption * const e,
+  struct ubiq_platform_fpe_enc_dec_obj * const e,
   const char * const ffs_name,
   struct ubiq_platform_fpe_key ** const key)
 {
@@ -550,7 +541,7 @@ ubiq_platform_fpe_encryption_get_key(
 static
 int
 ubiq_platform_fpe_decryption_get_key(
-  struct ubiq_platform_fpe_encryption * const e,
+  struct ubiq_platform_fpe_enc_dec_obj * const e,
   const char * const ffs_name,
   const unsigned int key_number,
   struct ubiq_platform_fpe_key ** const key)
@@ -578,9 +569,9 @@ ubiq_platform_fpe_decryption_get_key(
 int ubiq_platform_fpe_encryption_create(
     const struct ubiq_platform_credentials * const creds,
 //    const char * const ffs_name,
-    struct ubiq_platform_fpe_encryption ** const enc)
+    struct ubiq_platform_fpe_enc_dec_obj ** const enc)
 {
-    struct ubiq_platform_fpe_encryption * e;
+    struct ubiq_platform_fpe_enc_dec_obj * e;
     int res;
 
     const char * const host = ubiq_platform_credentials_get_host(creds);
@@ -694,7 +685,7 @@ pad_text(char ** str, const size_t minlen, const char c)
 static
 int
 fpe_decrypt(
-  struct ubiq_platform_fpe_encryption * const enc,
+  struct ubiq_platform_fpe_enc_dec_obj * const enc,
   const char * ffs_name,
   const uint8_t * const tweak, const size_t tweaklen,
   const char * const ctbuf, const size_t ctlen,
@@ -809,7 +800,7 @@ fpe_decrypt(
 static
 int
 fpe_encrypt(
-  struct ubiq_platform_fpe_encryption * const enc,
+  struct ubiq_platform_fpe_enc_dec_obj * const enc,
   const char * ffs_name,
 //  const uint8_t * const key, const size_t keylen, const size_t keynum,
   const uint8_t * const tweak, const size_t tweaklen,
@@ -946,7 +937,7 @@ fpe_encrypt(
 static
 int
 ubiq_platform_add_billing(
-  struct ubiq_platform_fpe_encryption * const e,
+  struct ubiq_platform_fpe_enc_dec_obj * const e,
   const char * ffs_name,
   const action_type action,
   unsigned int count)
@@ -995,7 +986,7 @@ ubiq_platform_add_billing(
 static
 int
 ubiq_platform_process_billing(
-  struct ubiq_platform_fpe_encryption * const e,
+  struct ubiq_platform_fpe_enc_dec_obj * const e,
   cJSON ** json_array)
 {
   static const char * const fmt = "%s/fpe/billing/%s";
@@ -1082,7 +1073,7 @@ static
 void *
 process_billing(void * data) {
   const char * csu = "process_billing";
-  struct ubiq_platform_fpe_encryption * e = (struct ubiq_platform_fpe_encryption *)data;
+  struct ubiq_platform_fpe_enc_dec_obj * e = (struct ubiq_platform_fpe_enc_dec_obj *)data;
 
   while (1) {
     // Test to see if done using simple mutex rather than the conditional
@@ -1131,7 +1122,7 @@ ubiq_platform_fpe_encrypt(
     char ** const ctbuf, size_t * const ctlen)
 {
 
-  struct ubiq_platform_fpe_encryption * enc;
+  struct ubiq_platform_fpe_enc_dec_obj * enc;
   int res = 0;
 
   // Create Structure that will handle REST calls.
@@ -1158,7 +1149,7 @@ ubiq_platform_fpe_decrypt(
     const void * const ctbuf, const size_t ctlen,
     char ** const ptbuf, size_t * const ptlen)
 {
-  struct ubiq_platform_fpe_encryption * enc;
+  struct ubiq_platform_fpe_enc_dec_obj * enc;
   int res = 0;
 
   enc = NULL;
@@ -1174,7 +1165,7 @@ ubiq_platform_fpe_decrypt(
 
 int
 ubiq_platform_fpe_encrypt_data(
-  struct ubiq_platform_fpe_encryption * const enc,
+  struct ubiq_platform_fpe_enc_dec_obj * const enc,
   const char * const ffs_name,
   const uint8_t * const tweak, const size_t tweaklen,
   const char * const ptbuf, const size_t ptlen,
@@ -1192,7 +1183,7 @@ ubiq_platform_fpe_encrypt_data(
 
 int
 ubiq_platform_fpe_decrypt_data(
-  struct ubiq_platform_fpe_encryption * const enc,
+  struct ubiq_platform_fpe_enc_dec_obj * const enc,
   const char * const ffs_name,
   const uint8_t * const tweak, const size_t tweaklen,
   const char * const ctbuf, const size_t ctlen,
