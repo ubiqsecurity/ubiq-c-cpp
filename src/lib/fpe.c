@@ -76,6 +76,12 @@ struct ubiq_platform_fpe_enc_dec_obj
 
     struct ubiq_platform_cache * ffs_cache; // URL / ubiq_platform_ffs
     struct ubiq_platform_cache * key_cache; // URL / JSON response from server
+
+    struct {
+            char * err_msg;
+            size_t err_num;
+    } error;
+
 };
 
 struct ubiq_platform_fpe_key {
@@ -252,7 +258,6 @@ ubiq_platform_fpe_enc_dec_destroy(
 {
   const char * csu = "ubiq_platform_fpe_enc_dec_destroy";
 
-//    pthread_cond_signal(&e->process_billing_cond);
     pthread_mutex_lock(&e->billing_lock);
     cJSON * json_array = e->billing_elements;
     e->billing_elements = NULL;
@@ -269,6 +274,7 @@ ubiq_platform_fpe_enc_dec_destroy(
     free(e->srsa);
     ubiq_platform_cache_destroy(e->ffs_cache);
     ubiq_platform_cache_destroy(e->key_cache);
+    free(e->error.err_msg);
     free(e);
 }
 
@@ -1099,6 +1105,8 @@ process_billing(void * data) {
   while (1) {
     // Test to see if done using simple mutex rather than the conditional
     pthread_mutex_lock(&e->billing_lock);
+
+    // Should we exit?
     if (e->billing_elements == NULL || cJSON_IsNull(e->billing_elements) || !cJSON_IsArray(e->billing_elements)) {
       pthread_mutex_unlock(&e->billing_lock);
       break;
@@ -1106,6 +1114,12 @@ process_billing(void * data) {
 
     // Locked above.
     pthread_cond_wait(&e->process_billing_cond, &e->billing_lock);
+
+    // Should we exit?  Need here to since was getting deadlock for simple create and destroy object
+    if (e->billing_elements == NULL || cJSON_IsNull(e->billing_elements) || !cJSON_IsArray(e->billing_elements)) {
+      pthread_mutex_unlock(&e->billing_lock);
+      break;
+    }
 
     unsigned int array_size = cJSON_GetArraySize(e->billing_elements);
 
@@ -1220,6 +1234,29 @@ ubiq_platform_fpe_decrypt_data(
   res  = fpe_decrypt(enc, ffs_name,
     tweak, tweaklen, ctbuf, ctlen, ptbuf, ptlen);
   if (!res) {res = ubiq_platform_add_billing(enc, ffs_name, DECRYPT, 1);}
+
+  return res;
+}
+
+int
+ubiq_platform_fpe_last_error(
+  struct ubiq_platform_fpe_enc_dec_obj * const enc,
+  int * const err_num,
+  char ** const err_msg
+)
+{
+  int res = -EINVAL;
+
+  if (enc != NULL) {
+    res = 0;
+    *err_num = enc->error.err_num;
+    if (enc->error.err_msg != NULL) {
+      *err_msg = strdup(enc->error.err_msg);
+      if (*err_msg == NULL) {
+        res = -errno;
+      }
+    }
+  }
 
   return res;
 }

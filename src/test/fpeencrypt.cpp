@@ -300,3 +300,37 @@ TEST(c_fpe_encrypt, generic)
     free(ctbuf);
     free(ptbuf);
 }
+
+TEST(c_fpe_encrypt, errmsg_null_object)
+{
+  int err_num;
+  char * err_msg = NULL;
+  int res;
+
+  res = ubiq_platform_fpe_last_error(NULL, &err_num, &err_msg);
+  ASSERT_EQ(res, -EINVAL);
+
+}
+
+TEST(c_fpe_encrypt, errmsg_notnull_object)
+{
+  int err_num;
+  char * err_msg = NULL;
+  int res;
+
+    struct ubiq_platform_credentials * creds;
+    struct ubiq_platform_fpe_enc_dec_obj * enc;
+    res = ubiq_platform_credentials_create(&creds);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+    ASSERT_EQ(res, 0);
+
+    ubiq_platform_fpe_enc_dec_destroy(enc);
+
+    ubiq_platform_credentials_destroy(creds);
+
+}

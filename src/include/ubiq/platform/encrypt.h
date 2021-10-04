@@ -161,6 +161,17 @@ void
 ubiq_platform_fpe_enc_dec_destroy(
     struct ubiq_platform_fpe_enc_dec_obj * const e);
 
+// Get details regarding last error message if
+// available.  Must free the errmsg string when
+// done.
+UBIQ_PLATFORM_API
+int
+ubiq_platform_fpe_last_error(
+  struct ubiq_platform_fpe_enc_dec_obj * const enc,
+  int * const err_num,
+  char ** const err_msg
+);
+
 __END_DECLS
 
 #if defined(__cplusplus)
