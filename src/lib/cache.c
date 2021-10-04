@@ -33,6 +33,19 @@ struct cache_element {
 };
 
 static
+int
+get_time(struct timespec * ck_mon) {
+  int res = 0;
+  struct timespec tp;
+  if (0 == (res = clock_gettime(CLOCK_MONOTONIC, &tp))) {
+    *ck_mon = tp;
+  } else {
+    res = -errno;
+  }
+  return res;
+}
+
+static
 void
 destroy_element(
 void * element)
@@ -65,23 +78,24 @@ create_element(
   void (*free_ptr)(void *))
 {
   struct cache_element * e;
+  struct timespec ts;
   int res = -ENOMEM;
 
   if (duration < 0) {
     res = -EINVAL;
-  } else {
+  } else if (0 == (res = get_time(&ts))) {
     e = calloc(1, sizeof(* e));
     if (e != NULL) {
       e->key = strdup(key);
       e->data = data;
       e->free_ptr = free_ptr;
       // current time + duration in seconds
-      e->expires_after = time(NULL) + duration;
+      e->expires_after = ts.tv_sec + duration;
 
       if (e->key != NULL) {
         *element = e;
-        res = 0;
       } else {
+        res = -ENOMEM;
         destroy_element(e);
       }
     }
@@ -97,6 +111,7 @@ ubiq_platform_cache_find_element(
 {
   const char * csu = "find_element";
   const char * ret = NULL;
+  struct timespec ts;
   int res = 0;
   // Find requires an element but will not insert if
   // it does not exist, so make ffs empty string
@@ -118,7 +133,8 @@ ubiq_platform_cache_find_element(
 
     struct cache_element * const rec = *(struct cache_element ** ) find_node;
     // If expired after is BEFORE current time, then delete it.
-    if (rec->expires_after < time(NULL))
+    res = get_time(&ts);
+    if (res != 0 || rec->expires_after < ts.tv_sec)
     {
       tdelete(&find_element, &(((struct ubiq_platform_cache *)ubiq_cache)->root), element_compare);
       destroy_element(rec);
@@ -161,11 +177,12 @@ ubiq_platform_cache_add_element(
       re = *(struct cache_element **)inserted_element;
       if (re != find_element) {
         // Record already existed.
-
+        struct timespec ts;
+        res = get_time(&ts);
         // Check expiration date and delete OLD, then add new if necessary
         // Otherwise delete the find element since it was not ADDED
 
-        if (re->expires_after < time(NULL))
+        if (res != 0 || re->expires_after < ts.tv_sec)
         {
 
           struct cache_element tmp;
