@@ -268,3 +268,36 @@ TEST(c_fpe_encrypt, 50_cycles)
     ubiq_platform_credentials_destroy(creds);
 
 }
+
+
+TEST(c_fpe_encrypt, generic)
+{
+    static const char * const pt = " 1234567890ABCDEFGHIJKLMNOP";
+//    static const char * const pt = "00001234567890";//234567890";
+    static const char * const ffs_name = "GENERIC_STRING";
+
+    struct ubiq_platform_credentials * creds;
+    char * ctbuf(nullptr);
+    size_t ctlen;
+    char * ptbuf(nullptr);
+    size_t ptlen;
+    int res;
+
+    res = ubiq_platform_credentials_create(&creds);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_encrypt(creds,
+      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+    EXPECT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_decrypt(creds,
+      ffs_name, NULL, 0, (char *)ctbuf, strlen(ctbuf), &ptbuf, &ptlen);
+    EXPECT_EQ(res, 0);
+
+    EXPECT_EQ(strcmp(pt, ptbuf),0);
+
+    ubiq_platform_credentials_destroy(creds);
+
+    free(ctbuf);
+    free(ptbuf);
+}

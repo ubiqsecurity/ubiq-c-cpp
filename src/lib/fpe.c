@@ -95,8 +95,6 @@ fpe_ffs_parsed_destroy(
   struct fpe_ffs_parsed * const parsed
 )
 {
-  free(parsed->trimmed_buf);
-  free(parsed->formatted_dest_buf);
   free(parsed);
 
 }
@@ -139,14 +137,13 @@ int fpe_ffs_parsed_create(
 
   int res = -ENOMEM;
 
-  p = calloc(1, sizeof(*p));
+  // Single alloc and just point to locations in the object
+  p = calloc(1, sizeof(*p) + 2 * (buf_len + 1));
   if (p) {
 
-    // Use calloc to set all to 0 and
-    // use buflen + 1 to make sure room for '\0'
-    // Either buffer can only be as long as the original input
-    p->trimmed_buf = calloc(1, buf_len + 1);
-    p->formatted_dest_buf = calloc(1, buf_len + 1);
+    p->trimmed_buf = (char *) (p + 1);
+    p->formatted_dest_buf = (char *)  p->trimmed_buf + buf_len + 1;
+
     if (p->trimmed_buf && p->formatted_dest_buf) {
       res = 0;
     } else {
@@ -196,6 +193,7 @@ static int get_json_string(
   char * field_name,
   char **  destination)
 {
+  *destination = NULL;
   int res = 0;
   const cJSON * j = cJSON_GetObjectItemCaseSensitive(ffs_data, field_name);
   if (cJSON_IsString(j) && j->valuestring != NULL) {
@@ -411,6 +409,7 @@ ubiq_platform_fpe_encryption_get_ffs_def(
   char * url;
   size_t len;
   int res = 0;
+  const void * rsp;
 
   const struct ubiq_platform_ffs * ffs = NULL;
 
@@ -427,17 +426,24 @@ ubiq_platform_fpe_encryption_get_ffs_def(
   if (ffs != NULL) {
     *ffs_definition = ffs;
   } else {
-    const char * content = NULL;
     res = ubiq_platform_rest_request(
         e->rest,
         HTTP_RM_GET, url, "application/json", NULL, 0);
 
-    content = ubiq_platform_rest_response_content(e->rest, &len);
+    // Get HTTP response code.  If not OK, return error value
+    http_response_code_t rc = ubiq_platform_rest_response_code(e->rest);
 
-    if (content) {
+    if (rc != HTTP_RC_OK) {
+      res = -rc;
+      // Report error
+    }
+    else {
+      // Get the response payload, parse, and continue.
       cJSON * ffs_json;
-      res = (ffs_json = cJSON_ParseWithLength(content, len)) ? 0 : INT_MIN;
-      if (ffs_json) {
+      rsp = ubiq_platform_rest_response_content(e->rest, &len);
+      res = (ffs_json = cJSON_ParseWithLength(rsp, len)) ? 0 : INT_MIN;
+
+      if (res == 0 && ffs_json) {
         struct ubiq_platform_ffs * f = NULL;
         res = ubiq_platform_ffs_create(ffs_json,  &f);
         if (!res) {
@@ -712,9 +718,8 @@ fpe_decrypt(
   if (!res) {res = fpe_ffs_parsed_create(&parsed, ctlen);}
   if (!res) {res = ubiq_platform_fpe_string_parse(ffs_definition, -1, ctbuf, ctlen, parsed);}
 
-  unsigned int keynum = decode_keynum(ffs_definition, &parsed->trimmed_buf[0]);
-
   if (!res) {
+    unsigned int keynum = decode_keynum(ffs_definition, &parsed->trimmed_buf[0]);
     res = ubiq_platform_fpe_decryption_get_key(enc, ffs_name, keynum, &key);
   }
 
@@ -912,7 +917,7 @@ fpe_encrypt(
     * eFPE
     */
     char * pos = parsed->formatted_dest_buf;
-    while ((*pos != '\0') && (NULL != strchr(ffs_definition->passthrough_character_set, *pos))) {pos++;};
+    while (ffs_definition->passthrough_character_set != NULL && (*pos != '\0') && (NULL != strchr(ffs_definition->passthrough_character_set, *pos))) {pos++;};
     res = encode_keynum(ffs_definition, key->key_number, pos);
 
   }

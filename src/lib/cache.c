@@ -92,7 +92,7 @@ create_element(
 const char *
 ubiq_platform_cache_find_element(
   struct ubiq_platform_cache * const  ubiq_cache,
-  const char * const key
+  char * const key
 )
 {
   const char * csu = "find_element";
@@ -101,31 +101,31 @@ ubiq_platform_cache_find_element(
   // Find requires an element but will not insert if
   // it does not exist, so make ffs empty string
 
+  // tfind does insert into tree, so can simple use stack
+  // for find_element
+
   void * root = NULL;
-  struct cache_element * find_element = NULL;
+  struct cache_element find_element;
+  find_element.key = key;
   void * data = NULL;
-  res = create_element(&find_element, key, 0, data, &free);
-  if (!res) {
-    void * const find_node = tfind(find_element, &(((struct ubiq_platform_cache const *)ubiq_cache)->root), element_compare);
-    if (find_node != NULL) {
+  void * const find_node = tfind(&find_element, &(((struct ubiq_platform_cache const *)ubiq_cache)->root), element_compare);
+  if (find_node != NULL) {
 
-      /*
-      * tfind returns the pointer tothe node in the tre *Basically a point to a point to the data item.
-      * cast as a double pointer and then deference to get the actual data.
-      */
+    /*
+    * tfind returns the pointer tothe node in the tre *Basically a point to a point to the data item.
+    * cast as a double pointer and then deference to get the actual data.
+    */
 
-      struct cache_element * const rec = *(struct cache_element ** ) find_node;
-      // If expired after is BEFORE current time, then delete it.
-      if (rec->expires_after < time(NULL))
-      {
-        tdelete(find_element, &(((struct ubiq_platform_cache *)ubiq_cache)->root), element_compare);
-        destroy_element(rec);
-      } else {
-        ret = rec->data;
-      }
+    struct cache_element * const rec = *(struct cache_element ** ) find_node;
+    // If expired after is BEFORE current time, then delete it.
+    if (rec->expires_after < time(NULL))
+    {
+      tdelete(&find_element, &(((struct ubiq_platform_cache *)ubiq_cache)->root), element_compare);
+      destroy_element(rec);
+    } else {
+      ret = rec->data;
     }
   }
-  destroy_element(find_element);
   return ret;
 }
 
@@ -167,20 +167,26 @@ ubiq_platform_cache_add_element(
 
         if (re->expires_after < time(NULL))
         {
-          // RE already points to node that existed but is now considered expired.
-          // Delete the NODE, then free the memory for RE
-          // Then insert find_element again.
-          void * del = tdelete(find_element, &(((struct ubiq_platform_cache *)ubiq_cache)->root), element_compare);
-          if (del) {
-            destroy_element(re);
-          }
-          inserted_element = tsearch(find_element,&((struct ubiq_platform_cache *)ubiq_cache)->root, element_compare);
-          if (inserted_element == NULL) {
-            res = -ENOMEM;
-          }
-        } else {
-          destroy_element(find_element);
+
+          struct cache_element tmp;
+          tmp.expires_after = find_element->expires_after;
+          tmp.key = find_element->key;
+          tmp.data = find_element->data;
+          tmp.free_ptr = find_element->free_ptr;
+
+          find_element->expires_after = re->expires_after;
+          find_element->key = re->key;
+          find_element->data = re->data;
+          find_element->free_ptr = tmp.free_ptr;
+
+          re->expires_after = tmp.expires_after;
+          re->key = tmp.key;
+          re->data = tmp.data;
+          re->free_ptr = tmp.free_ptr;
+
         }
+        destroy_element(find_element);
+
       }
     }
   }
