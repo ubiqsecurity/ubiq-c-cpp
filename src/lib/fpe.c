@@ -689,13 +689,12 @@ pad_text(char ** str, const size_t minlen, const char c)
   char * p = NULL;
   int len = strlen(*str);
   if (len < minlen) {
-    if ((p = calloc(minlen + 1, 1)) == NULL) {
+    if ((p = realloc(*str, minlen + 1)) == NULL) {
       res = -ENOMEM;
     } else {
-      // Moving memory to end so can't use realloc (original ptr is invalid)
+      // Moving memory to end first before setting new locations
+      memmove(p + (minlen - len), p, len + 1); // Include null terminator
       memset(p, c, (minlen-len));
-      memcpy(p + (minlen-len), *str, len);  // copy the characters
-      free(*str);
       *str = p;
     }
   }
@@ -746,9 +745,11 @@ fpe_decrypt(
       BASE2_CHARSET,
       &ct_base2);
 
-      int padlen = ceil(fmax(FF1_BASE2_MIN_LENGTH,log2(strlen(ffs_definition->input_character_set)) * strlen(parsed->trimmed_buf)));
+      // Length of the string based on algorithm and actual number of characters need to represent
+      // largest value when converted to binary string
+      int padded_string_length = ceil(fmax(FF1_BASE2_MIN_LENGTH,log2(strlen(ffs_definition->input_character_set)) * strlen(parsed->trimmed_buf)));
 
-      pad_text(&ct_base2,padlen, BASE2_CHARSET[0]);
+      pad_text(&ct_base2,padded_string_length, BASE2_CHARSET[0]);
 
     if (!res) {pt_base2 = calloc(strlen(ct_base2) + 1, 1);}
     if (pt_base2 == NULL) {
@@ -862,10 +863,10 @@ fpe_encrypt(
       // Figure out how long to pad the binary string.  Formula is input_radix^len = 2^Y which is log2(input_radix) * len
       // Due to FF1 constraints, the there is a minimum length for a base2 string, so make sure to be at least that long too
       // or fpe will fail
-      int padlen = ceil(fmax(FF1_BASE2_MIN_LENGTH,log2(strlen(ffs_definition->input_character_set)) * strlen(parsed->trimmed_buf)));
+      int padded_string_length = ceil(fmax(FF1_BASE2_MIN_LENGTH,log2(strlen(ffs_definition->input_character_set)) * strlen(parsed->trimmed_buf)));
 
       // The padding may re-allocate so make sure to allow for pt_base2 to change pointer
-      res = pad_text(&pt_base2, padlen, BASE2_CHARSET[0]);
+      res = pad_text(&pt_base2, padded_string_length, BASE2_CHARSET[0]);
     }
     // Allocate buffer of same size for ct_base2
     if (!res) {
@@ -1120,12 +1121,16 @@ process_billing(void * data) {
     if (json_array != NULL) {
       ubiq_platform_process_billing(e, &json_array);
 
-      pthread_mutex_lock(&e->billing_lock);
-      while (cJSON_GetArraySize(json_array) > 0) {
-        cJSON * element = cJSON_DetachItemFromArray(json_array, 0);
-        cJSON_AddItemToArray(e->billing_elements, element);
+      // For anything not processed, add to the end of the billing elements.
+      array_size = cJSON_GetArraySize(json_array);
+      if (array_size > 0) {
+        pthread_mutex_lock(&e->billing_lock);
+        do {
+          cJSON * element = cJSON_DetachItemFromArray(json_array, 0);
+          cJSON_AddItemToArray(e->billing_elements, element);
+        } while (cJSON_GetArraySize(json_array) > 0);
+        pthread_mutex_unlock(&e->billing_lock);
       }
-      pthread_mutex_unlock(&e->billing_lock);
 
       cJSON_Delete(json_array);
     }
