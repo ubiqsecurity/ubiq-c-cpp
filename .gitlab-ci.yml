@@ -67,6 +67,7 @@ test-centos:
     stage: test
     before_script:
         - yum -y update
+        - yum install -y gcc gcc-c++ libcurl
     script:
         - build/src/test/unittests
 
