@@ -226,7 +226,7 @@ TEST(c_fpe_encrypt, mixed_backwards)
     free(ptbuf);
 }
 
-TEST(c_fpe_encrypt, 50_cycles)
+TEST(c_fpe_encrypt, 10_cycles)
 {
     static const char * const pt = " 01121231231231231& 1 &231120001&-0-8-9";
 //    static const char * const pt = "00001234567890";//234567890";
@@ -243,7 +243,7 @@ TEST(c_fpe_encrypt, 50_cycles)
     res = ubiq_platform_fpe_encryption_create(creds, &enc);
     ASSERT_EQ(res, 0);
 
-    for (int i = 0; i < 50; i++) {
+    for (int i = 0; i < 10; i++) {
       char * ctbuf(nullptr);
       size_t ctlen;
       char * ptbuf(nullptr);
@@ -262,7 +262,6 @@ TEST(c_fpe_encrypt, 50_cycles)
       EXPECT_EQ(strcmp(pt, ptbuf),0);
       free(ctbuf);
       free(ptbuf);
-//      if ((i % 10) == 0) sleep(6);
     }
     ubiq_platform_fpe_encryption_destroy(enc);
     ubiq_platform_credentials_destroy(creds);

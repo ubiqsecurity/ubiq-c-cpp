@@ -30,6 +30,7 @@ static const time_t CACHE_DURATION = 3 * 24 * 60 * 60;
 typedef enum {ENCRYPT=0, DECRYPT=1}  action_type ;
 static const char * EFPE_TYPE = "EfpeDefinition";
 static const char * FPE_TYPE = "FpeDefinition";
+typedef enum {PARSE_INPUT_TO_OUTPUT = 0, PARSE_OUTPUT_TO_INPUT = 1} conversion_direction_type;
 
 static
 int
@@ -161,31 +162,39 @@ static int encode_keynum(
   char * const buf
 )
 {
-  int res = 0;
+  int res = -EINVAL;
 
+  // If *buf is null terminator or if the character cannot be found,
+  // it would be an error.
   char * pos = strchr(ffs->output_character_set, (int)*buf);
-  unsigned int ct_value = pos - ffs->output_character_set;
+  if (pos != NULL && *pos != '\0') {
+    unsigned int ct_value = pos - ffs->output_character_set;
 
-  ct_value += key_number << ffs->msb_encoding_bits;
-  *buf = ffs->output_character_set[ct_value];
-
+    ct_value += key_number << ffs->msb_encoding_bits;
+    *buf = ffs->output_character_set[ct_value];
+    res = 0;
+  }
   return res;
 }
 
-static unsigned int decode_keynum(
+static int decode_keynum(
   const struct ubiq_platform_ffs * ffs,
-  char * const encoded_char
+  char * const encoded_char,
+   unsigned int * const key_number
 )
 {
-
+  int res = -EINVAL;
   char * pos = strchr(ffs->output_character_set, (int)*encoded_char);
-  unsigned int encoded_value = pos - ffs->output_character_set;
+  if (pos != NULL && *pos != '\0') {
+    unsigned int encoded_value = pos - ffs->output_character_set;
 
-  unsigned int key_num = encoded_value >> ffs->msb_encoding_bits;
+    unsigned int key_num = encoded_value >> ffs->msb_encoding_bits;
 
-
-  *encoded_char = ffs->output_character_set[encoded_value - (key_num << ffs->msb_encoding_bits)];
-  return key_num;
+    *encoded_char = ffs->output_character_set[encoded_value - (key_num << ffs->msb_encoding_bits)];
+    *key_number = key_num;
+    res = 0;
+    }
+  return res;
 }
 
 static int get_json_string(
@@ -436,8 +445,7 @@ ubiq_platform_fpe_encryption_get_ffs_def(
     if (rc != HTTP_RC_OK) {
       res = -rc;
       // Report error
-    }
-    else {
+    } else {
       // Get the response payload, parse, and continue.
       cJSON * ffs_json;
       rsp = ubiq_platform_rest_response_content(e->rest, &len);
@@ -469,26 +477,36 @@ ubiq_platform_fpe_encryption_get_key_helper(
   size_t len;
   int res = 0;
   struct ubiq_platform_fpe_key * k = NULL;
+  cJSON * rsp_json = NULL;
 
   res = fpe_key_create(&k);
   if (!res) {
     const char * content = ubiq_platform_cache_find_element(e->key_cache, url);
     if (content != NULL) {
       len = strlen(content);
+      res = (rsp_json = cJSON_ParseWithLength(content, len)) ? 0 : INT_MIN;
     }
     else {
       res = ubiq_platform_rest_request(
         e->rest,
         HTTP_RM_GET, url, "application/json", NULL , 0);
 
-      content = ubiq_platform_rest_response_content(e->rest, &len);
+      // If Success, simply proceed
+      if (res == 0) {
+        const http_response_code_t rc =
+            ubiq_platform_rest_response_code(e->rest);
 
-      ubiq_platform_cache_add_element(e->key_cache, url, CACHE_DURATION,strndup(content, len), &free);
+        if (rc != HTTP_RC_OK) {
+          res = -rc;
+        } else {
+          const void * rsp = ubiq_platform_rest_response_content(e->rest, &len);
+          res = (rsp_json = cJSON_ParseWithLength(rsp, len)) ? 0 : INT_MIN;
+          if (!res) { res = ubiq_platform_cache_add_element(e->key_cache, url, CACHE_DURATION,strndup(rsp, len), &free);}
+        }
+      }
     }
 
-    if (content) {
-      cJSON * rsp_json;
-      res = (rsp_json = cJSON_ParseWithLength(content, len)) ? 0 : INT_MIN;
+    if (!res && rsp_json != NULL) {
 
       res = ubiq_platform_common_fpe_parse_new_key(
           rsp_json, e->srsa,
@@ -509,8 +527,8 @@ ubiq_platform_fpe_encryption_get_key_helper(
           res = -EBADMSG;
         }
       }
-      cJSON_Delete(rsp_json);
     }
+    cJSON_Delete(rsp_json);
     if (!res) {
       *key = k;
     }
@@ -596,9 +614,10 @@ int ubiq_platform_fpe_encryption_create(
     return res;
 }
 
+static
 int ubiq_platform_fpe_string_parse(
   const struct ubiq_platform_ffs * ffs,
-  const int conversion_direction, // Positive means input to output, negative means output to input
+  const conversion_direction_type conversion_direction, // input to output, or output to input
   const void * const source_string,
   const size_t source_len,
   struct fpe_ffs_parsed * const parsed
@@ -609,12 +628,14 @@ int ubiq_platform_fpe_string_parse(
   char dest_zeroth_char = '\0';
   // struct fpe_ffs_parsed * p;
 
-  if (conversion_direction > 0) {// input to output
+  if (conversion_direction == PARSE_INPUT_TO_OUTPUT) {// input to output
     src_char_set = ffs->input_character_set;
     dest_zeroth_char = ffs->output_character_set[0];
-  } else {
+  } else if (conversion_direction == PARSE_OUTPUT_TO_INPUT) {
     dest_zeroth_char = ffs->input_character_set[0];
     src_char_set = ffs->output_character_set;
+  } else {
+    res = -EINVAL;
   }
 
   if (!res) {
@@ -716,11 +737,12 @@ fpe_decrypt(
   res = ubiq_platform_fpe_encryption_get_ffs_def(enc, ffs_name, &ffs_definition);
 
   if (!res) {res = fpe_ffs_parsed_create(&parsed, ctlen);}
-  if (!res) {res = ubiq_platform_fpe_string_parse(ffs_definition, -1, ctbuf, ctlen, parsed);}
+  if (!res) {res = ubiq_platform_fpe_string_parse(ffs_definition, PARSE_OUTPUT_TO_INPUT, ctbuf, ctlen, parsed);}
 
   if (!res) {
-    unsigned int keynum = decode_keynum(ffs_definition, &parsed->trimmed_buf[0]);
-    res = ubiq_platform_fpe_decryption_get_key(enc, ffs_name, keynum, &key);
+    unsigned int keynum = 0;
+    res = decode_keynum(ffs_definition, &parsed->trimmed_buf[0], &keynum);
+    if (!res) {res = ubiq_platform_fpe_decryption_get_key(enc, ffs_name, keynum, &key);}
   }
 
   // Convert trimmed into base 10 to prepare for decrypt
@@ -828,7 +850,7 @@ fpe_encrypt(
   // Trim pt
   if (!res) {  res = fpe_ffs_parsed_create(&parsed, ptlen); }
 
-  if (!res) {res = ubiq_platform_fpe_string_parse(ffs_definition, 1, ptbuf, ptlen, parsed);}
+  if (!res) {res = ubiq_platform_fpe_string_parse(ffs_definition, PARSE_INPUT_TO_OUTPUT, ptbuf, ptlen, parsed);}
 
   if (!res) {
     res = ubiq_platform_fpe_encryption_get_key(enc, ffs_name, &key);
