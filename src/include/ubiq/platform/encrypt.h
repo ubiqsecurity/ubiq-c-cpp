@@ -142,7 +142,7 @@ ubiq_platform_encryption_end(
 
 UBIQ_PLATFORM_API
 int
-ubiq_platform_fpe_encryption_create(
+ubiq_platform_fpe_enc_dec_create(
     const struct ubiq_platform_credentials * const creds,
     struct ubiq_platform_fpe_enc_dec_obj ** const enc);
 
@@ -158,7 +158,7 @@ ubiq_platform_fpe_encrypt_data(
 
 UBIQ_PLATFORM_API
 void
-ubiq_platform_fpe_encryption_destroy(
+ubiq_platform_fpe_enc_dec_destroy(
     struct ubiq_platform_fpe_enc_dec_obj * const e);
 
 __END_DECLS

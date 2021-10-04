@@ -12,12 +12,12 @@ decryption::decryption(const credentials & creds)
     struct ubiq_platform_fpe_enc_dec_obj * enc;
     int res;
 
-    res = ubiq_platform_fpe_encryption_create(&*creds, &enc);
+    res = ubiq_platform_fpe_enc_dec_create(&*creds, &enc);
     if (res != 0) {
         throw std::system_error(-res, std::generic_category());
     }
 
-    _dec.reset(enc, &ubiq_platform_fpe_encryption_destroy);
+    _dec.reset(enc, &ubiq_platform_fpe_enc_dec_destroy);
 }
 
 std::string

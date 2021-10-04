@@ -247,19 +247,12 @@ ubiq_platform_ffs_destroy(
 }
 
 void
-ubiq_platform_fpe_encryption_destroy(
+ubiq_platform_fpe_enc_dec_destroy(
     struct ubiq_platform_fpe_enc_dec_obj * const e)
 {
-  const char * csu = "ubiq_platform_fpe_encryption_destroy";
+  const char * csu = "ubiq_platform_fpe_enc_dec_destroy";
 
-    /*
-     * if there is a session and a fingerprint
-     * and the key was used less times than requested,
-     * then update the server with the actual number
-     * of uses
-     */
-
-    pthread_cond_signal(&e->process_billing_cond);
+//    pthread_cond_signal(&e->process_billing_cond);
     pthread_mutex_lock(&e->billing_lock);
     cJSON * json_array = e->billing_elements;
     e->billing_elements = NULL;
@@ -337,7 +330,7 @@ ubiq_platform_fpe_encryption_new(
     }
 
     if (res) {
-      ubiq_platform_fpe_encryption_destroy(e);
+      ubiq_platform_fpe_enc_dec_destroy(e);
       e = NULL;
     }
 
@@ -590,7 +583,7 @@ ubiq_platform_fpe_decryption_get_key(
 }
 
 
-int ubiq_platform_fpe_encryption_create(
+int ubiq_platform_fpe_enc_dec_create(
     const struct ubiq_platform_credentials * const creds,
 //    const char * const ffs_name,
     struct ubiq_platform_fpe_enc_dec_obj ** const enc)
@@ -608,7 +601,7 @@ int ubiq_platform_fpe_encryption_create(
     if (res == 0) {
         *enc = e;
     } else {
-        ubiq_platform_fpe_encryption_destroy(e);
+        ubiq_platform_fpe_enc_dec_destroy(e);
     }
 
     return res;
@@ -1156,14 +1149,14 @@ ubiq_platform_fpe_encrypt(
   // Std voltron gets additional information, this will
   // simply allocate structure.  Mapping creds to individual strings
   enc = NULL;
-  res = ubiq_platform_fpe_encryption_create(creds,  &enc);
+  res = ubiq_platform_fpe_enc_dec_create(creds,  &enc);
 
   if (!res) {
      res = fpe_encrypt(enc, ffs_name,
        tweak, tweaklen, ptbuf, ptlen, ctbuf, ctlen);
      if (!res) {res = ubiq_platform_add_billing(enc, ffs_name, ENCRYPT, 1);}
   }
-  ubiq_platform_fpe_encryption_destroy(enc);
+  ubiq_platform_fpe_enc_dec_destroy(enc);
 
   return res;
 }
@@ -1180,13 +1173,13 @@ ubiq_platform_fpe_decrypt(
   int res = 0;
 
   enc = NULL;
-  res = ubiq_platform_fpe_encryption_create(creds, &enc);
+  res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
 
   if (!res) {
     res  = fpe_decrypt(enc, ffs_name, tweak, tweaklen, ctbuf, ctlen, ptbuf, ptlen);
     res = ubiq_platform_add_billing(enc, ffs_name, DECRYPT, 1);
   }
-    ubiq_platform_fpe_encryption_destroy(enc);
+    ubiq_platform_fpe_enc_dec_destroy(enc);
   return res;
 }
 

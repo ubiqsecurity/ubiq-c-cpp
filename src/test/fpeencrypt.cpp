@@ -110,7 +110,7 @@ TEST(c_fpe_encrypt, piecewise)
     res = ubiq_platform_credentials_create(&creds);
     ASSERT_EQ(res, 0);
 
-    res = ubiq_platform_fpe_encryption_create(creds, &enc);
+    res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
     ASSERT_EQ(res, 0);
 
     res = ubiq_platform_fpe_encrypt_data(enc,
@@ -135,7 +135,7 @@ TEST(c_fpe_encrypt, piecewise)
 
     EXPECT_EQ(ptlen, ctlen);
 
-    ubiq_platform_fpe_encryption_destroy(enc);
+    ubiq_platform_fpe_enc_dec_destroy(enc);
 
     ubiq_platform_credentials_destroy(creds);
 
@@ -167,7 +167,7 @@ TEST(c_fpe_encrypt, mixed_forward)
       ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
     EXPECT_EQ(res, 0);
 
-    res = ubiq_platform_fpe_encryption_create(creds, &enc);
+    res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
     ASSERT_EQ(res, 0);
 
     res = ubiq_platform_fpe_decrypt_data(enc,
@@ -178,7 +178,7 @@ TEST(c_fpe_encrypt, mixed_forward)
     EXPECT_EQ(ptlen, ctlen);
     EXPECT_EQ(strcmp(pt, ptbuf),0);
 
-    ubiq_platform_fpe_encryption_destroy(enc);
+    ubiq_platform_fpe_enc_dec_destroy(enc);
     ubiq_platform_credentials_destroy(creds);
 
     free(ctbuf);
@@ -203,7 +203,7 @@ TEST(c_fpe_encrypt, mixed_backwards)
     res = ubiq_platform_credentials_create(&creds);
     ASSERT_EQ(res, 0);
 
-    res = ubiq_platform_fpe_encryption_create(creds, &enc);
+    res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
     ASSERT_EQ(res, 0);
 
     res = ubiq_platform_fpe_encrypt_data(enc,
@@ -211,7 +211,7 @@ TEST(c_fpe_encrypt, mixed_backwards)
     EXPECT_EQ(res, 0);
     EXPECT_EQ(strlen(pt), ctlen);
 
-    ubiq_platform_fpe_encryption_destroy(enc);
+    ubiq_platform_fpe_enc_dec_destroy(enc);
 
     res = ubiq_platform_fpe_decrypt(creds,
       ffs_name, NULL, 0, (char *)ctbuf, strlen(ctbuf), &ptbuf, &ptlen);
@@ -240,7 +240,7 @@ TEST(c_fpe_encrypt, 10_cycles)
     res = ubiq_platform_credentials_create(&creds);
     ASSERT_EQ(res, 0);
 
-    res = ubiq_platform_fpe_encryption_create(creds, &enc);
+    res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
     ASSERT_EQ(res, 0);
 
     for (int i = 0; i < 10; i++) {
@@ -263,7 +263,7 @@ TEST(c_fpe_encrypt, 10_cycles)
       free(ctbuf);
       free(ptbuf);
     }
-    ubiq_platform_fpe_encryption_destroy(enc);
+    ubiq_platform_fpe_enc_dec_destroy(enc);
     ubiq_platform_credentials_destroy(creds);
 
 }

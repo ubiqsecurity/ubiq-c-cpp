@@ -62,7 +62,7 @@ ubiq_fpe_bulk_encrypt(
   size_t ctlen = 0;
   int res;
 
-  res = ubiq_platform_fpe_encryption_create(creds, &enc);
+  res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
 
   if (!res) {
     res = ubiq_platform_fpe_encrypt_data(enc,
@@ -75,7 +75,7 @@ ubiq_fpe_bulk_encrypt(
     }
   }
   free(ctbuf);
-  ubiq_platform_fpe_encryption_destroy(enc);
+  ubiq_platform_fpe_enc_dec_destroy(enc);
   return res;
 }
 
@@ -91,7 +91,7 @@ ubiq_fpe_bulk_decrypt(
   size_t ptlen = 0;
   int res;
 
-  res = ubiq_platform_fpe_encryption_create(creds, &enc);
+  res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
   if (!res) {
 
     res = ubiq_platform_fpe_decrypt_data(enc,
@@ -104,7 +104,7 @@ ubiq_fpe_bulk_decrypt(
     }
   }
   free(ptbuf);
-  ubiq_platform_fpe_encryption_destroy(enc);
+  ubiq_platform_fpe_enc_dec_destroy(enc);
   return res;
 }
 
