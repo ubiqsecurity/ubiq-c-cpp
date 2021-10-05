@@ -46,6 +46,8 @@ install(
               WORLD_READ
   COMPONENT runtime)
 
+find_library(FPE_LIB name ubiqfpe HINTS ${CMAKE_BINARY_DIR}/fpe/src)
+
 # c shared library
 add_library(
   ubiqclient
@@ -65,7 +67,7 @@ if(WIN32)
 else()
   target_link_libraries(
     ubiqclient
-    curl crypto gmp)
+    curl crypto gmp ${FPE_LIB})
 endif()
 strip_target(ubiqclient)
 install(
@@ -118,7 +120,7 @@ if(WIN32)
 else()
   target_link_libraries(
     ubiqclient++
-    curl crypto gmp)
+    curl crypto gmp ${FPE_LIB})
 endif()
 strip_target(ubiqclient++)
 install(

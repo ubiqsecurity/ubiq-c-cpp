@@ -23,7 +23,7 @@ target_link_directories(
    PUBLIC ${CMAKE_BINARY_DIR}/fpe/src)
 target_link_libraries(
   unittests
-  ubiqclient++-static gtest gtest_main ubiqfpe)
+  ubiqclient++-static gtest gtest_main ubiqfpe.a)
 if(WIN32)
   target_compile_definitions(
     unittests

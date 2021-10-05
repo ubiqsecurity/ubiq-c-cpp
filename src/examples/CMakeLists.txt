@@ -32,13 +32,10 @@ target_compile_definitions(
   ubiq_sample-c
   PRIVATE
   _CRT_SECURE_NO_WARNINGS)
-target_link_directories(
-  ubiq_sample-c
-  PUBLIC ${CMAKE_BINARY_DIR}/fpe/src)
 
 target_link_libraries(
   ubiq_sample-c
-  ubiqclient ubiqfpe)
+  ubiqclient)
 
 add_executable(
   ubiq_sample-c++
@@ -50,12 +47,9 @@ target_compile_definitions(
   ubiq_sample-c++
   PRIVATE
   _CRT_SECURE_NO_WARNINGS)
-target_link_directories(
-  ubiq_sample-c++
-  PUBLIC ${CMAKE_BINARY_DIR}/fpe/src)
 target_link_libraries(
   ubiq_sample-c++
-  ubiqclient++ ubiqfpe)
+  ubiqclient++)
 
 
 add_executable(
@@ -68,13 +62,10 @@ target_compile_definitions(
   ubiq_sample_fpe-c
   PRIVATE
   _CRT_SECURE_NO_WARNINGS)
-target_link_directories(
-  ubiq_sample_fpe-c
-  PUBLIC ${CMAKE_BINARY_DIR}/fpe/src)
 
 target_link_libraries(
   ubiq_sample_fpe-c
-  ubiqclient ubiqfpe)
+  ubiqclient)
 
 add_executable(
   ubiq_sample_fpe-c++
@@ -91,7 +82,7 @@ target_link_directories(
   PUBLIC ${CMAKE_BINARY_DIR}/fpe/src)
 target_link_libraries(
   ubiq_sample_fpe-c++
-  ubiqclient++ ubiqfpe)
+  ubiqclient++ )
 
 
 # Copy the Credentials file from the source directory to the
