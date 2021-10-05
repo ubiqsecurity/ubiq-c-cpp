@@ -4,8 +4,8 @@ workflow:
         - if: $CI_COMMIT_BRANCH
         - if: $CI_MERGE_REQUEST_IID
 
-image:
-    name: debian:stable
+#image:
+#    name: debian:stable
 
 services:
     - docker:18-dind
@@ -24,7 +24,8 @@ stages:
     - test
     - deploy
 
-build:
+build-debian:
+    image: debian:stable
     variables:
         GIT_SUBMODULE_STRATEGY: recursive
     stage: build
@@ -32,18 +33,45 @@ build:
         - apt -y update
         - apt -y install cmake gcc g++
         - apt -y install libcurl4-openssl-dev libssl-dev
-        - apt -y install dpkg-dev file
+        - apt -y install dpkg-dev file libgmp-dev
     script:
         - cmake -S. -Bbuild
         - cmake --build build -- -j$(nproc)
         - cmake --build build --target package -- -j$(nproc)
 
-test:
+build-centos:
+    image: centos:8
+    variables:
+        GIT_SUBMODULE_STRATEGY: recursive
+    stage: build
+    before_script:
+        - yum -y update
+        - yum install -y gcc gcc-c++ make gmp-c++ gmp-devel 
+        - yum install -y openssl-devel libcurl-devel file rpm-build cmake
+    script:
+        - cmake -S. -Bbuild
+        - cmake --build build -- -j$(nproc)
+        - cmake --build build --target package -- -j$(nproc)
+
+test-debian:
+    image: debian:stable
     stage: test
     before_script:
         - apt -y update
         - apt -y install libcurl4 libssl1.1
     script:
+        - ldd build/src/test/unittests
+        - ldd build/src/test/unittests
+
+test-centos:
+    image: centos:8
+    stage: test
+    before_script:
+        - yum -y update
+        - yum install -y gcc gcc-c++
+        - yum install --allowerasing -y libcurl
+    script:
+        - ldd build/src/test/unittests
         - build/src/test/unittests
 
 sast:
@@ -54,6 +82,7 @@ include:
     - template: Security/SAST.gitlab-ci.yml
 
 deploy:
+    image: debian:stable
     stage: deploy
     before_script:
         - apt -y update

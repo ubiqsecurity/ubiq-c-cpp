@@ -98,6 +98,12 @@ ubiq_platform_rest_response_content(
     const struct ubiq_platform_rest_handle * const h,
     size_t * const len);
 
+int
+ubiq_platform_rest_uri_escape(
+  const struct ubiq_platform_rest_handle * const h,
+  const char * const uri, char ** const encoded_uri);
+
+
 __END_DECLS
 
 /*

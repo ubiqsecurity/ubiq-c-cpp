@@ -15,11 +15,14 @@ add_library(
   OBJECT
 
   algorithm.c
+  cache.c
   common.c
   credentials.c
   decrypt.c
   encrypt.c
+  fpe.c
   init.c
+  parsing.c
   rest.c
   support.c
   ${CMAKE_CURRENT_SOURCE_DIR}/../ext/cJSON/cJSON.c
@@ -58,6 +61,7 @@ target_include_directories(
   c_objects
   PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/../include
+  ${CMAKE_CURRENT_SOURCE_DIR}/../ext/ubiq-fpe-c/src/include
   ${CMAKE_CURRENT_SOURCE_DIR}/../ext)
 set_target_properties(
   c_objects
@@ -78,6 +82,8 @@ add_library(
   credentials.cpp
   decrypt.cpp
   encrypt.cpp
+  fpe_encrypt.cpp
+  fpe_decrypt.cpp
   init.cpp)
 if(WIN32)
   target_compile_definitions(

@@ -5,17 +5,25 @@ add_subdirectory(googletest)
 add_executable(
   unittests
 
+  cache.cpp
   credentials.cpp
   decrypt.cpp
   encrypt.cpp
+  fpedecrypt.cpp
+  fpeencrypt.cpp
   global.cpp
+  parsing.cpp
   request.cpp)
 # link against the static libraries which avoids
 # having to export certain internal interfaces
 # on windows to make them available for testing
+
+target_link_directories(
+   unittests
+   PUBLIC ${CMAKE_BINARY_DIR}/fpe/src)
 target_link_libraries(
   unittests
-  ubiqclient++-static gtest gtest_main)
+  ubiqclient++-static gtest gtest_main ubiqfpe)
 if(WIN32)
   target_compile_definitions(
     unittests
@@ -27,7 +35,7 @@ if(WIN32)
 else()
   target_link_libraries(
     unittests
-    curl crypto)
+    curl crypto gmp)
 endif()
 
 add_custom_target(

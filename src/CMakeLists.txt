@@ -1,5 +1,7 @@
 include(GNUInstallDirs)
 
+add_subdirectory(ext)
+
 function(strip_target TARGET)
   set(CMAKE_STRIP_COMMAND /usr/bin/strip)
 
@@ -63,7 +65,7 @@ if(WIN32)
 else()
   target_link_libraries(
     ubiqclient
-    curl crypto)
+    curl crypto gmp)
 endif()
 strip_target(ubiqclient)
 install(
@@ -116,7 +118,7 @@ if(WIN32)
 else()
   target_link_libraries(
     ubiqclient++
-    curl crypto)
+    curl crypto gmp)
 endif()
 strip_target(ubiqclient++)
 install(
@@ -155,31 +157,83 @@ install(
                         WORLD_READ WORLD_EXECUTE
   COMPONENT development)
 
+file(GLOB FPE_SO ${CMAKE_BINARY_DIR}/fpe/src/libubiqfpe.so*)
+
+install(
+  FILES ${CMAKE_BINARY_DIR}/fpe/src/libubiqfpe.a ${FPE_SO}
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE
+              GROUP_READ GROUP_EXECUTE
+              WORLD_READ WORLD_EXECUTE
+  COMPONENT runtime)
+
+if(EXISTS "/etc/redhat-release")
+
+  file(READ "/etc/redhat-release" os)
+  string(TOLOWER "${os}" oss)
+  string(REGEX MATCH "red hat|centos" DIST ${oss})
+
+  if (DIST STREQUAL "centos")
+     set(PLATFORM "CENTOS")
+     set(PACKAGE "RPM")
+     set(GENERATOR "RPM")
+  elseif ( DIST STREQUAL "red hat")
+     set(PLATFORM "RHEL")
+     set(PACKAGE "RPM")
+     set(GENERATOR "RPM")
+  else()
+     MESSAGE(FATAL_ERROR "Unknown environment for ${oss} and unable to define packaging parameters")
+  endif()
+
+elseif (EXISTS "/etc/os-release")
+  file(READ "/etc/os-release" os)
+  string(TOLOWER "${os}" oss)
+  string(REGEX MATCH "centos|debian|ubuntu|rhel|kali|amzn" DIST ${oss})
+
+  if (DIST STREQUAL "debian")
+     set(PACKAGE "DEB")
+     set(PLATFORM "DEBIAN")
+     set(GENERATOR "DEBIAN")
+  elseif (DIST STREQUAL "ubuntu")
+     set(PACKAGE "DEB")
+     set(PLATFORM "UBUNTU")
+     set(GENERATOR "DEBIAN")
+  else()
+    MESSAGE(FATAL_ERROR "Unknown environment for ${oss} and unable to define packaging parameters")
+  endif()
+else()
+  MESSAGE(FATAL_ERROR "Unable to determine environment using /etc/os-release or /etc/redhat-release files")
+endif()
+
+
 set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
 set(CPACK_STRIP_FILES ON)
 
-set(CPACK_GENERATOR DEB)
-set(CPACK_DEB_COMPONENT_INSTALL ON)
-set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
-set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Ubiq Security <support@ubiqsecurity.com>")
-set(CPACK_DEBIAN_PACKAGE_DESCRIPTION "")
+set(CPACK_GENERATOR ${PACKAGE})
+set(CPACK_${PACKAGE}_COMPONENT_INSTALL ON)
+set(CPACK_${GENERATOR}_PACKAGE_SHLIBDEPS ON)
+set(CPACK_${GENERATOR}_PACKAGE_MAINTAINER "Ubiq Security <support@ubiqsecurity.com>")
+set(CPACK_${GENERATOR}_PACKAGE_DESCRIPTION "")
 set(CPACK_PACKAGE_DESCRIPTION "")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY
   "C and C++ client libraries for the Ubiq Platform")
 
 set(CPACK_COMPONENTS_ALL development runtime)
 
-set(CPACK_DEBIAN_DEVELOPMENT_PACKAGE_NAME libubiqclient-dev)
-set(CPACK_DEBIAN_DEVELOPMENT_FILE_NAME DEB-DEFAULT)
-set(CPACK_DEBIAN_DEVELOPMENT_PACKAGE_DEPENDS libubiqclient)
-set(CPACK_DEBIAN_DEVELOPMENT_PACKAGE_SECTION libdevel)
-set(CPACK_DEBIAN_DEVELOPMENT_DESCRIPTION
-  "This package includes support files for C and C++ development")
-
-set(CPACK_DEBIAN_RUNTIME_PACKAGE_NAME libubiqclient)
-set(CPACK_DEBIAN_RUNTIME_FILE_NAME DEB-DEFAULT)
-set(CPACK_DEBIAN_RUNTIME_PACKAGE_SECTION libs)
-set(CPACK_DEBIAN_RUNTIME_DESCRIPTION
+set(CPACK_${GENERATOR}_RUNTIME_PACKAGE_NAME libubiqclient)
+set(CPACK_${GENERATOR}_RUNTIME_FILE_NAME ${PACKAGE}-DEFAULT)
+set(CPACK_${GENERATOR}_RUNTIME_PACKAGE_SECTION libs)
+set(CPACK_${GENERATOR}_RUNTIME_DESCRIPTION
   "This package includes the static and shared libraries")
+
+set(CPACK_${GENERATOR}_DEVELOPMENT_PACKAGE_NAME libubiqclient-dev)
+set(CPACK_${GENERATOR}_DEVELOPMENT_FILE_NAME ${PACKAGE}-DEFAULT)
+set(CPACK_${GENERATOR}_DEVELOPMENT_PACKAGE_DEPENDS libubiqclient)
+set(CPACK_${GENERATOR}_DEVELOPMENT_PACKAGE_REQUIRES "libubiqclient")
+set(CPACK_${GENERATOR}_DEVELOPMENT_PACKAGE_SECTION libdevel)
+set(CPACK_${GENERATOR}_DEVELOPMENT_DESCRIPTION
+  "This package includes support files for C and C++ development")
+set(CPACK_RPM_DEVELOPMENT_PACKAGE_AUTOREQ 0)
+
 
 include(CPack)

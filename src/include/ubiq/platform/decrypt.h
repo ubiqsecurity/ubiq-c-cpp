@@ -30,6 +30,16 @@ ubiq_platform_decrypt(
     const void * const ctbuf, const size_t ctlen,
     void ** ptbuf, size_t * ptlen);
 
+UBIQ_PLATFORM_API
+int
+ubiq_platform_fpe_decrypt(
+    const struct ubiq_platform_credentials * const creds,
+    const char * const ffs_name,
+    const void * const tweak, const size_t tweaklen,
+    const void * const ctbuf, const size_t ctlen,
+    char ** const ptbuf, size_t * const ptlen);
+
+
 /* Opaque decryption object */
 struct ubiq_platform_decryption;
 
@@ -116,6 +126,22 @@ ubiq_platform_decryption_end(
     struct ubiq_platform_decryption * const dec,
     void ** const ptbuf, size_t * const ptlen);
 
+/*
+ * *******************************************
+ *                  FPE
+ * *******************************************
+ */
+
+UBIQ_PLATFORM_API
+int
+ubiq_platform_fpe_decrypt_data(
+  struct ubiq_platform_fpe_enc_dec_obj * const enc,
+  const char * const ffs_name,
+  const uint8_t * const tweak, const size_t tweaklen,
+  const char * const ctbuf, const size_t ctlen,
+  char ** const ptbuf, size_t * const ptlen
+);
+
 __END_DECLS
 
 #if defined(__cplusplus)
@@ -197,8 +223,75 @@ namespace ubiq {
         private:
             std::shared_ptr<::ubiq_platform_decryption> _dec;
         };
-    }
-}
+
+
+        namespace fpe {
+
+          UBIQ_PLATFORM_API
+          std::string
+          decrypt(const credentials & creds,
+                  const std::string & ffs_name,
+                  const std::string & ct);
+
+          UBIQ_PLATFORM_API
+          std::string
+          decrypt(const credentials & creds,
+                  const std::string & ffs_name,
+                  const std::vector<std::uint8_t> & tweak,
+                  const std::string & ct);
+
+          class decryption
+          {
+          public:
+            UBIQ_PLATFORM_API
+            virtual ~decryption(void) = default;
+
+            /*
+             * The default constructor creates an empty decryption object.
+             * This object cannot be used to perform an decryption, and
+             * the constructor is provided for convenience.
+             */
+            UBIQ_PLATFORM_API
+            decryption(void) = default;
+
+            decryption(const decryption &) = delete;
+            UBIQ_PLATFORM_API
+            decryption(decryption &&) = default;
+            decryption & operator =(const decryption &) = delete;
+            UBIQ_PLATFORM_API
+            decryption & operator =(decryption &&) = default;
+
+            /*
+             * This constructor is equivalent to
+             * ubiq_platform_encryption_create(), and the constructor throws
+             * an exception if it fails to properly construct the object.
+             */
+            UBIQ_PLATFORM_API
+            decryption(const credentials & creds);
+
+            UBIQ_PLATFORM_API
+            virtual
+            std::string
+            decrypt(
+              const std::string & ffs_name,
+              const std::string & pt
+            ) ;
+
+            UBIQ_PLATFORM_API
+            virtual
+            std::string
+            decrypt(
+              const std::string & ffs_name,
+              const std::vector<std::uint8_t> & tweak,
+              const std::string & pt
+            ) ;
+
+          private:
+            std::shared_ptr<::ubiq_platform_fpe_enc_dec_obj> _dec;
+          };
+        } // fpe
+    } // platform
+} // ubiq
 
 #endif /* __cplusplus */
 

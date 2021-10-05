@@ -437,3 +437,11 @@ ubiq_platform_rest_request(
 
     return res;
 }
+
+int
+ubiq_platform_rest_uri_escape(
+  const struct ubiq_platform_rest_handle * const h,
+  const char * const uri, char ** const encoded_uri)
+{
+  return ubiq_support_uri_escape(h->hnd, uri, encoded_uri);
+}

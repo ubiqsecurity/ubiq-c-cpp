@@ -24,6 +24,9 @@ int ubiq_support_gmtime_r(const time_t * const, struct tm * const);
 int ubiq_support_base64_encode(char ** const, const void * const, const size_t);
 int ubiq_support_base64_decode(void ** const, const char * const, const size_t);
 
+
+
+
 struct ubiq_support_hash_context;
 
 int ubiq_support_digest_init(
@@ -138,6 +141,11 @@ ubiq_support_http_request(
     const size_t /* request content length */,
     void ** const /* response content */,
     size_t * const /* response content length */);
+
+
+    /* encoded_uri must be freed via free() */
+    int ubiq_support_uri_escape(struct ubiq_support_http_handle * const hnd,
+      const char * const uri, char ** const encoded_uri);
 
 __END_DECLS
 

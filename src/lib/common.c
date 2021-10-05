@@ -103,6 +103,54 @@ ubiq_url_parse(
     return err;
 }
 
+static
+int
+ubiq_platform_common_parse_key(
+  const cJSON * const json,
+  const char * const srsa,
+  void ** const keybuf, size_t * const keylen)
+{
+  const char * prvpem = NULL;
+  int res = 0;
+  const cJSON * j;
+
+  if (res == 0) {
+      /*
+       * decrypt the private key using the srsa as a password
+       */
+      j = cJSON_GetObjectItemCaseSensitive(
+          json, "encrypted_private_key");
+      if (cJSON_IsString(j) && j->valuestring != NULL) {
+          prvpem = j->valuestring;
+      } else {
+          res = -EBADMSG;
+      }
+  }
+  if (res == 0) {
+      /*
+       * unwrap the data key
+       */
+      j = cJSON_GetObjectItemCaseSensitive(
+          json, "wrapped_data_key");
+      if (cJSON_IsString(j) && j->valuestring != NULL) {
+          void * buf;
+          int len;
+
+          len = ubiq_support_base64_decode(
+              &buf, j->valuestring, strlen(j->valuestring));
+
+          res = ubiq_support_asymmetric_decrypt(
+              prvpem, srsa, buf, len, keybuf, keylen);
+
+          free(buf);
+      } else {
+          res = -EBADMSG;
+      }
+  }
+  return res;
+}
+
+
 int
 ubiq_platform_common_parse_new_key(
     const cJSON * const json,
@@ -111,25 +159,9 @@ ubiq_platform_common_parse_new_key(
     void ** const keybuf, size_t * const keylen)
 {
     const cJSON * j;
-    const char * prvpem;
     int res;
 
-    prvpem = NULL;
     res = 0;
-
-    if (res == 0) {
-        /*
-         * decrypt the private key using the srsa as a password
-         */
-        j = cJSON_GetObjectItemCaseSensitive(
-            json, "encrypted_private_key");
-        if (cJSON_IsString(j) && j->valuestring != NULL) {
-            prvpem = j->valuestring;
-        } else {
-            res = -EBADMSG;
-        }
-    }
-
     if (res == 0) {
         /*
          * save the session id
@@ -157,27 +189,21 @@ ubiq_platform_common_parse_new_key(
     }
 
     if (res == 0) {
-        /*
-         * unwrap the data key
-         */
-        j = cJSON_GetObjectItemCaseSensitive(
-            json, "wrapped_data_key");
-        if (cJSON_IsString(j) && j->valuestring != NULL) {
-            void * buf;
-            int len;
-
-            len = ubiq_support_base64_decode(
-                &buf, j->valuestring, strlen(j->valuestring));
-
-            res = ubiq_support_asymmetric_decrypt(
-                prvpem, srsa, buf, len, keybuf, keylen);
-
-            free(buf);
-        } else {
-            res = -EBADMSG;
-        }
+      res = ubiq_platform_common_parse_key(json, srsa, keybuf, keylen);
     }
 
+    return res;
+}
+
+int
+ubiq_platform_common_fpe_parse_new_key(
+    const cJSON * const json,
+    const char * const srsa,
+    void ** const keybuf, size_t * const keylen)
+{
+    int res = 0;
+
+    res = ubiq_platform_common_parse_key(json, srsa, keybuf, keylen);
     return res;
 }
 

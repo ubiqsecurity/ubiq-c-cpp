@@ -2,6 +2,7 @@
 
 #include <ubiq/platform/compat/cdefs.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #include <ubiq/platform/credentials.h>
 
@@ -29,8 +30,20 @@ ubiq_platform_encrypt(
     const void * const ptbuf, const size_t ptlen,
     void ** const ctbuf, size_t * const ctlen);
 
+UBIQ_PLATFORM_API
+int
+ubiq_platform_fpe_encrypt(
+    const struct ubiq_platform_credentials * const creds,
+    const char * const ffs_name,
+    const void * const tweak, const size_t tweaklen,
+    const char * const ptbuf, const size_t ptlen,
+    char ** const ctbuf, size_t * const ctlen);
+
+
 /* Opaque encryption object */
 struct ubiq_platform_encryption;
+
+struct ubiq_platform_fpe_enc_dec_obj;
 
 /*
  * Create an encryption object that can be used to encrypt some number
@@ -120,6 +133,45 @@ ubiq_platform_encryption_end(
     struct ubiq_platform_encryption * const enc,
     void ** const ctbuf, size_t * const ctlen);
 
+
+/*
+ * *******************************************
+ *                  FPE
+ * *******************************************
+ */
+
+UBIQ_PLATFORM_API
+int
+ubiq_platform_fpe_enc_dec_create(
+    const struct ubiq_platform_credentials * const creds,
+    struct ubiq_platform_fpe_enc_dec_obj ** const enc);
+
+UBIQ_PLATFORM_API
+int
+ubiq_platform_fpe_encrypt_data(
+  struct ubiq_platform_fpe_enc_dec_obj * const enc,
+  const char * const ffs_name,
+  const uint8_t * const tweak, const size_t tweaklen,
+  const char * const ptbuf, const size_t ptlen,
+  char ** const ctbuf, size_t * const ctlen
+);
+
+UBIQ_PLATFORM_API
+void
+ubiq_platform_fpe_enc_dec_destroy(
+    struct ubiq_platform_fpe_enc_dec_obj * const e);
+
+// Get details regarding last error message if
+// available.  Must free the errmsg string when
+// done.
+UBIQ_PLATFORM_API
+int
+ubiq_platform_fpe_last_error(
+  struct ubiq_platform_fpe_enc_dec_obj * const enc,
+  int * const err_num,
+  char ** const err_msg
+);
+
 __END_DECLS
 
 #if defined(__cplusplus)
@@ -201,8 +253,76 @@ namespace ubiq {
         private:
             std::shared_ptr<::ubiq_platform_encryption> _enc;
         };
-    }
-}
+
+
+        namespace fpe {
+
+          UBIQ_PLATFORM_API
+          std::string
+          encrypt(const credentials & creds,
+                  const std::string & ffs_name,
+                  const std::string & pt);
+
+          UBIQ_PLATFORM_API
+          std::string
+          encrypt(const credentials & creds,
+                  const std::string & ffs_name,
+                  const std::vector<std::uint8_t> & tweak,
+                  const std::string & pt);
+
+          class encryption
+          {
+          public:
+
+            UBIQ_PLATFORM_API
+            virtual ~encryption(void) = default;
+
+            /*
+             * The default constructor creates an empty encryption object.
+             * This object cannot be used to perform an encryption, and
+             * the constructor is provided for convenience.
+             */
+            UBIQ_PLATFORM_API
+            encryption(void) = default;
+
+            encryption(const encryption &) = delete;
+            UBIQ_PLATFORM_API
+            encryption(encryption &&) = default;
+            encryption & operator =(const encryption &) = delete;
+            UBIQ_PLATFORM_API
+            encryption & operator =(encryption &&) = default;
+
+            /*
+             * This constructor is equivalent to
+             * ubiq_platform_encryption_create(), and the constructor throws
+             * an exception if it fails to properly construct the object.
+             */
+            UBIQ_PLATFORM_API
+            encryption(const credentials & creds);
+
+            UBIQ_PLATFORM_API
+            virtual
+            std::string
+            encrypt(
+              const std::string & ffs_name,
+              const std::string & pt
+            ) ;
+
+            UBIQ_PLATFORM_API
+            virtual
+            std::string
+            encrypt(
+              const std::string & ffs_name,
+              const std::vector<std::uint8_t> & tweak,
+              const std::string & pt
+            ) ;
+
+          private:
+            std::shared_ptr<::ubiq_platform_fpe_enc_dec_obj> _enc;
+          };
+        } // fpe
+    } // platform
+} // ubiq
 
 #endif /* __cplusplus */
 
