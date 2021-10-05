@@ -60,7 +60,8 @@ test-debian:
         - apt -y update
         - apt -y install libcurl4 libssl1.1
     script:
-        - build/src/test/unittests
+        - ldd build/src/test/unittests
+        - ldd build/src/test/unittests
 
 test-centos:
     image: centos:8
@@ -70,6 +71,7 @@ test-centos:
         - yum install -y gcc gcc-c++
         - yum install --allowerasing -y libcurl
     script:
+        - ldd build/src/test/unittests
         - build/src/test/unittests
 
 sast:
