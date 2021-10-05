@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.4.0.0 - 2021-10-05
+* Added support for Format Preserving Encryption, FPE
+
 ## 0.3.0.0 - 2021-01-18
 * Fix bug causing wrong credentials to be loaded when no profile is specified
 * Modify default credentials constructor to allow environment to override,
