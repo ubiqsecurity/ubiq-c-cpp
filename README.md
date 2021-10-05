@@ -470,5 +470,170 @@ buf = dec.end();
 ptbuf.insert(ptbuf.end(), buf.begin(), buf.end());
 ```
 
+## FPE/eFPE (Optionally Available Feature)
+
+This library incorporates format preserving encryption (FPE) and embedded format preserving encryption (eFPE). Please contact support@ubiqsecurity.com to add this capability to your account.
+
+## Requirements
+
+-   Please follow the same requirements as described above for the non-FPE functionality.
+-   Library packages, include files and initialization are the same as above for non-FPE functionality.
+
+-   When building clients with `gcc`, use `-lubiqclient` and `-lubiqfpe` to link against the C
+library and `-lubiqclient++`  `-lubiqfpe++` to link against the C++ library.
+
+## Usage
+
+You will need to obtain account credentials in the same way as described above for conventional encryption/decryption. When
+you do this in your [Ubiq Dashboard][dashboard] [credentials][credentials], you'll need to enable the FPE option. If you do not
+see the FPE option, you may need to upgrade your plan as this is an optional capability available on upgraded accounts.
+The credentials can be hardcoded into your application, specified with environment variables,
+loaded from an explicit file, or loaded from a file in your
+home directory [~/.ubiq/credentials].
+
+### Encrypt a social security text field - simple interface
+Pass credentials, the name of a Field Format Specification, FFS, and data into the encryption function. The encrypted data will be returned.
+
+```c
+/* C */
+#include <ubiq/platform.h>
+
+struct ubiq_platform_credentials * creds = NULL;
+const char * const FFS_NAME = "SSN";
+char * ptbuf = "123-45-6789";
+char * ctbuf = NULL;
+size_t ctlen = 0;
+
+...
+ubiq_platform_init();
+
+ubiq_platform_credentials_create(&creds);
+int res = ubiq_platform_fpe_encrypt(creds, FFS_NAME, NULL, 0, ptbuf, strlen(ptbuf), &ctbuf, &ctlen);
+...
+free(ctbuf);
+ubiq_platform_credentials_destroy(creds);
+
+ubiq_platform_exit();
+
+```
+```c++
+/* C++ */
+#include <ubiq/platform.h>
+
+std::string ffs_name("SSN");
+std::string pt("123-45-6789");
+std::string ct;
+
+ubiq::platform::credentials creds;
+ubiq::platform::init();
+ct = ubiq::platform::fpe::encrypt(creds, ffs_name, pt);
+...
+
+ubiq::platform::exit();
+
+```
+### Decrypt a social security text field - simple interface
+Pass credentials, the name of a Field Format Specification, FFS, and data into the decrypt function. The plain text data will be returned.
+
+```c
+/* C */
+#include <ubiq/platform.h>
+
+struct ubiq_platform_credentials * creds = NULL;
+const char * const FFS_NAME = "SSN";
+char * ctbuf = "7\"c-`P-fGj?";
+char * ptbuf = NULL;
+size_t ptlen = 0;
+
+...
+ubiq_platform_init();
+
+ubiq_platform_credentials_create(&creds);
+int res = ubiq_platform_fpe_decrypt(creds, FFS_NAME, NULL, 0, ctbuf, strlen(ctbuf), &ptbuf, &ptlen);
+...
+free(ptbuf);
+ubiq_platform_credentials_destroy(creds);
+
+ubiq_platform_exit();
+
+```
+```c++
+/* C++ */
+#include <ubiq/platform.h>
+
+std::string ffs_name("SSN");
+std::string ct( "7\"c-`P-fGj?");
+std::string pt;
+
+ubiq::platform::init();
+ubiq::platform::credentials creds;
+pt = ubiq::platform::fpe::decrypt(creds, ffs_name, ct);
+...
+
+ubiq::platform::exit();
+```
+### Encrypt a social security text field - bulk interface
+Create an fpe_enc_dec object with Pass credentials and then allow repeated calls to encrypt / decrypt
+data using a Field Format Specification, FFS, and the data.  Depending upon the call, either cipher text or
+plain text will be returned.
+
+```c
+/* C */
+#include <ubiq/platform.h>
+
+struct ubiq_platform_credentials * creds = NULL;
+struct ubiq_platform_fpe_enc_dec_obj *enc = NULL;
+const char * const FFS_NAME = "SSN";
+// Loop through a bunch of plaintext values
+char * ptbuf[] = {"123-45-6789", "987-65-4321","111-22-3333","444-55-6666",NULL};
+char * ctbuf = NULL;
+size_t ctlen = 0;
+int res = 0;
+...
+int res = ubiq_platform_init();
+
+if (!res) {res = ubiq_platform_credentials_create(&creds); }
+if (!res) {res = ubiq_platform_fpe_enc_dec_create(creds, &enc); }
+
+// Loop throut all the PT values and encrypt each one
+char ** p = ptbuf;
+while ((!res) && *p) {
+  res = ubiq_platform_fpe_encrypt_data(enc,
+     FFS_NAME, NULL, 0, *p, strlen(*p), &ctbuf, &ctlen);
+  ...
+  free(ctbuf);
+  p++;
+}
+
+...
+ubiq_platform_fpe_enc_dec_destroy(enc);
+ubiq_platform_credentials_destroy(creds);
+
+ubiq_platform_exit();
+
+```
+```c++
+/* C++ */
+#include <ubiq/platform.h>
+
+std::string ffs_name("ALPHANUM_SSN");
+std::vector<std::string> pt = {"123-45-6789", "987-65-4321","123-45-6789","123-45-6789","123-45-6789"};
+std::string ct;
+
+ubiq::platform::credentials creds;
+ubiq::platform::init();
+ubiq::platform::fpe::encryption enc(creds);
+
+// loop through a vector of plain text elements to encrypt
+for(auto itr : pt) {
+  ct = enc.encrypt(ffs_name, itr);
+  ...
+}
+
+ubiq::platform::exit();
+
+...
+
+
 [dashboard]:https://dashboard.ubiqsecurity.com/
 [credentials]:https://dev.ubiqsecurity.com/docs/how-to-create-api-keys
