@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.4.1.0 - 2021-10-05
+* Changed reference to the ubiq-fpe-c submodule
+
 ## 0.4.0.0 - 2021-10-05
 * Added support for Format Preserving Encryption, FPE
 
