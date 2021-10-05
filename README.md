@@ -479,8 +479,8 @@ This library incorporates format preserving encryption (FPE) and embedded format
 -   Please follow the same requirements as described above for the non-FPE functionality.
 -   Library packages, include files and initialization are the same as above for non-FPE functionality.
 
--   When building clients with `gcc`, use `-lubiqclient` and `-lubiqfpe` to link against the C
-library and `-lubiqclient++`  `-lubiqfpe++` to link against the C++ library.
+-   When building clients with `gcc`, use `-lubiqclient` to link against the C
+library and `-lubiqclient++` to link against the C++ library.
 
 ## Usage
 
