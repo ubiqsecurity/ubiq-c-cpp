@@ -574,8 +574,7 @@ ubiq::platform::exit();
 ```
 ### Encrypt a social security text field - bulk interface
 Create an fpe_enc_dec object with Pass credentials and then allow repeated calls to encrypt / decrypt
-data using a Field Format Specification, FFS, and the data.  Depending upon the call, either cipher text or
-plain text will be returned.
+data using a Field Format Specification and the data.  Cipher text will be returned.
 
 ```c
 /* C */
@@ -631,8 +630,69 @@ for(auto itr : pt) {
 }
 
 ubiq::platform::exit();
+```
+
+
+### Decrypt a social security text field - bulk interface
+Create an fpe_enc_dec object with Pass credentials and then allow repeated calls to encrypt / decrypt
+data using a Field Format Specification and the data.  Depending upon the call, either cipher text or
+plain text will be returned.
+
+```c
+/* C */
+#include <ubiq/platform.h>
+
+struct ubiq_platform_credentials * creds = NULL;
+struct ubiq_platform_fpe_enc_dec_obj *enc = NULL;
+const char * const FFS_NAME = "SSN";
+char * ctbuf[] = {"7\"c-`P-fGj?", "7$S-27-9D4A",NULL};
+char * ptbuf = NULL;
+size_t ptlen = 0;
+
+int res = 0;
+...
+int res = ubiq_platform_init();
+
+if (!res) {res = ubiq_platform_credentials_create(&creds); }
+if (!res) {res = ubiq_platform_fpe_enc_dec_create(creds, &enc); }
+
+// Loop throut all the PT values and encrypt each one
+char ** c = ctbuf;
+while ((!res) && *c) {
+  res = ubiq_platform_fpe_decrypt_data(enc,
+    FFS_NAME, NULL, 0, *c, strlen(*c), &ptbuf, &ptlen);
+  ...
+  free(ptbuf);
+  c++;
+}
 
 ...
+ubiq_platform_fpe_enc_dec_destroy(enc);
+ubiq_platform_credentials_destroy(creds);
+
+ubiq_platform_exit();
+
+```
+```c++
+/* C++ */
+#include <ubiq/platform.h>
+
+std::string ffs_name("ALPHANUM_SSN");
+std::vector<std::string> ct = {"7\"c-`P-fGj?", "7$S-27-9D4A"};
+std::string pt;
+
+ubiq::platform::credentials creds;
+ubiq::platform::init();
+ubiq::platform::fpe::decryption dec(creds);
+
+// loop through a vector of plain text elements to encrypt
+for(auto itr : ct) {
+  pt = dec.decrypt(ffs_name, itr);
+  ...
+}  
+
+ubiq::platform::exit();
+```
 
 
 [dashboard]:https://dashboard.ubiqsecurity.com/
