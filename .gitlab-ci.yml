@@ -15,9 +15,9 @@ variables:
     DOCKER_TLS_CERTDIR: ""
 
 cache:
-    key: "debian-${CI_COMMIT_REF_SLUG}"
+    key: ${CI_COMMIT_REF_SLUG}
     paths:
-       - build
+        - build
 
 stages:
     - build
@@ -65,15 +65,15 @@ test-debian:
         - apt -y install libcurl4 libssl1.1
     script:
         - ldd build/src/test/unittests
-        - ldd build/src/test/unittests
+        - build/src/test/unittests
 
 test-centos:
     image: centos:8
     stage: test
     before_script:
         - yum -y update
-        - yum install -y gcc gcc-c++ make gmp-c++ gmp-devel 
-        - yum install -y openssl-devel libcurl-devel file rpm-build cmake
+        - yum install -y gcc gcc-c++
+        - yum install --allowerasing -y libcurl
     script:
         - ldd build/src/test/unittests
         - build/src/test/unittests
