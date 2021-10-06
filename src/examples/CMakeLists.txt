@@ -77,9 +77,6 @@ target_compile_definitions(
   ubiq_sample_fpe-c++
   PRIVATE
   _CRT_SECURE_NO_WARNINGS)
-target_link_directories(
-  ubiq_sample_fpe-c++
-  PUBLIC ${CMAKE_BINARY_DIR}/fpe/src)
 target_link_libraries(
   ubiq_sample_fpe-c++
   ubiqclient++ )
