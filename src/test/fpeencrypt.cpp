@@ -30,7 +30,7 @@ TEST_F(cpp_fpe_encrypt, none)
 
 TEST_F(cpp_fpe_encrypt, simple)
 {
-    std::string pt("ABC");
+    std::string pt("ABCDEFGHI");
     std::string ct, ct2;
 
     ASSERT_NO_THROW(
@@ -44,7 +44,7 @@ TEST_F(cpp_fpe_encrypt, simple)
 
 TEST_F(cpp_fpe_encrypt, bulk)
 {
-    std::string pt("ABC");
+    std::string pt("ABCDEFGHI");
     std::string ct, ct2;
 
     _enc = ubiq::platform::fpe::encryption(_creds);
@@ -59,7 +59,7 @@ TEST_F(cpp_fpe_encrypt, bulk)
 
 TEST(c_fpe_encrypt, simple)
 {
-    static const char * const pt = " 01121231231231231& 1 &231120001&-0-8-9";
+    static const char * const pt = " 01121231231231231& 1 &2311200 ";
 //    static const char * const pt = "00001234567890";//234567890";
     static const char * const ffs_name = "ALPHANUM_SSN";
 
@@ -91,7 +91,7 @@ TEST(c_fpe_encrypt, simple)
 
 TEST(c_fpe_encrypt, piecewise)
 {
-    static const char * const pt = " 01121231231231231& 1 &231120001&-0-8-9";
+    static const char * const pt = " 01121231231231231& 1 &2311200 ";
 //    static const char * const pt = "00001234567890";//234567890";
     static const char * const ffs_name = "ALPHANUM_SSN";
 
@@ -147,7 +147,7 @@ TEST(c_fpe_encrypt, piecewise)
 
 TEST(c_fpe_encrypt, mixed_forward)
 {
-    static const char * const pt = " 01121231231231231& 1 &231120001&-0-8-9";
+    static const char * const pt = " 01121231231231231& 1 &2311200 ";
 //    static const char * const pt = "00001234567890";//234567890";
     static const char * const ffs_name = "ALPHANUM_SSN";
 
@@ -187,7 +187,7 @@ TEST(c_fpe_encrypt, mixed_forward)
 
 TEST(c_fpe_encrypt, mixed_backwards)
 {
-    static const char * const pt = " 01121231231231231& 1 &231120001&-0-8-9";
+    static const char * const pt = " 01121231231231231& 1 &2311200 ";
 //    static const char * const pt = "00001234567890";//234567890";
     static const char * const ffs_name = "ALPHANUM_SSN";
 
@@ -228,7 +228,7 @@ TEST(c_fpe_encrypt, mixed_backwards)
 
 TEST(c_fpe_encrypt, 10_cycles)
 {
-    static const char * const pt = " 01121231231231231& 1 &231120001&-0-8-9";
+    static const char * const pt = " 01121231231231231& 1 &2311200 ";
 //    static const char * const pt = "00001234567890";//234567890";
     static const char * const ffs_name = "ALPHANUM_SSN";
 
@@ -333,4 +333,166 @@ TEST(c_fpe_encrypt, errmsg_notnull_object)
 
     ubiq_platform_credentials_destroy(creds);
 
+}
+
+TEST(c_fpe_encrypt, error_handling_invalid_ffs)
+{
+
+  static const char * const pt = " 01121231231231231& 1 &2311200 ";
+  static const char * const ffs_name = "ALPHANUM_SSN";
+
+  struct ubiq_platform_credentials * creds;
+  struct ubiq_platform_fpe_enc_dec_obj *enc;
+  char * ctbuf(nullptr);
+  size_t ctlen;
+  int res;
+
+  char * err_msg = NULL;
+  int err_num;
+
+  res = ubiq_platform_credentials_create(&creds);
+  ASSERT_EQ(res, 0);
+
+  res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
+  ASSERT_EQ(res, 0);
+
+  res = ubiq_platform_fpe_encrypt_data(enc,
+     "ERROR_MSG", NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+  EXPECT_NE(res, 0);
+  ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+  EXPECT_NE(err_num, 0);
+  EXPECT_TRUE(err_msg != NULL);
+  printf("error message %d %d %s\n",res, err_num, err_msg);
+
+  ubiq_platform_fpe_enc_dec_destroy(enc);
+
+  ubiq_platform_credentials_destroy(creds);
+
+  free(ctbuf);
+  free(err_msg);
+}
+
+TEST(c_fpe_encrypt, error_handling_invalid_creds)
+{
+
+  static const char * const pt = " 01121231231231231& 1 &2311200 ";
+  static const char * const ffs_name = "ALPHANUM_SSN";
+
+  struct ubiq_platform_credentials * creds;
+  struct ubiq_platform_fpe_enc_dec_obj *enc;
+  char * ctbuf(nullptr);
+  size_t ctlen;
+  int res;
+
+  char * err_msg = NULL;
+  int err_num;
+
+  res = ubiq_platform_credentials_create_explicit(
+      "invalid1", "invalid2",
+      "invalid3",
+      "https://koala.ubiqsecurity.com",
+      &creds);
+
+  ASSERT_EQ(res, 0);
+
+  res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
+  ASSERT_EQ(res, 0);
+
+  res = ubiq_platform_fpe_encrypt_data(enc,
+    "ERROR_MSG", NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+  EXPECT_NE(res, 0);
+  ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+  EXPECT_NE(err_num, 0);
+  EXPECT_TRUE(err_msg != NULL);
+  printf("error message %d %d %s\n",res, err_num, err_msg);
+
+  ubiq_platform_fpe_enc_dec_destroy(enc);
+
+  ubiq_platform_credentials_destroy(creds);
+
+  free(ctbuf);
+  free(err_msg);
+}
+
+TEST(c_fpe_encrypt, error_handling_invalid_PT)
+{
+
+  static const char * const pt = " 123p";
+  static const char * const ffs_name = "SSN";
+
+  struct ubiq_platform_credentials * creds;
+  struct ubiq_platform_fpe_enc_dec_obj *enc;
+  char * ctbuf(nullptr);
+  size_t ctlen;
+  int res;
+
+  char * err_msg = NULL;
+  int err_num;
+
+  res = ubiq_platform_credentials_create(&creds);
+  ASSERT_EQ(res, 0);
+
+  res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
+  ASSERT_EQ(res, 0);
+
+  res = ubiq_platform_fpe_encrypt_data(enc,
+    ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+  EXPECT_NE(res, 0);
+  ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+  EXPECT_NE(err_num, 0);
+  EXPECT_TRUE(err_msg != NULL);
+  printf("error message %d %d %s\n",res, err_num, err_msg);
+
+  ubiq_platform_fpe_enc_dec_destroy(enc);
+
+  ubiq_platform_credentials_destroy(creds);
+
+  free(ctbuf);
+  free(err_msg);
+}
+
+TEST(c_fpe_encrypt, error_handling_invalid_PT_LEN)
+{
+
+  static const char * const short_pt = " 123";
+  static const char * const long_pt = " 1234567890123123123123";
+  static const char * const ffs_name = "SSN";
+
+  struct ubiq_platform_credentials * creds;
+  struct ubiq_platform_fpe_enc_dec_obj *enc;
+  char * ctbuf(nullptr);
+  size_t ctlen;
+  int res;
+
+  char * err_msg = NULL;
+  int err_num;
+
+  res = ubiq_platform_credentials_create(&creds);
+  ASSERT_EQ(res, 0);
+
+  res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
+  ASSERT_EQ(res, 0);
+
+  res = ubiq_platform_fpe_encrypt_data(enc,
+    ffs_name, NULL, 0, short_pt, strlen(short_pt), &ctbuf, &ctlen);
+  EXPECT_NE(res, 0);
+  ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+  EXPECT_NE(err_num, 0);
+  EXPECT_TRUE(err_msg != NULL);
+  printf("error message %d %d %s\n",res, err_num, err_msg);
+
+  res = ubiq_platform_fpe_encrypt_data(enc,
+    ffs_name, NULL, 0, long_pt, strlen(long_pt), &ctbuf, &ctlen);
+  EXPECT_NE(res, 0);
+  ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+  EXPECT_NE(err_num, 0);
+  EXPECT_TRUE(err_msg != NULL);
+  printf("error message %d %d %s\n",res, err_num, err_msg);
+
+  ubiq_platform_fpe_enc_dec_destroy(enc);
+
+  ubiq_platform_credentials_destroy(creds);
+
+  free(ctbuf);
+  free(err_msg);
 }
