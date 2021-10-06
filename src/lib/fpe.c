@@ -574,6 +574,8 @@ ubiq_platform_fpe_encryption_get_key_helper(
     cJSON_Delete(rsp_json);
     if (!res) {
       *key = k;
+    } else {
+      fpe_key_destroy(k);
     }
   }
   return res;

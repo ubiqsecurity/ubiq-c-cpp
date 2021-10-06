@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "ubiq/platform.h"
+#include <ubiq/platform/internal/credentials.h>
 
 class cpp_fpe_encrypt : public ::testing::Test
 {
@@ -301,7 +302,7 @@ TEST(c_fpe_encrypt, generic)
     free(ptbuf);
 }
 
-TEST(c_fpe_encrypt, errmsg_null_object)
+TEST(c_fpe_encrypt, error_handling_null_object)
 {
   int err_num;
   char * err_msg = NULL;
@@ -312,7 +313,7 @@ TEST(c_fpe_encrypt, errmsg_null_object)
 
 }
 
-TEST(c_fpe_encrypt, errmsg_notnull_object)
+TEST(c_fpe_encrypt, error_handling_notnull_object)
 {
   int err_num;
   char * err_msg = NULL;
@@ -328,10 +329,13 @@ TEST(c_fpe_encrypt, errmsg_notnull_object)
 
     res = ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
     ASSERT_EQ(res, 0);
+    EXPECT_EQ(err_num, 0);
+    EXPECT_TRUE(err_msg == NULL);
 
     ubiq_platform_fpe_enc_dec_destroy(enc);
 
     ubiq_platform_credentials_destroy(creds);
+    free(err_msg);
 
 }
 
@@ -363,13 +367,13 @@ TEST(c_fpe_encrypt, error_handling_invalid_ffs)
   EXPECT_NE(err_num, 0);
   EXPECT_TRUE(err_msg != NULL);
   printf("error message %d %d %s\n",res, err_num, err_msg);
+  free(err_msg);
 
   ubiq_platform_fpe_enc_dec_destroy(enc);
 
   ubiq_platform_credentials_destroy(creds);
 
   free(ctbuf);
-  free(err_msg);
 }
 
 TEST(c_fpe_encrypt, error_handling_invalid_creds)
@@ -405,13 +409,13 @@ TEST(c_fpe_encrypt, error_handling_invalid_creds)
   EXPECT_NE(err_num, 0);
   EXPECT_TRUE(err_msg != NULL);
   printf("error message %d %d %s\n",res, err_num, err_msg);
+  free(err_msg);
 
   ubiq_platform_fpe_enc_dec_destroy(enc);
 
   ubiq_platform_credentials_destroy(creds);
 
   free(ctbuf);
-  free(err_msg);
 }
 
 TEST(c_fpe_encrypt, error_handling_invalid_PT)
@@ -442,13 +446,13 @@ TEST(c_fpe_encrypt, error_handling_invalid_PT)
   EXPECT_NE(err_num, 0);
   EXPECT_TRUE(err_msg != NULL);
   printf("error message %d %d %s\n",res, err_num, err_msg);
+  free(err_msg);
 
   ubiq_platform_fpe_enc_dec_destroy(enc);
 
   ubiq_platform_credentials_destroy(creds);
 
   free(ctbuf);
-  free(err_msg);
 }
 
 TEST(c_fpe_encrypt, error_handling_invalid_PT_LEN)
@@ -489,11 +493,254 @@ TEST(c_fpe_encrypt, error_handling_invalid_PT_LEN)
   EXPECT_NE(err_num, 0);
   EXPECT_TRUE(err_msg != NULL);
   printf("error message %d %d %s\n",res, err_num, err_msg);
+  free(err_msg);
 
   ubiq_platform_fpe_enc_dec_destroy(enc);
 
   ubiq_platform_credentials_destroy(creds);
 
   free(ctbuf);
-  free(err_msg);
+}
+
+TEST(c_fpe_encrypt, error_handling_invalid_crypo_key)
+{
+    static const char * const pt = " 01121231231231231& 1 &2311200 ";
+//    static const char * const pt = "00001234567890";//234567890";
+    static const char * const ffs_name = "ALPHANUM_SSN";
+
+    struct ubiq_platform_credentials * creds;
+    struct ubiq_platform_fpe_enc_dec_obj *enc;
+    char * ctbuf(nullptr);
+    size_t ctlen;
+    char * err_msg = NULL;
+    int err_num;
+    int res;
+
+    res = ubiq_platform_credentials_create_specific(NULL, "default-bad-key",&creds);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_encrypt_data(enc,
+      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+    EXPECT_NE(res, 0);
+    ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+    EXPECT_NE(err_num, 0);
+    EXPECT_TRUE(err_msg != NULL);
+    printf("error message %d %d %s\n",res, err_num, err_msg);
+    free(err_msg);
+
+    ubiq_platform_fpe_enc_dec_destroy(enc);
+    ubiq_platform_credentials_destroy(creds);
+
+    free(ctbuf);
+}
+
+TEST(c_fpe_encrypt, error_handling_invalid_papi)
+{
+    static const char * const pt = " 01121231231231231& 1 &2311200 ";
+    static const char * const ffs_name = "ALPHANUM_SSN";
+
+    struct ubiq_platform_credentials * creds_orig;
+    struct ubiq_platform_credentials * creds;
+    struct ubiq_platform_fpe_enc_dec_obj *enc;
+    char * ctbuf(nullptr);
+    size_t ctlen;
+    char * err_msg = NULL;
+    int err_num;
+    int res = 0;
+
+    res = ubiq_platform_credentials_create(&creds_orig);
+    ASSERT_EQ(res, 0);
+
+    // Alter the origin papi
+    char * tmp_papi = strdup(ubiq_platform_credentials_get_papi(creds_orig));
+    ASSERT_NE(tmp_papi, (char *)NULL);
+    tmp_papi[strlen(tmp_papi) - 2] = '\0';
+
+    res = ubiq_platform_credentials_create_explicit(
+      tmp_papi,
+      ubiq_platform_credentials_get_sapi(creds_orig),
+      ubiq_platform_credentials_get_srsa(creds_orig),
+      ubiq_platform_credentials_get_host(creds_orig),
+      &creds
+    );
+    printf("papi %s\n", ubiq_platform_credentials_get_papi(creds_orig));
+    printf("tmp_papi %s\n", tmp_papi);
+
+    free(tmp_papi);
+
+    res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_encrypt_data(enc,
+      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+    EXPECT_NE(res, 0);
+    ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+    EXPECT_NE(err_num, 0);
+    EXPECT_TRUE(err_msg != NULL);
+    printf("error message %d %d %s\n",res, err_num, err_msg);
+    free(err_msg);
+
+    ubiq_platform_fpe_enc_dec_destroy(enc);
+    ubiq_platform_credentials_destroy(creds);
+    ubiq_platform_credentials_destroy(creds_orig);
+    free(ctbuf);
+}
+
+TEST(c_fpe_encrypt, error_handling_invalid_sapi)
+{
+    static const char * const pt = " 01121231231231231& 1 &2311200 ";
+    static const char * const ffs_name = "ALPHANUM_SSN";
+
+    struct ubiq_platform_credentials * creds_orig;
+    struct ubiq_platform_credentials * creds;
+    struct ubiq_platform_fpe_enc_dec_obj *enc;
+    char * ctbuf(nullptr);
+    size_t ctlen;
+    char * err_msg = NULL;
+    int err_num;
+    int res = 0;
+
+    res = ubiq_platform_credentials_create(&creds_orig);
+    ASSERT_EQ(res, 0);
+
+    // Alter the origin papi
+    char * tmp = strdup(ubiq_platform_credentials_get_sapi(creds_orig));
+    ASSERT_NE(tmp, (char *)NULL);
+    tmp[strlen(tmp) - 2] = '\0';
+
+    res = ubiq_platform_credentials_create_explicit(
+      ubiq_platform_credentials_get_papi(creds_orig),
+      tmp,
+      ubiq_platform_credentials_get_srsa(creds_orig),
+      ubiq_platform_credentials_get_host(creds_orig),
+      &creds
+    );
+    printf("papi %s\n", ubiq_platform_credentials_get_sapi(creds_orig));
+    printf("tmp_papi %s\n", tmp);
+
+    free(tmp);
+
+    res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_encrypt_data(enc,
+      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+    EXPECT_NE(res, 0);
+    ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+    EXPECT_NE(err_num, 0);
+    EXPECT_TRUE(err_msg != NULL);
+    printf("error message %d %d %s\n",res, err_num, err_msg);
+    free(err_msg);
+
+    ubiq_platform_fpe_enc_dec_destroy(enc);
+    ubiq_platform_credentials_destroy(creds);
+    ubiq_platform_credentials_destroy(creds_orig);
+    free(ctbuf);
+}
+
+TEST(c_fpe_encrypt, error_handling_invalid_rsa)
+{
+    static const char * const pt = " 01121231231231231& 1 &2311200 ";
+    static const char * const ffs_name = "ALPHANUM_SSN";
+
+    struct ubiq_platform_credentials * creds_orig;
+    struct ubiq_platform_credentials * creds;
+    struct ubiq_platform_fpe_enc_dec_obj *enc;
+    char * ctbuf(nullptr);
+    size_t ctlen;
+    char * err_msg = NULL;
+    int err_num;
+    int res = 0;
+
+    res = ubiq_platform_credentials_create(&creds_orig);
+    ASSERT_EQ(res, 0);
+
+    // Alter the origin papi
+    char * tmp = strdup(ubiq_platform_credentials_get_srsa(creds_orig));
+    ASSERT_NE(tmp, (char *)NULL);
+    tmp[strlen(tmp) - 2] = '\0';
+
+    res = ubiq_platform_credentials_create_explicit(
+      ubiq_platform_credentials_get_papi(creds_orig),
+      ubiq_platform_credentials_get_sapi(creds_orig),
+      tmp,
+      ubiq_platform_credentials_get_host(creds_orig),
+      &creds
+    );
+    printf("papi %s\n", ubiq_platform_credentials_get_srsa(creds_orig));
+    printf("tmp_papi %s\n", tmp);
+
+    free(tmp);
+
+    res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_encrypt_data(enc,
+      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+    EXPECT_NE(res, 0);
+    ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+    EXPECT_NE(err_num, 0);
+    EXPECT_TRUE(err_msg != NULL);
+    printf("error message %d %d %s\n",res, err_num, err_msg);
+    free(err_msg);
+
+    ubiq_platform_fpe_enc_dec_destroy(enc);
+    ubiq_platform_credentials_destroy(creds);
+    ubiq_platform_credentials_destroy(creds_orig);
+    free(ctbuf);
+}
+
+TEST(c_fpe_encrypt, error_handling_invalid_host)
+{
+    static const char * const pt = " 01121231231231231& 1 &2311200 ";
+    static const char * const ffs_name = "ALPHANUM_SSN";
+
+    struct ubiq_platform_credentials * creds_orig;
+    struct ubiq_platform_credentials * creds;
+    struct ubiq_platform_fpe_enc_dec_obj *enc;
+    char * ctbuf(nullptr);
+    size_t ctlen;
+    char * err_msg = NULL;
+    int err_num;
+    int res = 0;
+
+    res = ubiq_platform_credentials_create(&creds_orig);
+    ASSERT_EQ(res, 0);
+
+    // Alter the origin papi
+    char * tmp = strdup(ubiq_platform_credentials_get_host(creds_orig));
+    ASSERT_NE(tmp, (char *)NULL);
+    tmp[strlen(tmp) - 2] = '\0';
+
+    res = ubiq_platform_credentials_create_explicit(
+      ubiq_platform_credentials_get_papi(creds_orig),
+      ubiq_platform_credentials_get_sapi(creds_orig),
+      ubiq_platform_credentials_get_srsa(creds_orig),
+      tmp,
+      &creds
+    );
+    printf("papi %s\n", ubiq_platform_credentials_get_host(creds_orig));
+    printf("tmp_papi %s\n", tmp);
+
+    free(tmp);
+
+    res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_encrypt_data(enc,
+      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+    EXPECT_NE(res, 0);
+    ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+    EXPECT_NE(err_num, 0);
+    EXPECT_TRUE(err_msg != NULL);
+    printf("error message %d %d %s\n",res, err_num, err_msg);
+    free(err_msg);
+
+    ubiq_platform_fpe_enc_dec_destroy(enc);
+    ubiq_platform_credentials_destroy(creds);
+    ubiq_platform_credentials_destroy(creds_orig);
+    free(ctbuf);
 }
