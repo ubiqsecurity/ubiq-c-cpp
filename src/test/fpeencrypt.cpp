@@ -480,6 +480,7 @@ TEST(c_fpe_encrypt, error_handling_invalid_PT_LEN)
   EXPECT_NE(err_num, 0);
   EXPECT_TRUE(err_msg != NULL);
   printf("error message %d %d %s\n",res, err_num, err_msg);
+  free(err_msg);
 
   res = ubiq_platform_fpe_encrypt_data(enc,
     ffs_name, NULL, 0, long_pt, strlen(long_pt), &ctbuf, &ctlen);

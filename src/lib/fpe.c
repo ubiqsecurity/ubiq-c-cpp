@@ -26,9 +26,13 @@
 
 #define MSG_SIZE 128
 
+// Need to capture value of res, not test value
+// since it may be a function and don't want it to get executed
+// more than once
 #define CAPTURE_ERROR(e,res,msg) ({ \
-  if (res) { \
-    e->error.err_num = res; \
+  int result = res; \
+  if (result) { \
+    e->error.err_num = result; \
     if (e->error.err_msg) { \
       free (e->error.err_msg); \
     } \
@@ -39,7 +43,7 @@
       e->error.err_msg = strdup(msg); \
     } \
   } \
-  res; \
+  result; \
 })
 
 static const char * BASE2_CHARSET = "01";
@@ -117,11 +121,10 @@ struct fpe_ffs_parsed
 static
 void
 fpe_ffs_parsed_destroy(
-  struct fpe_ffs_parsed * const parsed
+  void * parsed
 )
 {
   free(parsed);
-
 }
 
 
@@ -552,19 +555,19 @@ ubiq_platform_fpe_encryption_get_key_helper(
           rsp_json, e->srsa,
           &k->buf, &k->len);
 
-      if (!res) {
+      if (!CAPTURE_ERROR(e, res, "Unable to parse key from server")) {
         const cJSON * kn = cJSON_GetObjectItemCaseSensitive(
                           rsp_json, "key_number");
         if (cJSON_IsString(kn) && kn->valuestring != NULL) {
           const char * errstr = NULL;
           uintmax_t n = strtoumax(kn->valuestring, NULL, 10);
           if (n == UINTMAX_MAX && errno == ERANGE) {
-            res = -ERANGE;
+            res = CAPTURE_ERROR(e, -ERANGE, "Invalid key range");
           } else {
             k->key_number = (unsigned int)n;
           }
         } else {
-          res = -EBADMSG;
+          res = CAPTURE_ERROR(e, -EBADMSG, "Invalid server response");
         }
       }
     }
