@@ -272,7 +272,7 @@ ubiq_fpe_usage(
     }
 
     fprintf(stderr, "Usage: %s -e|-d INPUT -s|-p -n FFS [-c CREDENTIALS] [-P PROFILE]\n", cmd);
-    fprintf(stderr, "Encrypt or decrypt files using the Ubiq service\n");
+    fprintf(stderr, "Encrypt or decrypt data using the Ubiq service\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "  -h                       Show this help message and exit\n");
     fprintf(stderr, "  -V                       Show program's version number and exit\n");
@@ -304,6 +304,7 @@ ubiq_fpe_getopt(
     opterr = 0;
 
     *mode = UBIQ_SAMPLE_MODE_UNSPEC;
+    *method = UBIQ_SAMPLE_METHOD_UNSPEC;
     *inputstring = *ffsname = *credfile = *profile = NULL;
 
     while ((opt = getopt(argc, argv, "+:hVsbe:d:c:P:n:")) != -1) {
@@ -332,7 +333,7 @@ ubiq_fpe_getopt(
         case 's':
         case 'b':
             if (*method != UBIQ_SAMPLE_METHOD_UNSPEC) {
-                ubiq_sample_usage(
+                ubiq_fpe_usage(
                     argv[0], "please specify either simple or bulk once");
                 exit(EXIT_FAILURE);
             }
