@@ -66,10 +66,10 @@ test-debian:
 test-centos:
     image: centos:8
     stage: test
-    before_script:
-        - yum -y update
-        - yum install -y gcc gcc-c++
-        - yum install --allowerasing -y libcurl
+#    before_script:
+#        - yum -y update
+#        - yum install -y gcc gcc-c++
+#        - yum install --allowerasing -y libcurl
     script:
         - ldd build/src/test/unittests
         - build/src/test/unittests
