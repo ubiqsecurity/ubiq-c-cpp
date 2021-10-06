@@ -61,7 +61,7 @@ test-debian:
         - apt -y install libcurl4 libssl1.1
     script:
         - ldd build/src/test/unittests
-        - ldd build/src/test/unittests
+        - build/src/test/unittests
 
 test-centos:
     image: centos:8
