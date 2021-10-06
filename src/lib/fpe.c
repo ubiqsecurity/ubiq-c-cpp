@@ -780,12 +780,19 @@ fpe_decrypt(
 
   res = ubiq_platform_fpe_encryption_get_ffs_def(enc, ffs_name, &ffs_definition);
 
-  if (!res) {res = fpe_ffs_parsed_create(&parsed, ctlen);}
-  if (!res) {res = ubiq_platform_fpe_string_parse(ffs_definition, PARSE_OUTPUT_TO_INPUT, ctbuf, ctlen, parsed);}
+  if (!res) {res = CAPTURE_ERROR(enc, fpe_ffs_parsed_create(&parsed, ctlen), NULL);}
+  if (!res) {res = CAPTURE_ERROR(enc, ubiq_platform_fpe_string_parse(ffs_definition, PARSE_OUTPUT_TO_INPUT, ctbuf, ctlen, parsed),"Invalid input string");}
+
+  if (!res) {
+    size_t len = strlen(parsed->trimmed_buf);
+     if (len <ffs_definition->min_input_length || len > ffs_definition->max_input_length) {
+       res = CAPTURE_ERROR(enc, -EINVAL, "Input length does not match FFS parameters");
+     }
+   }
 
   if (!res) {
     unsigned int keynum = 0;
-    res = decode_keynum(ffs_definition, &parsed->trimmed_buf[0], &keynum);
+    res = CAPTURE_ERROR(enc, decode_keynum(ffs_definition, &parsed->trimmed_buf[0], &keynum), "Unable to find key number in cipher text");
     if (!res) {res = ubiq_platform_fpe_decryption_get_key(enc, ffs_name, keynum, &key);}
   }
 
@@ -801,11 +808,11 @@ fpe_decrypt(
       // largest value when converted to binary string
       int padded_string_length = ceil(fmax(FF1_BASE2_MIN_LENGTH,log2(strlen(ffs_definition->input_character_set)) * strlen(parsed->trimmed_buf)));
 
-      pad_text(&ct_base2,padded_string_length, BASE2_CHARSET[0]);
+      res = CAPTURE_ERROR(enc, pad_text(&ct_base2,padded_string_length, BASE2_CHARSET[0]), NULL);
 
     if (!res) {pt_base2 = calloc(strlen(ct_base2) + 1, 1);}
     if (pt_base2 == NULL) {
-      res = -ENOMEM;
+      res = CAPTURE_ERROR(enc, -ENOMEM, NULL);
     }
   }
 
@@ -814,8 +821,8 @@ fpe_decrypt(
     struct ff1_ctx * ctx;
     res = ff1_ctx_create(&ctx, key->buf, key->len, ffs_definition->tweak.buf, ffs_definition->tweak.len, ffs_definition->tweak_min_len, ffs_definition->tweak_max_len, strlen(BASE2_CHARSET));
 
-    if (!res) {
-      res = ff1_decrypt(ctx, pt_base2, ct_base2, NULL, 0);
+    if (!CAPTURE_ERROR(enc, res, "Failure with ff1_ctx_create")) {
+      res = CAPTURE_ERROR(enc, ff1_decrypt(ctx, pt_base2, ct_base2, NULL, 0), "Failure with ff1_decrypt");
     }
     ff1_ctx_destroy(ctx);
 
@@ -829,8 +836,10 @@ fpe_decrypt(
       ffs_definition->input_character_set,
       &pt_trimmed);
 
+    CAPTURE_ERROR(enc, res, "Unable to format results into input character set");
+
     if (pt_trimmed == NULL) {
-      res = -ENOMEM;
+      res = CAPTURE_ERROR(enc, -ENOMEM, NULL);
     }
   }
 
@@ -859,7 +868,7 @@ fpe_decrypt(
     if (*ptbuf != NULL) {
       *ptlen = strlen(*ptbuf);
     } else {
-      res = -ENOMEM;
+      res = CAPTURE_ERROR(enc, -ENOMEM, NULL);
     }
   }
   fpe_key_destroy(key);

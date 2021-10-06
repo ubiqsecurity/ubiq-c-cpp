@@ -366,14 +366,22 @@ TEST(c_fpe_encrypt, error_handling_invalid_ffs)
   ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
   EXPECT_NE(err_num, 0);
   EXPECT_TRUE(err_msg != NULL);
-  printf("error message %d %d %s\n",res, err_num, err_msg);
   free(err_msg);
+  free(ctbuf);
+
+  // Use same PT as CT for decrypt.  Should fail the same way
+  res = ubiq_platform_fpe_decrypt_data(enc,
+     "ERROR_MSG", NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+  EXPECT_NE(res, 0);
+  ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+  EXPECT_NE(err_num, 0);
+  EXPECT_TRUE(err_msg != NULL);
+  free(err_msg);
+  free(ctbuf);
 
   ubiq_platform_fpe_enc_dec_destroy(enc);
-
   ubiq_platform_credentials_destroy(creds);
 
-  free(ctbuf);
 }
 
 TEST(c_fpe_encrypt, error_handling_invalid_creds)
@@ -408,8 +416,18 @@ TEST(c_fpe_encrypt, error_handling_invalid_creds)
   ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
   EXPECT_NE(err_num, 0);
   EXPECT_TRUE(err_msg != NULL);
-  printf("error message %d %d %s\n",res, err_num, err_msg);
   free(err_msg);
+  free(ctbuf);
+
+  // Use same PT as CT, should faild the same way
+  res = ubiq_platform_fpe_decrypt_data(enc,
+    "ERROR_MSG", NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+  EXPECT_NE(res, 0);
+  ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+  EXPECT_NE(err_num, 0);
+  EXPECT_TRUE(err_msg != NULL);
+  free(err_msg);
+  free(ctbuf);
 
   ubiq_platform_fpe_enc_dec_destroy(enc);
 
@@ -418,10 +436,10 @@ TEST(c_fpe_encrypt, error_handling_invalid_creds)
   free(ctbuf);
 }
 
-TEST(c_fpe_encrypt, error_handling_invalid_PT)
+TEST(c_fpe_encrypt, error_handling_invalid_PT_CT)
 {
 
-  static const char * const pt = " 123p";
+  static const char * const pt = " 123456789$";
   static const char * const ffs_name = "SSN";
 
   struct ubiq_platform_credentials * creds;
@@ -445,8 +463,19 @@ TEST(c_fpe_encrypt, error_handling_invalid_PT)
   ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
   EXPECT_NE(err_num, 0);
   EXPECT_TRUE(err_msg != NULL);
-  printf("error message %d %d %s\n",res, err_num, err_msg);
   free(err_msg);
+  free(ctbuf);
+
+  // Use same PT as invalid CT.  Should fail similarly
+  res = ubiq_platform_fpe_decrypt_data(enc,
+    ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+  EXPECT_NE(res, 0);
+  ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+  EXPECT_NE(err_num, 0);
+  EXPECT_TRUE(err_msg != NULL);
+  free(err_msg);
+  free(ctbuf);
+
 
   ubiq_platform_fpe_enc_dec_destroy(enc);
 
@@ -457,7 +486,6 @@ TEST(c_fpe_encrypt, error_handling_invalid_PT)
 
 TEST(c_fpe_encrypt, error_handling_invalid_PT_LEN)
 {
-
   static const char * const short_pt = " 123";
   static const char * const long_pt = " 1234567890123123123123";
   static const char * const ffs_name = "SSN";
@@ -483,8 +511,8 @@ TEST(c_fpe_encrypt, error_handling_invalid_PT_LEN)
   ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
   EXPECT_NE(err_num, 0);
   EXPECT_TRUE(err_msg != NULL);
-  printf("error message %d %d %s\n",res, err_num, err_msg);
   free(err_msg);
+  free(ctbuf);
 
   res = ubiq_platform_fpe_encrypt_data(enc,
     ffs_name, NULL, 0, long_pt, strlen(long_pt), &ctbuf, &ctlen);
@@ -492,50 +520,33 @@ TEST(c_fpe_encrypt, error_handling_invalid_PT_LEN)
   ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
   EXPECT_NE(err_num, 0);
   EXPECT_TRUE(err_msg != NULL);
-  printf("error message %d %d %s\n",res, err_num, err_msg);
   free(err_msg);
+  free(ctbuf);
+
+  // Use PT as CT for decrypt.  Should fail the same way
+  res = ubiq_platform_fpe_decrypt_data(enc,
+    ffs_name, NULL, 0, short_pt, strlen(short_pt), &ctbuf, &ctlen);
+  EXPECT_NE(res, 0);
+  ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+  EXPECT_NE(err_num, 0);
+  EXPECT_TRUE(err_msg != NULL);
+  free(err_msg);
+  free(ctbuf);
+
+  res = ubiq_platform_fpe_decrypt_data(enc,
+    ffs_name, NULL, 0, long_pt, strlen(long_pt), &ctbuf, &ctlen);
+  EXPECT_NE(res, 0);
+  ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+  EXPECT_NE(err_num, 0);
+  EXPECT_TRUE(err_msg != NULL);
+  free(err_msg);
+  free(ctbuf);
 
   ubiq_platform_fpe_enc_dec_destroy(enc);
-
   ubiq_platform_credentials_destroy(creds);
 
-  free(ctbuf);
 }
 
-TEST(c_fpe_encrypt, error_handling_invalid_crypo_key)
-{
-    static const char * const pt = " 01121231231231231& 1 &2311200 ";
-//    static const char * const pt = "00001234567890";//234567890";
-    static const char * const ffs_name = "ALPHANUM_SSN";
-
-    struct ubiq_platform_credentials * creds;
-    struct ubiq_platform_fpe_enc_dec_obj *enc;
-    char * ctbuf(nullptr);
-    size_t ctlen;
-    char * err_msg = NULL;
-    int err_num;
-    int res;
-
-    res = ubiq_platform_credentials_create_specific(NULL, "default-bad-key",&creds);
-    ASSERT_EQ(res, 0);
-
-    res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
-    ASSERT_EQ(res, 0);
-
-    res = ubiq_platform_fpe_encrypt_data(enc,
-      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
-    EXPECT_NE(res, 0);
-    ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
-    EXPECT_NE(err_num, 0);
-    EXPECT_TRUE(err_msg != NULL);
-    printf("error message %d %d %s\n",res, err_num, err_msg);
-    free(err_msg);
-
-    ubiq_platform_fpe_enc_dec_destroy(enc);
-    ubiq_platform_credentials_destroy(creds);
-
-    free(ctbuf);
-}
 
 TEST(c_fpe_encrypt, error_handling_invalid_papi)
 {
@@ -554,7 +565,7 @@ TEST(c_fpe_encrypt, error_handling_invalid_papi)
     res = ubiq_platform_credentials_create(&creds_orig);
     ASSERT_EQ(res, 0);
 
-    // Alter the origin papi
+    // Alter the original credential value
     char * tmp_papi = strdup(ubiq_platform_credentials_get_papi(creds_orig));
     ASSERT_NE(tmp_papi, (char *)NULL);
     tmp_papi[strlen(tmp_papi) - 2] = '\0';
@@ -566,9 +577,6 @@ TEST(c_fpe_encrypt, error_handling_invalid_papi)
       ubiq_platform_credentials_get_host(creds_orig),
       &creds
     );
-    printf("papi %s\n", ubiq_platform_credentials_get_papi(creds_orig));
-    printf("tmp_papi %s\n", tmp_papi);
-
     free(tmp_papi);
 
     res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
@@ -580,13 +588,22 @@ TEST(c_fpe_encrypt, error_handling_invalid_papi)
     ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
     EXPECT_NE(err_num, 0);
     EXPECT_TRUE(err_msg != NULL);
-    printf("error message %d %d %s\n",res, err_num, err_msg);
     free(err_msg);
+    free(ctbuf);
+
+    // Use PT as CT for decrypt.  Should fail the same way
+    res = ubiq_platform_fpe_decrypt_data(enc,
+      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+    EXPECT_NE(res, 0);
+    ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+    EXPECT_NE(err_num, 0);
+    EXPECT_TRUE(err_msg != NULL);
+    free(err_msg);
+    free(ctbuf);
 
     ubiq_platform_fpe_enc_dec_destroy(enc);
     ubiq_platform_credentials_destroy(creds);
     ubiq_platform_credentials_destroy(creds_orig);
-    free(ctbuf);
 }
 
 TEST(c_fpe_encrypt, error_handling_invalid_sapi)
@@ -606,7 +623,7 @@ TEST(c_fpe_encrypt, error_handling_invalid_sapi)
     res = ubiq_platform_credentials_create(&creds_orig);
     ASSERT_EQ(res, 0);
 
-    // Alter the origin papi
+    // Alter the original credential value
     char * tmp = strdup(ubiq_platform_credentials_get_sapi(creds_orig));
     ASSERT_NE(tmp, (char *)NULL);
     tmp[strlen(tmp) - 2] = '\0';
@@ -618,9 +635,6 @@ TEST(c_fpe_encrypt, error_handling_invalid_sapi)
       ubiq_platform_credentials_get_host(creds_orig),
       &creds
     );
-    printf("papi %s\n", ubiq_platform_credentials_get_sapi(creds_orig));
-    printf("tmp_papi %s\n", tmp);
-
     free(tmp);
 
     res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
@@ -632,13 +646,23 @@ TEST(c_fpe_encrypt, error_handling_invalid_sapi)
     ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
     EXPECT_NE(err_num, 0);
     EXPECT_TRUE(err_msg != NULL);
-    printf("error message %d %d %s\n",res, err_num, err_msg);
     free(err_msg);
+    free(ctbuf);
+
+    // Use PT as CT for decrypt.  Should fail the same way
+    res = ubiq_platform_fpe_decrypt_data(enc,
+      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+    EXPECT_NE(res, 0);
+    ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+    EXPECT_NE(err_num, 0);
+    EXPECT_TRUE(err_msg != NULL);
+    free(err_msg);
+    free(ctbuf);
+
 
     ubiq_platform_fpe_enc_dec_destroy(enc);
     ubiq_platform_credentials_destroy(creds);
     ubiq_platform_credentials_destroy(creds_orig);
-    free(ctbuf);
 }
 
 TEST(c_fpe_encrypt, error_handling_invalid_rsa)
@@ -658,7 +682,7 @@ TEST(c_fpe_encrypt, error_handling_invalid_rsa)
     res = ubiq_platform_credentials_create(&creds_orig);
     ASSERT_EQ(res, 0);
 
-    // Alter the origin papi
+    // Alter the original credential value
     char * tmp = strdup(ubiq_platform_credentials_get_srsa(creds_orig));
     ASSERT_NE(tmp, (char *)NULL);
     tmp[strlen(tmp) - 2] = '\0';
@@ -670,9 +694,6 @@ TEST(c_fpe_encrypt, error_handling_invalid_rsa)
       ubiq_platform_credentials_get_host(creds_orig),
       &creds
     );
-    printf("papi %s\n", ubiq_platform_credentials_get_srsa(creds_orig));
-    printf("tmp_papi %s\n", tmp);
-
     free(tmp);
 
     res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
@@ -684,13 +705,22 @@ TEST(c_fpe_encrypt, error_handling_invalid_rsa)
     ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
     EXPECT_NE(err_num, 0);
     EXPECT_TRUE(err_msg != NULL);
-    printf("error message %d %d %s\n",res, err_num, err_msg);
     free(err_msg);
+    free(ctbuf);
+
+    // Use PT as CT for decrypt.  Should fail the same way
+    res = ubiq_platform_fpe_decrypt_data(enc,
+      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+    EXPECT_NE(res, 0);
+    ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+    EXPECT_NE(err_num, 0);
+    EXPECT_TRUE(err_msg != NULL);
+    free(err_msg);
+    free(ctbuf);
 
     ubiq_platform_fpe_enc_dec_destroy(enc);
     ubiq_platform_credentials_destroy(creds);
     ubiq_platform_credentials_destroy(creds_orig);
-    free(ctbuf);
 }
 
 TEST(c_fpe_encrypt, error_handling_invalid_host)
@@ -710,7 +740,7 @@ TEST(c_fpe_encrypt, error_handling_invalid_host)
     res = ubiq_platform_credentials_create(&creds_orig);
     ASSERT_EQ(res, 0);
 
-    // Alter the origin papi
+    // Alter the original credential value
     char * tmp = strdup(ubiq_platform_credentials_get_host(creds_orig));
     ASSERT_NE(tmp, (char *)NULL);
     tmp[strlen(tmp) - 2] = '\0';
@@ -722,9 +752,6 @@ TEST(c_fpe_encrypt, error_handling_invalid_host)
       tmp,
       &creds
     );
-    printf("papi %s\n", ubiq_platform_credentials_get_host(creds_orig));
-    printf("tmp_papi %s\n", tmp);
-
     free(tmp);
 
     res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
@@ -736,11 +763,20 @@ TEST(c_fpe_encrypt, error_handling_invalid_host)
     ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
     EXPECT_NE(err_num, 0);
     EXPECT_TRUE(err_msg != NULL);
-    printf("error message %d %d %s\n",res, err_num, err_msg);
     free(err_msg);
+    free(ctbuf);
+
+    // Use PT as CT for decrypt.  Should fail the same way
+    res = ubiq_platform_fpe_decrypt_data(enc,
+      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+    EXPECT_NE(res, 0);
+    ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+    EXPECT_NE(err_num, 0);
+    EXPECT_TRUE(err_msg != NULL);
+    free(err_msg);
+    free(ctbuf);
 
     ubiq_platform_fpe_enc_dec_destroy(enc);
     ubiq_platform_credentials_destroy(creds);
     ubiq_platform_credentials_destroy(creds_orig);
-    free(ctbuf);
 }
