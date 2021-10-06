@@ -15,9 +15,9 @@ variables:
     DOCKER_TLS_CERTDIR: ""
 
 cache:
-    key: "${CI_JOB_NAME}-${CI_COMMIT_REF_SLUG}"
+    key: "debian-${CI_COMMIT_REF_SLUG}"
     paths:
-        - build
+       - build
 
 stages:
     - build
@@ -52,6 +52,10 @@ build-centos:
         - cmake -S. -Bbuild
         - cmake --build build -- -j$(nproc)
         - cmake --build build --target package -- -j$(nproc)
+    cache:
+       key: "centos-${CI_COMMIT_REF_SLUG}"
+       paths:
+        - build
 
 test-debian:
     image: debian:stable
@@ -73,6 +77,10 @@ test-centos:
     script:
         - ldd build/src/test/unittests
         - build/src/test/unittests
+    cache:
+       key: "centos-${CI_COMMIT_REF_SLUG}"
+       paths:
+        - build
 
 sast:
     variables:
