@@ -70,10 +70,9 @@ test-debian:
 test-centos:
     image: centos:8
     stage: test
-#    before_script:
-#        - yum -y update
-#        - yum install -y gcc gcc-c++
-#        - yum install --allowerasing -y libcurl
+        - yum -y update
+        - yum install -y gcc gcc-c++ make gmp-c++ gmp-devel 
+        - yum install -y openssl-devel libcurl-devel file rpm-build cmake
     script:
         - ldd build/src/test/unittests
         - build/src/test/unittests
