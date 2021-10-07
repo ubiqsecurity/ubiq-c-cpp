@@ -71,7 +71,11 @@ ubiq_fpe_bulk_encrypt(
     if (!res) {
       printf("FPE Encrypted Data Results => '%.*s'\n", ctlen, ctbuf);
     } else {
-      fprintf(stderr, "Encryption Error Code: %d\n\n", res);
+      int err_num;
+      char * err_msg = NULL;
+      res = ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
+      fprintf(stderr, "Encryption Error Code: %d  %s\n\n", err_num, err_msg);
+      free(err_msg);
     }
   }
   free(ctbuf);
@@ -100,7 +104,11 @@ ubiq_fpe_bulk_decrypt(
     if (!res) {
       printf("FPE Decrypt Data Results => '%.*s'\n", ptlen, ptbuf);
     } else {
-      fprintf(stderr, "Decryption Error Code: %d\n\n", res);
+      int err_num;
+      char * err_msg = NULL;
+      res = ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
+      fprintf(stderr, "Decryption Error Code: %d  %s\n\n", err_num, err_msg);
+      free(err_msg);
     }
   }
   free(ptbuf);
