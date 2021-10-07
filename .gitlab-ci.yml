@@ -101,7 +101,8 @@ package-centos:
         paths:
             - build/*.rpm
     only:
-        - error-handling
+        - master
+        - tags
     except:
         - schedules
 
@@ -113,7 +114,8 @@ package-debian:
     script:
         - ls build/*.deb
     only:
-        - error-handling
+        - master
+        - tags
     except:
         - schedules
 
