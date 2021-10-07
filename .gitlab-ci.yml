@@ -89,6 +89,34 @@ sast:
 include:
     - template: Security/SAST.gitlab-ci.yml
 
+package-centos:
+    stage: deploy
+    cache:
+       key: "centos-${CI_COMMIT_REF_SLUG}"
+       paths:
+        - build
+    script:
+        - ls build/*.rpm
+    artifacts:
+        paths:
+            - build/*.rpm
+    only:
+        - error-handling
+    except:
+        - schedules
+
+package-debian:
+    stage: deploy
+    artifacts:
+        paths:
+            - build/*.deb
+    script:
+        - ls build/*.deb
+    only:
+        - error-handling
+    except:
+        - schedules
+
 deploy:
     image: debian:stable
     stage: deploy
