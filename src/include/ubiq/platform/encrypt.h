@@ -166,7 +166,7 @@ ubiq_platform_fpe_enc_dec_destroy(
 // done.
 UBIQ_PLATFORM_API
 int
-ubiq_platform_fpe_last_error(
+ubiq_platform_fpe_get_last_error(
   struct ubiq_platform_fpe_enc_dec_obj * const enc,
   int * const err_num,
   char ** const err_msg

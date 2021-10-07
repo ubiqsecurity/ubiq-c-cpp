@@ -100,7 +100,7 @@ ubiq::platform::fpe::get_error(struct ubiq_platform_fpe_enc_dec_obj * enc)
   int err_num;
 
   if (enc) {
-    ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+    ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
 
     if (err_num != 0 && err_msg != NULL) {
       ret = err_msg;

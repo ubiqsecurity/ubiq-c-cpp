@@ -502,7 +502,7 @@ TEST(c_fpe_encrypt, error_handling_null_object)
   char * err_msg = NULL;
   int res;
 
-  res = ubiq_platform_fpe_last_error(NULL, &err_num, &err_msg);
+  res = ubiq_platform_fpe_get_last_error(NULL, &err_num, &err_msg);
   ASSERT_EQ(res, -EINVAL);
 
 }
@@ -521,7 +521,7 @@ TEST(c_fpe_encrypt, error_handling_notnull_object)
     res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
     ASSERT_EQ(res, 0);
 
-    res = ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+    res = ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
     ASSERT_EQ(res, 0);
     EXPECT_EQ(err_num, 0);
     EXPECT_TRUE(err_msg == NULL);
@@ -557,7 +557,7 @@ TEST(c_fpe_encrypt, error_handling_invalid_ffs)
   res = ubiq_platform_fpe_encrypt_data(enc,
      "ERROR_MSG", NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
   EXPECT_NE(res, 0);
-  ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+  ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
   EXPECT_NE(err_num, 0);
   EXPECT_TRUE(err_msg != NULL);
   free(err_msg);
@@ -567,7 +567,7 @@ TEST(c_fpe_encrypt, error_handling_invalid_ffs)
   res = ubiq_platform_fpe_decrypt_data(enc,
      "ERROR_MSG", NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
   EXPECT_NE(res, 0);
-  ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+  ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
   EXPECT_NE(err_num, 0);
   EXPECT_TRUE(err_msg != NULL);
   free(err_msg);
@@ -607,7 +607,7 @@ TEST(c_fpe_encrypt, error_handling_invalid_creds)
   res = ubiq_platform_fpe_encrypt_data(enc,
     ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
   EXPECT_NE(res, 0);
-  ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+  ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
   EXPECT_NE(err_num, 0);
   EXPECT_TRUE(err_msg != NULL);
   free(err_msg);
@@ -617,7 +617,7 @@ TEST(c_fpe_encrypt, error_handling_invalid_creds)
   res = ubiq_platform_fpe_decrypt_data(enc,
     ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
   EXPECT_NE(res, 0);
-  ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+  ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
   EXPECT_NE(err_num, 0);
   EXPECT_TRUE(err_msg != NULL);
   free(err_msg);
@@ -654,7 +654,7 @@ TEST(c_fpe_encrypt, error_handling_invalid_PT_CT)
   res = ubiq_platform_fpe_encrypt_data(enc,
     ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
   EXPECT_NE(res, 0);
-  ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+  ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
   EXPECT_NE(err_num, 0);
   EXPECT_TRUE(err_msg != NULL);
   free(err_msg);
@@ -664,7 +664,7 @@ TEST(c_fpe_encrypt, error_handling_invalid_PT_CT)
   res = ubiq_platform_fpe_decrypt_data(enc,
     ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
   EXPECT_NE(res, 0);
-  ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+  ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
   EXPECT_NE(err_num, 0);
   EXPECT_TRUE(err_msg != NULL);
   free(err_msg);
@@ -702,7 +702,7 @@ TEST(c_fpe_encrypt, error_handling_invalid_LEN)
   res = ubiq_platform_fpe_encrypt_data(enc,
     ffs_name, NULL, 0, short_pt, strlen(short_pt), &ctbuf, &ctlen);
   EXPECT_NE(res, 0);
-  ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+  ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
   EXPECT_NE(err_num, 0);
   EXPECT_TRUE(err_msg != NULL);
   free(err_msg);
@@ -711,7 +711,7 @@ TEST(c_fpe_encrypt, error_handling_invalid_LEN)
   res = ubiq_platform_fpe_encrypt_data(enc,
     ffs_name, NULL, 0, long_pt, strlen(long_pt), &ctbuf, &ctlen);
   EXPECT_NE(res, 0);
-  ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+  ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
   EXPECT_NE(err_num, 0);
   EXPECT_TRUE(err_msg != NULL);
   free(err_msg);
@@ -721,7 +721,7 @@ TEST(c_fpe_encrypt, error_handling_invalid_LEN)
   res = ubiq_platform_fpe_decrypt_data(enc,
     ffs_name, NULL, 0, short_pt, strlen(short_pt), &ctbuf, &ctlen);
   EXPECT_NE(res, 0);
-  ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+  ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
   EXPECT_NE(err_num, 0);
   EXPECT_TRUE(err_msg != NULL);
   free(err_msg);
@@ -730,7 +730,7 @@ TEST(c_fpe_encrypt, error_handling_invalid_LEN)
   res = ubiq_platform_fpe_decrypt_data(enc,
     ffs_name, NULL, 0, long_pt, strlen(long_pt), &ctbuf, &ctlen);
   EXPECT_NE(res, 0);
-  ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+  ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
   EXPECT_NE(err_num, 0);
   EXPECT_TRUE(err_msg != NULL);
   free(err_msg);
@@ -779,7 +779,7 @@ TEST(c_fpe_encrypt, error_handling_invalid_papi)
     res = ubiq_platform_fpe_encrypt_data(enc,
       ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
     EXPECT_NE(res, 0);
-    ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+    ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
     EXPECT_NE(err_num, 0);
     EXPECT_TRUE(err_msg != NULL);
     free(err_msg);
@@ -789,7 +789,7 @@ TEST(c_fpe_encrypt, error_handling_invalid_papi)
     res = ubiq_platform_fpe_decrypt_data(enc,
       ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
     EXPECT_NE(res, 0);
-    ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+    ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
     EXPECT_NE(err_num, 0);
     EXPECT_TRUE(err_msg != NULL);
     free(err_msg);
@@ -837,7 +837,7 @@ TEST(c_fpe_encrypt, error_handling_invalid_sapi)
     res = ubiq_platform_fpe_encrypt_data(enc,
       ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
     EXPECT_NE(res, 0);
-    ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+    ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
     EXPECT_NE(err_num, 0);
     EXPECT_TRUE(err_msg != NULL);
     free(err_msg);
@@ -847,7 +847,7 @@ TEST(c_fpe_encrypt, error_handling_invalid_sapi)
     res = ubiq_platform_fpe_decrypt_data(enc,
       ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
     EXPECT_NE(res, 0);
-    ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+    ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
     EXPECT_NE(err_num, 0);
     EXPECT_TRUE(err_msg != NULL);
     free(err_msg);
@@ -896,7 +896,7 @@ TEST(c_fpe_encrypt, error_handling_invalid_rsa)
     res = ubiq_platform_fpe_encrypt_data(enc,
       ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
     EXPECT_NE(res, 0);
-    ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+    ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
     EXPECT_NE(err_num, 0);
     EXPECT_TRUE(err_msg != NULL);
     free(err_msg);
@@ -906,7 +906,7 @@ TEST(c_fpe_encrypt, error_handling_invalid_rsa)
     res = ubiq_platform_fpe_decrypt_data(enc,
       ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
     EXPECT_NE(res, 0);
-    ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+    ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
     EXPECT_NE(err_num, 0);
     EXPECT_TRUE(err_msg != NULL);
     free(err_msg);
@@ -954,7 +954,7 @@ TEST(c_fpe_encrypt, error_handling_invalid_host)
     res = ubiq_platform_fpe_encrypt_data(enc,
       ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
     EXPECT_NE(res, 0);
-    ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+    ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
     EXPECT_NE(err_num, 0);
     EXPECT_TRUE(err_msg != NULL);
     free(err_msg);
@@ -964,7 +964,7 @@ TEST(c_fpe_encrypt, error_handling_invalid_host)
     res = ubiq_platform_fpe_decrypt_data(enc,
       ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
     EXPECT_NE(res, 0);
-    ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+    ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
     EXPECT_NE(err_num, 0);
     EXPECT_TRUE(err_msg != NULL);
     free(err_msg);
@@ -1003,7 +1003,7 @@ TEST(c_fpe_encrypt, error_handling_invalid_keynum)
   res = ubiq_platform_fpe_encrypt_data(enc,
      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
   EXPECT_EQ(res, 0);
-  ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+  ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
   EXPECT_EQ(err_num, 0);
   EXPECT_TRUE(err_msg == NULL);
   free(err_msg);
@@ -1013,7 +1013,7 @@ TEST(c_fpe_encrypt, error_handling_invalid_keynum)
   res = ubiq_platform_fpe_decrypt_data(enc,
     ffs_name, NULL, 0, (char *)ctbuf, strlen(ctbuf), &ptbuf, &ptlen);
   EXPECT_NE(res, 0);
-  ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+  ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
   EXPECT_NE(err_num, 0);
   EXPECT_TRUE(err_msg != NULL);
   free(err_msg);

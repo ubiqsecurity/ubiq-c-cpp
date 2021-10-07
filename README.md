@@ -599,6 +599,14 @@ char ** p = ptbuf;
 while ((!res) && *p) {
   res = ubiq_platform_fpe_encrypt_data(enc,
      FFS_NAME, NULL, 0, *p, strlen(*p), &ctbuf, &ctlen);
+  // Check for error message and print error information
+  if (!res) {
+    char * err_msg = NULL;
+    int err_num;
+    ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
+    printf("Error (%d) Encountered.  What '%s'\n", err_num, err_msg);
+    free(err_msg);
+  }
   ...
   free(ctbuf);
   p++;
