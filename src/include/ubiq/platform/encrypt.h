@@ -270,6 +270,10 @@ namespace ubiq {
                   const std::vector<std::uint8_t> & tweak,
                   const std::string & pt);
 
+          UBIQ_PLATFORM_API
+          std::string
+          get_error(struct ubiq_platform_fpe_enc_dec_obj * const enc);
+
           class encryption
           {
           public:

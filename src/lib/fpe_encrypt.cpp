@@ -6,15 +6,14 @@
 using namespace ubiq::platform::fpe;
 
 
-
 encryption::encryption(const credentials & creds)
 {
-    struct ubiq_platform_fpe_enc_dec_obj * enc;
+    struct ubiq_platform_fpe_enc_dec_obj * enc(nullptr);
     int res;
 
     res = ubiq_platform_fpe_enc_dec_create(&*creds, &enc);
     if (res != 0) {
-        throw std::system_error(-res, std::generic_category());
+        throw std::system_error(-res, std::generic_category(), get_error(enc));
     }
 
     _enc.reset(enc, &ubiq_platform_fpe_enc_dec_destroy);
@@ -47,7 +46,7 @@ encryption::encrypt(
     pt.data(), pt.length(),
     &ctbuf, &ctlen);
   if (res != 0) {
-      throw std::system_error(-res, std::generic_category());
+      throw std::system_error(-res, std::generic_category(), get_error(_enc.get()));
   }
 
   ct = std::string(ctbuf, ctlen);
@@ -91,4 +90,22 @@ ubiq::platform::fpe::encrypt(
     const std::string & pt)
 {
   return encrypt(creds, ffs_name, std::vector<std::uint8_t>(), pt);
+}
+
+std::string
+ubiq::platform::fpe::get_error(struct ubiq_platform_fpe_enc_dec_obj * enc)
+{
+  std::string ret("Unknown internal error");
+  char * err_msg = NULL;
+  int err_num;
+
+  if (enc) {
+    ubiq_platform_fpe_last_error(enc, &err_num, &err_msg);
+
+    if (err_num != 0 && err_msg != NULL) {
+      ret = err_msg;
+    }
+    free(err_msg);
+  }
+  return ret;
 }

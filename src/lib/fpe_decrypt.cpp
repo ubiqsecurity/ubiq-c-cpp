@@ -9,12 +9,12 @@ using namespace ubiq::platform::fpe;
 
 decryption::decryption(const credentials & creds)
 {
-    struct ubiq_platform_fpe_enc_dec_obj * enc;
+    struct ubiq_platform_fpe_enc_dec_obj * enc(nullptr);
     int res;
 
     res = ubiq_platform_fpe_enc_dec_create(&*creds, &enc);
     if (res != 0) {
-        throw std::system_error(-res, std::generic_category());
+        throw std::system_error(-res, std::generic_category(), get_error(enc));
     }
 
     _dec.reset(enc, &ubiq_platform_fpe_enc_dec_destroy);
@@ -47,7 +47,7 @@ decryption::decrypt(
     ct.data(), ct.length(),
     &ptbuf, &ptlen);
   if (res != 0) {
-      throw std::system_error(-res, std::generic_category());
+      throw std::system_error(-res, std::generic_category(), get_error(_dec.get()));
   }
 
   pt = std::string(ptbuf, ptlen);

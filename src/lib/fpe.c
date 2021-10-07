@@ -279,6 +279,7 @@ ubiq_platform_fpe_enc_dec_destroy(
 {
   const char * csu = "ubiq_platform_fpe_enc_dec_destroy";
 
+  if (e) {
     pthread_mutex_lock(&e->billing_lock);
     cJSON * json_array = e->billing_elements;
     e->billing_elements = NULL;
@@ -296,7 +297,8 @@ ubiq_platform_fpe_enc_dec_destroy(
     ubiq_platform_cache_destroy(e->ffs_cache);
     ubiq_platform_cache_destroy(e->key_cache);
     free(e->error.err_msg);
-    free(e);
+  }
+  free(e);
 }
 
 static
@@ -313,14 +315,18 @@ ubiq_platform_fpe_encryption_new(
     struct ubiq_platform_fpe_enc_dec_obj * e;
     size_t len;
     int res;
-
     res = -ENOMEM;
     e = calloc(1, sizeof(*e));
     if (e) {
-      len = ubiq_platform_snprintf_api_url(NULL, 0, host, api_path) + 1;
-      e->restapi = calloc(len, 1);
-      ubiq_platform_snprintf_api_url(e->restapi, len, host, api_path);
-      res = ubiq_platform_rest_handle_create(papi, sapi, &e->rest);
+      len = ubiq_platform_snprintf_api_url(NULL, 0, host, api_path);
+      if (((int)len) <= 0) { // error of some sort
+        res = len;
+      } else {
+        len++; // null terminator
+        e->restapi = calloc(len, 1);
+        ubiq_platform_snprintf_api_url(e->restapi, len, host, api_path);
+        res = ubiq_platform_rest_handle_create(papi, sapi, &e->rest);
+      }
       if (!res) {
         res = ubiq_platform_rest_uri_escape(e->rest, papi, &e->encoded_papi);
       }
