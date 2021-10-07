@@ -70,61 +70,65 @@ int main(const int argc, char * const argv[])
 
     ubiq::platform::credentials creds;
 
-    /* library must be initialized */
-    ubiq::platform::init();
+    try {
+      /* library must be initialized */
+      ubiq::platform::init();
 
-    /*
-     * the getopt function will parse the command line for arguments
-     * specific to the sample application and return the found options
-     * in the variables below.
-     *
-     * `mode`, `method`, `ffnsname`, and `inputstring`
-     * are required and will be set to the options found on the command
-     * line.
-     *
-     * `credfile` and `profile` are not required arguments and may be
-     * NULL upon return from the call.
-     */
-    ubiq_fpe_getopt(argc, argv,
-                      &mode, &method,
-                      &ffsname, &inputstring,
-                      &credfile, &profile);
+      /*
+       * the getopt function will parse the command line for arguments
+       * specific to the sample application and return the found options
+       * in the variables below.
+       *
+       * `mode`, `method`, `ffnsname`, and `inputstring`
+       * are required and will be set to the options found on the command
+       * line.
+       *
+       * `credfile` and `profile` are not required arguments and may be
+       * NULL upon return from the call.
+       */
+      ubiq_fpe_getopt(argc, argv,
+                        &mode, &method,
+                        &ffsname, &inputstring,
+                        &credfile, &profile);
 
-    /*
-     * When `creds` was declared above, it loaded the default
-     * credentials found in ~/.ubiq/credentials or it failed to load
-     * those credentials and the object is in an invalid state.
-     *
-     * If `credfile` or `profile` was specified, reload the credentials
-     * using those parameters. Note that the constructor takes
-     * std::string's as arguments, which cannot be initialized from
-     * NULL pointers.
-     */
-    if (credfile || profile) {
-       creds = ubiq::platform::credentials(
-           std::string(credfile ? credfile : ""),
-           std::string(profile ? profile : ""));
+      /*
+       * When `creds` was declared above, it loaded the default
+       * credentials found in ~/.ubiq/credentials or it failed to load
+       * those credentials and the object is in an invalid state.
+       *
+       * If `credfile` or `profile` was specified, reload the credentials
+       * using those parameters. Note that the constructor takes
+       * std::string's as arguments, which cannot be initialized from
+       * NULL pointers.
+       */
+      if (credfile || profile) {
+         creds = ubiq::platform::credentials(
+             std::string(credfile ? credfile : ""),
+             std::string(profile ? profile : ""));
+      }
+
+       if (!creds) {
+           std::cerr << "unable to load credentials" << std::endl;
+           std::exit(EXIT_FAILURE);
+       }
+
+      if ( method == UBIQ_SAMPLE_METHOD_SIMPLE) {
+          if (mode == UBIQ_SAMPLE_MODE_ENCRYPT) {
+              ubiq_fpe_simple_encrypt(creds, ffsname, inputstring);
+          } else /* decrypt */ {
+              ubiq_fpe_simple_decrypt(creds, ffsname, inputstring);
+          }
+      } else /* bulk */{
+          if (mode == UBIQ_SAMPLE_MODE_ENCRYPT) {
+              ubiq_fpe_bulk_encrypt(creds, ffsname, inputstring);
+          } else {
+              ubiq_fpe_bulk_decrypt(creds, ffsname, inputstring);
+          }
+      }
     }
-
-     if (!creds) {
-         std::cerr << "unable to load credentials" << std::endl;
-         std::exit(EXIT_FAILURE);
-     }
-
-    if ( method == UBIQ_SAMPLE_METHOD_SIMPLE) {
-        if (mode == UBIQ_SAMPLE_MODE_ENCRYPT) {
-            ubiq_fpe_simple_encrypt(creds, ffsname, inputstring);
-        } else /* decrypt */ {
-            ubiq_fpe_simple_decrypt(creds, ffsname, inputstring);
-        }
-    } else /* bulk */{
-        if (mode == UBIQ_SAMPLE_MODE_ENCRYPT) {
-            ubiq_fpe_bulk_encrypt(creds, ffsname, inputstring);
-        } else {
-            ubiq_fpe_bulk_decrypt(creds, ffsname, inputstring);
-        }
+    catch (const std::exception& e) {
+      std::cerr << "Error: " << e.what() << std::endl;
     }
-
     /* The library needs to clean up after itself */
     ubiq::platform::exit();
 

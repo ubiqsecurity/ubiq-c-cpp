@@ -233,7 +233,9 @@ ubiq_platform_cache_destroy(
   struct ubiq_platform_cache * const ubiq_cache)
 {
   // Walk the list and destroy each node
-  tdestroy(((struct ubiq_platform_cache *)ubiq_cache)->root, destroy_element);
+  if (ubiq_cache) {
+    tdestroy(((struct ubiq_platform_cache *)ubiq_cache)->root, destroy_element);
+  }
   free(ubiq_cache );
 
 }

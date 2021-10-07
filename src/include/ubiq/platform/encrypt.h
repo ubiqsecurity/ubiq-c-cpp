@@ -166,7 +166,7 @@ ubiq_platform_fpe_enc_dec_destroy(
 // done.
 UBIQ_PLATFORM_API
 int
-ubiq_platform_fpe_last_error(
+ubiq_platform_fpe_get_last_error(
   struct ubiq_platform_fpe_enc_dec_obj * const enc,
   int * const err_num,
   char ** const err_msg
@@ -269,6 +269,10 @@ namespace ubiq {
                   const std::string & ffs_name,
                   const std::vector<std::uint8_t> & tweak,
                   const std::string & pt);
+
+          UBIQ_PLATFORM_API
+          std::string
+          get_error(struct ubiq_platform_fpe_enc_dec_obj * const enc);
 
           class encryption
           {

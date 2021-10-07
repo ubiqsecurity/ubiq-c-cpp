@@ -599,6 +599,14 @@ char ** p = ptbuf;
 while ((!res) && *p) {
   res = ubiq_platform_fpe_encrypt_data(enc,
      FFS_NAME, NULL, 0, *p, strlen(*p), &ctbuf, &ctlen);
+  // Check for error message and print error information
+  if (res) {
+    char * err_msg = NULL;
+    int err_num;
+    ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
+    printf("Error (%d) Encountered.  What '%s'\n", err_num, err_msg);
+    free(err_msg);
+  }
   ...
   free(ctbuf);
   p++;
@@ -656,11 +664,18 @@ int res = ubiq_platform_init();
 if (!res) {res = ubiq_platform_credentials_create(&creds); }
 if (!res) {res = ubiq_platform_fpe_enc_dec_create(creds, &enc); }
 
-// Loop throut all the PT values and encrypt each one
+// Loop throut all the CT values and decrypt each one
 char ** c = ctbuf;
 while ((!res) && *c) {
   res = ubiq_platform_fpe_decrypt_data(enc,
     FFS_NAME, NULL, 0, *c, strlen(*c), &ptbuf, &ptlen);
+  if (res) {
+    char * err_msg = NULL;
+    int err_num;
+    ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
+    printf("Error (%d) Encountered.  What '%s'\n", err_num, err_msg);
+    free(err_msg);
+  }
   ...
   free(ptbuf);
   c++;

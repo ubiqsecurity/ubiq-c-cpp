@@ -24,6 +24,28 @@
 
 #include "cJSON/cJSON.h"
 
+#define MSG_SIZE 128
+
+// Need to capture value of res, not test value
+// since it may be a function and don't want it to get executed
+// more than once
+#define CAPTURE_ERROR(e,res,msg) ({ \
+  int result = res; \
+  if (result) { \
+    e->error.err_num = result; \
+    if (e->error.err_msg) { \
+      free (e->error.err_msg); \
+    } \
+    if (!msg) { \
+      e->error.err_msg = malloc(MSG_SIZE); \
+      strerror_r(abs(e->error.err_num), e->error.err_msg, MSG_SIZE); \
+    } else { \
+      e->error.err_msg = strdup(msg); \
+    } \
+  } \
+  result; \
+})
+
 static const char * BASE2_CHARSET = "01";
 static const int FF1_BASE2_MIN_LENGTH = 20; // NIST requirement ceil(log2(1000000))
 static const time_t CACHE_DURATION = 3 * 24 * 60 * 60;
@@ -99,11 +121,10 @@ struct fpe_ffs_parsed
 static
 void
 fpe_ffs_parsed_destroy(
-  struct fpe_ffs_parsed * const parsed
+  void * parsed
 )
 {
   free(parsed);
-
 }
 
 
@@ -258,12 +279,18 @@ ubiq_platform_fpe_enc_dec_destroy(
 {
   const char * csu = "ubiq_platform_fpe_enc_dec_destroy";
 
+  if (e) {
+    int i= 0;
     pthread_mutex_lock(&e->billing_lock);
     cJSON * json_array = e->billing_elements;
     e->billing_elements = NULL;
     pthread_mutex_unlock(&e->billing_lock);
     pthread_cond_signal(&e->process_billing_cond);
-    pthread_join(e->process_billing_thread, NULL);
+    // If the billing thread is this, thread than we know there
+    // was a problem during setup so no need to join.
+    if (!pthread_equal(e->process_billing_thread,pthread_self())) {
+      pthread_join(e->process_billing_thread, NULL);
+    }
     ubiq_platform_process_billing(e, &json_array);
     pthread_cond_destroy(&e->process_billing_cond);
     pthread_mutex_destroy(&e->billing_lock);
@@ -275,7 +302,8 @@ ubiq_platform_fpe_enc_dec_destroy(
     ubiq_platform_cache_destroy(e->ffs_cache);
     ubiq_platform_cache_destroy(e->key_cache);
     free(e->error.err_msg);
-    free(e);
+  }
+  free(e);
 }
 
 static
@@ -292,14 +320,21 @@ ubiq_platform_fpe_encryption_new(
     struct ubiq_platform_fpe_enc_dec_obj * e;
     size_t len;
     int res;
-
     res = -ENOMEM;
     e = calloc(1, sizeof(*e));
     if (e) {
-      len = ubiq_platform_snprintf_api_url(NULL, 0, host, api_path) + 1;
-      e->restapi = calloc(len, 1);
-      ubiq_platform_snprintf_api_url(e->restapi, len, host, api_path);
-      res = ubiq_platform_rest_handle_create(papi, sapi, &e->rest);
+      // Just a way to determine if it has been created correctly later
+      e->process_billing_thread = pthread_self();
+      
+      len = ubiq_platform_snprintf_api_url(NULL, 0, host, api_path);
+      if (((int)len) <= 0) { // error of some sort
+        res = len;
+      } else {
+        len++; // null terminator
+        e->restapi = calloc(len, 1);
+        ubiq_platform_snprintf_api_url(e->restapi, len, host, api_path);
+        res = ubiq_platform_rest_handle_create(papi, sapi, &e->rest);
+      }
       if (!res) {
         res = ubiq_platform_rest_uri_escape(e->rest, papi, &e->encoded_papi);
       }
@@ -405,6 +440,27 @@ ubiq_platform_ffs_create(
 
 static
 int
+save_rest_error(
+  struct ubiq_platform_fpe_enc_dec_obj * const e,
+  struct ubiq_platform_rest_handle * const rest,
+  const http_response_code_t rc)
+{
+  char * msg = NULL;
+  size_t len = 0;
+  const void * rsp;
+
+  rsp = ubiq_platform_rest_response_content(rest, &len);
+  if (rsp != NULL && len > 0) {
+    msg = strndup(rsp, len);
+    CAPTURE_ERROR(e, -rc, msg);
+    free(msg);
+  }
+  return -rc;
+}
+
+
+static
+int
 ubiq_platform_fpe_encryption_get_ffs_def(
   struct ubiq_platform_fpe_enc_dec_obj * const e,
   const char * const ffs_name,
@@ -418,7 +474,6 @@ ubiq_platform_fpe_encryption_get_ffs_def(
   size_t len;
   int res = 0;
   const void * rsp;
-
   const struct ubiq_platform_ffs * ffs = NULL;
 
   char * encoded_name = NULL;
@@ -438,27 +493,30 @@ ubiq_platform_fpe_encryption_get_ffs_def(
         e->rest,
         HTTP_RM_GET, url, "application/json", NULL, 0);
 
-    // Get HTTP response code.  If not OK, return error value
-    http_response_code_t rc = ubiq_platform_rest_response_code(e->rest);
+    if (!CAPTURE_ERROR(e, res, "Unable to process request to get FFS"))
+    {
+      // Get HTTP response code.  If not OK, return error value
+      http_response_code_t rc = ubiq_platform_rest_response_code(e->rest);
 
-    if (rc != HTTP_RC_OK) {
-      res = -rc;
-      // Report error
-    } else {
-      // Get the response payload, parse, and continue.
-      cJSON * ffs_json;
-      rsp = ubiq_platform_rest_response_content(e->rest, &len);
-      res = (ffs_json = cJSON_ParseWithLength(rsp, len)) ? 0 : INT_MIN;
+      if (rc != HTTP_RC_OK) {
+        // Capture Error
+        res = save_rest_error(e, e->rest, rc);
+      } else {
+        // Get the response payload, parse, and continue.
+        cJSON * ffs_json;
+        rsp = ubiq_platform_rest_response_content(e->rest, &len);
+        res = (ffs_json = cJSON_ParseWithLength(rsp, len)) ? 0 : INT_MIN;
 
-      if (res == 0 && ffs_json) {
-        struct ubiq_platform_ffs * f = NULL;
-        res = ubiq_platform_ffs_create(ffs_json,  &f);
-        if (!res) {
-          ubiq_platform_cache_add_element(e->ffs_cache, url, CACHE_DURATION, f, &ubiq_platform_ffs_destroy);
-          *ffs_definition = f;
+        if (res == 0 && ffs_json) {
+          struct ubiq_platform_ffs * f = NULL;
+          res = ubiq_platform_ffs_create(ffs_json,  &f);
+          if (!res) {
+            ubiq_platform_cache_add_element(e->ffs_cache, url, CACHE_DURATION, f, &ubiq_platform_ffs_destroy);
+            *ffs_definition = f;
+          }
         }
+        cJSON_Delete(ffs_json);
       }
-      cJSON_Delete(ffs_json);
     }
   }
   free(url);
@@ -496,7 +554,7 @@ ubiq_platform_fpe_encryption_get_key_helper(
             ubiq_platform_rest_response_code(e->rest);
 
         if (rc != HTTP_RC_OK) {
-          res = -rc;
+          res = save_rest_error(e, e->rest, rc);
         } else {
           const void * rsp = ubiq_platform_rest_response_content(e->rest, &len);
           res = (rsp_json = cJSON_ParseWithLength(rsp, len)) ? 0 : INT_MIN;
@@ -511,25 +569,27 @@ ubiq_platform_fpe_encryption_get_key_helper(
           rsp_json, e->srsa,
           &k->buf, &k->len);
 
-      if (!res) {
+      if (!CAPTURE_ERROR(e, res, "Unable to parse key from server")) {
         const cJSON * kn = cJSON_GetObjectItemCaseSensitive(
                           rsp_json, "key_number");
         if (cJSON_IsString(kn) && kn->valuestring != NULL) {
           const char * errstr = NULL;
           uintmax_t n = strtoumax(kn->valuestring, NULL, 10);
           if (n == UINTMAX_MAX && errno == ERANGE) {
-            res = -ERANGE;
+            res = CAPTURE_ERROR(e, -ERANGE, "Invalid key range");
           } else {
             k->key_number = (unsigned int)n;
           }
         } else {
-          res = -EBADMSG;
+          res = CAPTURE_ERROR(e, -EBADMSG, "Invalid server response");
         }
       }
     }
     cJSON_Delete(rsp_json);
     if (!res) {
       *key = k;
+    } else {
+      fpe_key_destroy(k);
     }
   }
   return res;
@@ -734,12 +794,19 @@ fpe_decrypt(
 
   res = ubiq_platform_fpe_encryption_get_ffs_def(enc, ffs_name, &ffs_definition);
 
-  if (!res) {res = fpe_ffs_parsed_create(&parsed, ctlen);}
-  if (!res) {res = ubiq_platform_fpe_string_parse(ffs_definition, PARSE_OUTPUT_TO_INPUT, ctbuf, ctlen, parsed);}
+  if (!res) {res = CAPTURE_ERROR(enc, fpe_ffs_parsed_create(&parsed, ctlen), NULL);}
+  if (!res) {res = CAPTURE_ERROR(enc, ubiq_platform_fpe_string_parse(ffs_definition, PARSE_OUTPUT_TO_INPUT, ctbuf, ctlen, parsed),"Invalid input string");}
+
+  if (!res) {
+    size_t len = strlen(parsed->trimmed_buf);
+     if (len <ffs_definition->min_input_length || len > ffs_definition->max_input_length) {
+       res = CAPTURE_ERROR(enc, -EINVAL, "Input length does not match FFS parameters");
+     }
+   }
 
   if (!res) {
     unsigned int keynum = 0;
-    res = decode_keynum(ffs_definition, &parsed->trimmed_buf[0], &keynum);
+    res = CAPTURE_ERROR(enc, decode_keynum(ffs_definition, &parsed->trimmed_buf[0], &keynum), "Unable to find key number in cipher text");
     if (!res) {res = ubiq_platform_fpe_decryption_get_key(enc, ffs_name, keynum, &key);}
   }
 
@@ -755,11 +822,11 @@ fpe_decrypt(
       // largest value when converted to binary string
       int padded_string_length = ceil(fmax(FF1_BASE2_MIN_LENGTH,log2(strlen(ffs_definition->input_character_set)) * strlen(parsed->trimmed_buf)));
 
-      pad_text(&ct_base2,padded_string_length, BASE2_CHARSET[0]);
+      res = CAPTURE_ERROR(enc, pad_text(&ct_base2,padded_string_length, BASE2_CHARSET[0]), NULL);
 
     if (!res) {pt_base2 = calloc(strlen(ct_base2) + 1, 1);}
     if (pt_base2 == NULL) {
-      res = -ENOMEM;
+      res = CAPTURE_ERROR(enc, -ENOMEM, NULL);
     }
   }
 
@@ -768,8 +835,8 @@ fpe_decrypt(
     struct ff1_ctx * ctx;
     res = ff1_ctx_create(&ctx, key->buf, key->len, ffs_definition->tweak.buf, ffs_definition->tweak.len, ffs_definition->tweak_min_len, ffs_definition->tweak_max_len, strlen(BASE2_CHARSET));
 
-    if (!res) {
-      res = ff1_decrypt(ctx, pt_base2, ct_base2, NULL, 0);
+    if (!CAPTURE_ERROR(enc, res, "Failure with ff1_ctx_create")) {
+      res = CAPTURE_ERROR(enc, ff1_decrypt(ctx, pt_base2, ct_base2, NULL, 0), "Failure with ff1_decrypt");
     }
     ff1_ctx_destroy(ctx);
 
@@ -783,8 +850,10 @@ fpe_decrypt(
       ffs_definition->input_character_set,
       &pt_trimmed);
 
+    CAPTURE_ERROR(enc, res, "Unable to format results into input character set");
+
     if (pt_trimmed == NULL) {
-      res = -ENOMEM;
+      res = CAPTURE_ERROR(enc, -ENOMEM, NULL);
     }
   }
 
@@ -813,7 +882,7 @@ fpe_decrypt(
     if (*ptbuf != NULL) {
       *ptlen = strlen(*ptbuf);
     } else {
-      res = -ENOMEM;
+      res = CAPTURE_ERROR(enc, -ENOMEM, NULL);
     }
   }
   fpe_key_destroy(key);
@@ -848,13 +917,18 @@ fpe_encrypt(
   res = ubiq_platform_fpe_encryption_get_ffs_def(enc, ffs_name, &ffs_definition);
 
   // Trim pt
-  if (!res) {  res = fpe_ffs_parsed_create(&parsed, ptlen); }
+  if (!res) {res = CAPTURE_ERROR(enc, fpe_ffs_parsed_create(&parsed, ptlen), NULL); }
+  if (!res) {res = CAPTURE_ERROR(enc, ubiq_platform_fpe_string_parse(ffs_definition, PARSE_INPUT_TO_OUTPUT, ptbuf, ptlen, parsed), "Invalid input string");}
 
-  if (!res) {res = ubiq_platform_fpe_string_parse(ffs_definition, PARSE_INPUT_TO_OUTPUT, ptbuf, ptlen, parsed);}
+  if (!res) {
+    size_t len = strlen(parsed->trimmed_buf);
+     if (len <ffs_definition->min_input_length || len > ffs_definition->max_input_length) {
+       res = CAPTURE_ERROR(enc, -EINVAL, "Input length does not match FFS parameters");
+     }
+   }
 
   if (!res) {
     res = ubiq_platform_fpe_encryption_get_key(enc, ffs_name, &key);
-//    res = ubiq_platform_fpe_encryption_get_key_old(enc, ffs_definition->name);
   }
 
   // Convert trimmed into base 10 to prepare for decrypt
@@ -872,15 +946,14 @@ fpe_encrypt(
       int padded_string_length = ceil(fmax(FF1_BASE2_MIN_LENGTH,log2(strlen(ffs_definition->input_character_set)) * strlen(parsed->trimmed_buf)));
 
       // The padding may re-allocate so make sure to allow for pt_base2 to change pointer
-      res = pad_text(&pt_base2, padded_string_length, BASE2_CHARSET[0]);
+      res = CAPTURE_ERROR(enc, pad_text(&pt_base2, padded_string_length, BASE2_CHARSET[0]), NULL);
     }
     // Allocate buffer of same size for ct_base2
     if (!res) {
       if ((ct_base2 = calloc(strlen(pt_base2) + 1, 1)) == NULL) {
-        res = -ENOMEM;
+        res = CAPTURE_ERROR(enc, -ENOMEM, NULL);
       }
     }
-
   }
 
   // TODO - Need logic to check tweak source and error out depending on supplied tweak
@@ -890,8 +963,8 @@ fpe_encrypt(
     struct ff1_ctx * ctx;
 
     res = ff1_ctx_create(&ctx, key->buf, key->len, ffs_definition->tweak.buf, ffs_definition->tweak.len, ffs_definition->tweak_min_len, ffs_definition->tweak_max_len, strlen(BASE2_CHARSET));
-    if (!res) {
-      res = ff1_encrypt(ctx, ct_base2, pt_base2, NULL, 0);
+    if (!CAPTURE_ERROR(enc, res, "Failure with ff1_ctx_create")) {
+      res = CAPTURE_ERROR(enc, ff1_encrypt(ctx, ct_base2, pt_base2, NULL, 0), "Failure with ff1_encrypt");
     }
     ff1_ctx_destroy(ctx);
   }
@@ -904,14 +977,15 @@ fpe_encrypt(
       ffs_definition->output_character_set,
       &ct_trimmed);
 
+    CAPTURE_ERROR(enc, res, "Unable to format results in output character set");
+
     if (ct_trimmed == NULL) {
-      res = -ENOMEM;
+      res = CAPTURE_ERROR(enc, -ENOMEM, NULL);
     }
   }
 
   // Merge PT to formatted output
   if (!res) {
-    res = 0;
     int d = strlen(parsed->formatted_dest_buf) - 1;
     int s = strlen(ct_trimmed) - 1;
     while (s >= 0 && d >= 0)
@@ -941,7 +1015,7 @@ fpe_encrypt(
     char * pos = parsed->formatted_dest_buf;
     while (ffs_definition->passthrough_character_set != NULL && (*pos != '\0') && (NULL != strchr(ffs_definition->passthrough_character_set, *pos))) {pos++;};
     res = encode_keynum(ffs_definition, key->key_number, pos);
-
+    CAPTURE_ERROR(enc, res, "Unable to encode key material into results");
   }
 
   if (!res) {
@@ -950,8 +1024,9 @@ fpe_encrypt(
     if (*ctbuf != NULL) {
       *ctlen = strlen(*ctbuf);
     } else {
-      res = -ENOMEM;
+      res = CAPTURE_ERROR(enc, -ENOMEM, NULL);
     }
+
   }
   fpe_key_destroy(key);
   fpe_ffs_parsed_destroy(parsed);
@@ -1213,7 +1288,7 @@ ubiq_platform_fpe_encrypt_data(
 {
   int res = 0;
 
-  res  = fpe_encrypt(enc, ffs_name,
+  res = fpe_encrypt(enc, ffs_name,
     tweak, tweaklen, ptbuf, ptlen, ctbuf, ctlen);
   if (!res) {res = ubiq_platform_add_billing(enc, ffs_name, ENCRYPT, 1);}
 
@@ -1239,7 +1314,7 @@ ubiq_platform_fpe_decrypt_data(
 }
 
 int
-ubiq_platform_fpe_last_error(
+ubiq_platform_fpe_get_last_error(
   struct ubiq_platform_fpe_enc_dec_obj * const enc,
   int * const err_num,
   char ** const err_msg

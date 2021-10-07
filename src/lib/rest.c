@@ -124,12 +124,14 @@ void
 ubiq_platform_rest_handle_reset(
     struct ubiq_platform_rest_handle * h)
 {
+  if (h) {
     ubiq_support_http_handle_reset(h->hnd);
 
     /* handle is either NULL or malloc'd. */
     free(h->rsp.buf);
     h->rsp.buf = NULL;
     h->rsp.len = 0;
+  }
 }
 
 void
@@ -137,7 +139,9 @@ ubiq_platform_rest_handle_destroy(
     struct ubiq_platform_rest_handle * const h)
 {
     ubiq_platform_rest_handle_reset(h);
-    ubiq_support_http_handle_destroy(h->hnd);
+    if (h) {
+      ubiq_support_http_handle_destroy(h->hnd);
+    }
     free(h);
 }
 
