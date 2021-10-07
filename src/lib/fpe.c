@@ -280,12 +280,17 @@ ubiq_platform_fpe_enc_dec_destroy(
   const char * csu = "ubiq_platform_fpe_enc_dec_destroy";
 
   if (e) {
+    int i= 0;
     pthread_mutex_lock(&e->billing_lock);
     cJSON * json_array = e->billing_elements;
     e->billing_elements = NULL;
     pthread_mutex_unlock(&e->billing_lock);
     pthread_cond_signal(&e->process_billing_cond);
-    pthread_join(e->process_billing_thread, NULL);
+    // If the billing thread is this, thread than we know there
+    // was a problem during setup so no need to join.
+    if (!pthread_equal(e->process_billing_thread,pthread_self())) {
+      pthread_join(e->process_billing_thread, NULL);
+    }
     ubiq_platform_process_billing(e, &json_array);
     pthread_cond_destroy(&e->process_billing_cond);
     pthread_mutex_destroy(&e->billing_lock);
@@ -318,6 +323,9 @@ ubiq_platform_fpe_encryption_new(
     res = -ENOMEM;
     e = calloc(1, sizeof(*e));
     if (e) {
+      // Just a way to determine if it has been created correctly later
+      e->process_billing_thread = pthread_self();
+      
       len = ubiq_platform_snprintf_api_url(NULL, 0, host, api_path);
       if (((int)len) <= 0) { // error of some sort
         res = len;
