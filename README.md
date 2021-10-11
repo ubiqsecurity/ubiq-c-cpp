@@ -504,15 +504,17 @@ library and `-lubiqclient++` to link against the C++ library.
 
 ## Usage
 
-You will need to obtain account credentials in the same way as described above for conventional encryption/decryption. When
-you do this in your [Ubiq Dashboard][dashboard] [credentials][credentials], you'll need to enable the FPE option. If you do not
-see the FPE option, you may need to upgrade your plan as this is an optional capability available on upgraded accounts.
-The credentials can be hardcoded into your application, specified with environment variables,
-loaded from an explicit file, or loaded from a file in your
-home directory [~/.ubiq/credentials].
+You will need to obtain account credentials in the same way as described above for conventional
+encryption/decryption. When
+you do this in your [Ubiq Dashboard][dashboard] [credentials][credentials], you'll need to enable the FPE option.
+If you do not
+see the FPE option, you may need to upgrade your plan as this is an optional capability available on upgraded
+accounts.  The credentials can be set using environment variables, loaded from an explicitly
+specified file, or read from the default location (~/.ubiq/credentials).
 
 ### Encrypt a social security text field - simple interface
-Pass credentials, the name of a Field Format Specification, FFS, and data into the encryption function. The encrypted data will be returned.
+Pass credentials, the name of a Field Format Specification, FFS, and data into the encryption function.
+The encrypted data will be returned.
 
 ```c
 /* C */
