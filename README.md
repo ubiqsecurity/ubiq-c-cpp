@@ -6,6 +6,8 @@ Ubiq Security Platform API from applications written in the C and C++ languages.
 They include a pre-defined set of functions and classes that will provide
 simple interfaces to encrypt and decrypt data
 
+This library also incorporates format preserving encryption (FPE), available as an optional add-on to your user account. FPE allows encrypting so that the output cipher text is in the same format as the original plaintext. This includes preserving special characters and control over what characters are permitted in the cipher text. For example, consider encrypting a social security number '123-45-6789'. The cipher text will maintain the dashes and look something like: 'W$+-qF-oMMV'.
+Additionally, Ubiq supports embedded format preserving encryption (eFPE) providing the ability to store additional meta data within the cipher text.
 ## Documentation
 
 See the [C/C++ API docs](https://dev.ubiqsecurity.com/docs/api) and
@@ -21,17 +23,26 @@ Individual interfaces are documented in greater detail in:
 
 #### Using the package manager:
 
-Packages are available for systems that can use `.deb` files. In that case,
+Packages are available for systems that can use `.deb` and `.rpm` files. In that case,
 you don't need this source code unless you want to modify the libraries. If you
 just want to use the libraries, install the pre-built packages available from
 [Releases](https://gitlab.com/ubiqsecurity/ubiq-c-cpp/-/releases):
 
-```console
+```sh
+# For debian based systems
 # installs the runtime libraries, needed for running existing clients
 $ sudo apt install ./libubiqclient_<version>_<arch>.deb
 # installs the development headers, needed for building or modifying clients
 $ sudo apt install ./libubiqclient-dev_<version>_<arch>.deb
 ```
+```sh
+# For rpm based systems
+# installs the runtime libraries, needed for running existing clients
+$ sudo yum install ./libubiqclient-<version>_<arch>.rpm
+# installs the development headers, needed for building or modifying clients
+$ sudo yum install ./libubiqclient-dev-<version>_<arch>.rpm
+```
+
 
 When building clients with `gcc`, use `-lubiqclient` to link against the C
 library and `-lubiqclient++` to link against the C++ library.
@@ -66,14 +77,23 @@ On Unix-like systems, the following libraries and development headers are
 required:
 -   cURL 7.68+
 -   OpenSSL 1.1+
+-   GMP 10
 
-On Debian-like systems, those packages can be installed with the following
-commands:
 ```sh
+# On Debian-like systems, those packages can be installed with the following
+# commands:
 # for runtime libraries needed to use the library
-$ sudo apt install cmake libcurl4 libssl1.1
+$ sudo apt install cmake libcurl4 libssl1.1 libgmp10
 # for development headers needed to build the library
-$ sudo apt install libcurl4-openssl-dev libssl-dev
+$ sudo apt install libcurl4 openssl-dev libssl-dev libgmp-dev
+```
+```sh
+# On Fedora-like systems, those packages can be installed with the following
+# commands:
+# for runtime libraries needed to use the library
+$ sudo yum install cmake curl openssl-libs gmp
+# for development headers needed to build the library
+$ sudo yum install openssl-devel libcurl-devel gmp-devel gmp-c++
 ```
 
 ## Usage
@@ -573,7 +593,7 @@ pt = ubiq::platform::fpe::decrypt(creds, ffs_name, ct);
 ubiq::platform::exit();
 ```
 ### Encrypt a social security text field - bulk interface
-Create an fpe_enc_dec object with Pass credentials and then allow repeated calls to encrypt / decrypt
+Create an fpe_enc_dec object with credentials and then allow repeated calls to encrypt / decrypt
 data using a Field Format Specification and the data.  Cipher text will be returned.
 
 ```c
@@ -627,14 +647,19 @@ std::string ffs_name("ALPHANUM_SSN");
 std::vector<std::string> pt = {"123-45-6789", "987-65-4321","123-45-6789","123-45-6789","123-45-6789"};
 std::string ct;
 
-ubiq::platform::credentials creds;
-ubiq::platform::init();
-ubiq::platform::fpe::encryption enc(creds);
+try {
+   ubiq::platform::credentials creds;
+   ubiq::platform::init();
+   ubiq::platform::fpe::encryption enc(creds);
 
-// loop through a vector of plain text elements to encrypt
-for(auto itr : pt) {
-  ct = enc.encrypt(ffs_name, itr);
-  ...
+   // loop through a vector of plain text elements to encrypt
+   for(auto itr : pt) {
+     ct = enc.encrypt(ffs_name, itr);
+     ...
+   }
+}
+catch (const std::exception& e) {
+  std::cerr << "Error: " << e.what() << std::endl;
 }
 
 ubiq::platform::exit();
@@ -696,16 +721,20 @@ std::string ffs_name("ALPHANUM_SSN");
 std::vector<std::string> ct = {"7\"c-`P-fGj?", "7$S-27-9D4A"};
 std::string pt;
 
-ubiq::platform::credentials creds;
-ubiq::platform::init();
-ubiq::platform::fpe::decryption dec(creds);
+try {
+   ubiq::platform::credentials creds;
+   ubiq::platform::init();
+   ubiq::platform::fpe::decryption dec(creds);
 
-// loop through a vector of plain text elements to encrypt
-for(auto itr : ct) {
-  pt = dec.decrypt(ffs_name, itr);
-  ...
-}  
-
+   // loop through a vector of plain text elements to encrypt
+   for(auto itr : ct) {
+     pt = dec.decrypt(ffs_name, itr);
+     ...
+   }  
+}
+catch (const std::exception& e) {
+  std::cerr << "Error: " << e.what() << std::endl;
+}
 ubiq::platform::exit();
 ```
 
