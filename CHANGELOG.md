@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.4.2.0 - 2021-10-12
+* Improve error handling / reporting
+
 ## 0.4.1.0 - 2021-10-05
 * Changed reference to the ubiq-fpe-c submodule
 
