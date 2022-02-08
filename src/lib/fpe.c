@@ -21,6 +21,11 @@
 #include <math.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <stdio.h>
+#include <unistr.h>
+#include <string.h>
+#include <stdlib.h>
+#include <uniwidth.h>
 
 #include "cJSON/cJSON.h"
 
@@ -46,13 +51,14 @@
   result; \
 })
 
-static const char * BASE2_CHARSET = "01";
+static const uint32_t * BASE2_CHARSET = L"01";
 static const int FF1_BASE2_MIN_LENGTH = 20; // NIST requirement ceil(log2(1000000))
 static const time_t CACHE_DURATION = 3 * 24 * 60 * 60;
 typedef enum {ENCRYPT=0, DECRYPT=1}  action_type ;
 static const char * EFPE_TYPE = "EfpeDefinition";
 static const char * FPE_TYPE = "FpeDefinition";
 typedef enum {PARSE_INPUT_TO_OUTPUT = 0, PARSE_OUTPUT_TO_INPUT = 1} conversion_direction_type;
+
 
 static
 int
@@ -64,15 +70,16 @@ static
 void *
 process_billing(void * data);
 
+// input, output, passthrough are unicode uint32_t with null terminator
 struct ubiq_platform_ffs {
   char * name;
   int min_input_length;
   int max_input_length;
   char * tweak_source;
   char * regex;
-  char * input_character_set;
-  char * output_character_set;
-  char * passthrough_character_set;
+  uint32_t * input_character_set;
+  uint32_t * output_character_set;
+  uint32_t * passthrough_character_set;
   int msb_encoding_bits;
   int efpe_flag;
   struct {
@@ -114,8 +121,8 @@ struct ubiq_platform_fpe_key {
 
 struct fpe_ffs_parsed
 {
-  char * trimmed_buf;
-  char * formatted_dest_buf;
+  uint32_t * trimmed_buf;
+  uint32_t * formatted_dest_buf;
 };
 
 static
@@ -166,11 +173,11 @@ int fpe_ffs_parsed_create(
   int res = -ENOMEM;
 
   // Single alloc and just point to locations in the object
-  p = calloc(1, sizeof(*p) + 2 * (buf_len + 1));
+  p = calloc(1, sizeof(*p) + 2 * (buf_len + 1) * sizeof(uint32_t));
   if (p) {
 
-    p->trimmed_buf = (char *) (p + 1);
-    p->formatted_dest_buf = (char *)  p->trimmed_buf + buf_len + 1;
+    p->trimmed_buf = (uint32_t *) (p + 1);
+    p->formatted_dest_buf = (uint32_t *)  p->trimmed_buf + buf_len + 1;
 
     if (p->trimmed_buf && p->formatted_dest_buf) {
       res = 0;
@@ -186,15 +193,15 @@ int fpe_ffs_parsed_create(
 static int encode_keynum(
   const struct ubiq_platform_ffs * ffs,
   const unsigned int key_number,
-  char * const buf
+  uint32_t * const buf
 )
 {
   int res = -EINVAL;
 
   // If *buf is null terminator or if the character cannot be found,
   // it would be an error.
-  char * pos = strchr(ffs->output_character_set, (int)*buf);
-  if (pos != NULL && *pos != '\0') {
+  uint32_t * pos = u32_strchr(ffs->output_character_set, (int)*buf);
+  if (pos != NULL && *pos != 0) {
     unsigned int ct_value = pos - ffs->output_character_set;
 
     ct_value += key_number << ffs->msb_encoding_bits;
@@ -206,13 +213,13 @@ static int encode_keynum(
 
 static int decode_keynum(
   const struct ubiq_platform_ffs * ffs,
-  char * const encoded_char,
+  uint32_t * const encoded_char,
    unsigned int * const key_number
 )
 {
   int res = -EINVAL;
-  char * pos = strchr(ffs->output_character_set, (int)*encoded_char);
-  if (pos != NULL && *pos != '\0') {
+  uint32_t * pos = u32_strchr(ffs->output_character_set, *encoded_char);
+  if (pos != NULL && *pos != 0) {
     unsigned int encoded_value = pos - ffs->output_character_set;
 
     unsigned int key_num = encoded_value >> ffs->msb_encoding_bits;
@@ -254,6 +261,82 @@ static int get_json_int(
   return res;
 }
 
+static
+int convert_to_utf32(
+  const char * const utf8_src,
+  uint32_t ** const utf32_dst)
+{
+  int res = -ENOMEM;
+
+  uint32_t * tmp = NULL;
+  size_t lengthp = 0;
+  size_t str_bytes = u8_strlen(utf8_src);
+
+  // Convert the utf8 to utf32, up to u8_width + 1
+  tmp = u8_to_u32(utf8_src, u8_width(utf8_src, str_bytes, "") + 1, NULL, &lengthp);
+  if (NULL != tmp) {
+  // Extend and set null terminator
+    tmp = realloc(tmp, (lengthp + 1)* sizeof(uint32_t));
+    if (NULL != tmp) {
+      tmp[lengthp] = 0;
+      *utf32_dst = tmp;
+      res = 0;
+    }
+  }
+
+  return res;
+}
+
+// Input does not have null terminator, output will be null terminated
+static
+int convert_to_utf32_len(
+  const char * const utf8_src,
+  const size_t len, // no null terminator
+  uint32_t ** const utf32_dst)
+{
+  int res = -ENOMEM;
+
+  uint32_t * tmp = NULL;
+  size_t lengthp = 0;
+//  size_t str_bytes = u8_strlen(utf8_src);
+
+  // Convert the utf8 to utf32, up to u8_width + 1
+  tmp = u8_to_u32(utf8_src, u8_width(utf8_src, len, "") + 1, NULL, &lengthp);
+  if (NULL != tmp) {
+    // Extend and set null terminator
+    tmp = realloc(tmp, (lengthp + 1)* sizeof(uint32_t));
+    if (NULL != tmp) {
+      tmp[lengthp] = 0;
+      *utf32_dst = tmp;
+      res = 0;
+    }
+  }
+  return res;
+}
+
+
+static
+int convert_utf32_to_utf8(
+  const uint32_t * const utf32_src,
+  uint8_t ** const utf8_dst)
+{
+  int res = 0;
+
+  uint8_t * tmp = NULL;
+  size_t lengthp = 0;
+  size_t str_bytes = u32_strlen(utf32_src);
+
+  // Convert the utf8 to utf32, up to u8_width + 1
+  tmp = u32_to_u8(utf32_src, u32_width(utf32_src, str_bytes, "") + 1, NULL, &lengthp);
+
+  // Extend and set null terminator
+  tmp = realloc(tmp, (lengthp + 1)* sizeof(uint8_t));
+  tmp[lengthp] = '\0';
+
+  *utf8_dst = tmp;
+
+  return res;
+}
 
 static
 void
@@ -325,7 +408,7 @@ ubiq_platform_fpe_encryption_new(
     if (e) {
       // Just a way to determine if it has been created correctly later
       e->process_billing_thread = pthread_self();
-      
+
       len = ubiq_platform_snprintf_api_url(NULL, 0, host, api_path);
       if (((int)len) <= 0) { // error of some sort
         res = len;
@@ -399,12 +482,23 @@ ubiq_platform_ffs_create(
     res = -ENOMEM;
   }
 
+  char * str = NULL;
+
   if (!res) {res = get_json_string(ffs_data, "name", &e->name);}
   if (!res) {res = get_json_string(ffs_data, "tweak_source", &e->tweak_source);}
   if (!res) {res = get_json_string(ffs_data, "regex", &e->regex);}
-  if (!res) {res = get_json_string(ffs_data, "input_character_set", &e->input_character_set);}
-  if (!res) {res = get_json_string(ffs_data, "output_character_set", &e->output_character_set);}
-  if (!res) {res = get_json_string(ffs_data, "passthrough", &e->passthrough_character_set);}
+  if (!res) {res = get_json_string(ffs_data, "input_character_set", &str);}
+  if (!res) {res = convert_to_utf32(str, &e->input_character_set);}
+  free(str);
+  str = NULL;
+  if (!res) {res = get_json_string(ffs_data, "output_character_set", &str);}
+  if (!res) {res = convert_to_utf32(str, &e->output_character_set);}
+  free(str);
+  str = NULL;
+  if (!res) {res = get_json_string(ffs_data, "passthrough", &str);}
+  if (!res) {res = convert_to_utf32(str, &e->passthrough_character_set);}
+  free(str);
+  str = NULL;
   if (!res) {res = get_json_int(ffs_data, "min_input_length", &e->min_input_length);}
   if (!res) {res = get_json_int(ffs_data, "max_input_length", &e->max_input_length);}
   if (!res) {res = get_json_int(ffs_data, "msb_encoding_bits", &e->msb_encoding_bits);}
@@ -677,29 +771,35 @@ static
 int ubiq_platform_fpe_string_parse(
   const struct ubiq_platform_ffs * ffs,
   const conversion_direction_type conversion_direction, // input to output, or output to input
-  const void * const source_string,
+  const uint32_t * const source_string,
   const size_t source_len,
   struct fpe_ffs_parsed * const parsed
 )
 {
   int res = 0;
-  const char * src_char_set = NULL;
-  char dest_zeroth_char = '\0';
+  const uint32_t * src_char_set = NULL;
+  uint32_t dest_zeroth_char = 0;
   // struct fpe_ffs_parsed * p;
 
   if (conversion_direction == PARSE_INPUT_TO_OUTPUT) {// input to output
     src_char_set = ffs->input_character_set;
     dest_zeroth_char = ffs->output_character_set[0];
   } else if (conversion_direction == PARSE_OUTPUT_TO_INPUT) {
-    dest_zeroth_char = ffs->input_character_set[0];
     src_char_set = ffs->output_character_set;
+    dest_zeroth_char = ffs->input_character_set[0];
   } else {
     res = -EINVAL;
   }
 
+  // Using uint32, so not bytes, but unicode characters.  Initialize the
+  // values, leaving the null terminator
   if (!res) {
-    memset(parsed->trimmed_buf, src_char_set[0], source_len);
-    memset(parsed->formatted_dest_buf, dest_zeroth_char, source_len);
+    for (int i = 0; i < source_len; i++) {
+      parsed->trimmed_buf[i] = src_char_set[0];
+      parsed->formatted_dest_buf[i] = dest_zeroth_char;
+    }
+    // memset(parsed->trimmed_buf, src_char_set[0], source_len);
+    // memset(parsed->formatted_dest_buf, dest_zeroth_char, source_len);
 
     res = ubiq_platform_efpe_parsing_parse_input(
       source_string, src_char_set, ffs->passthrough_character_set,
@@ -713,10 +813,10 @@ int ubiq_platform_fpe_string_parse(
 static
 int
 str_convert_radix(
-  const char * const src_str,
-  const char * const input_radix,
-  const char * const output_radix,
-  char ** out_str
+  const uint32_t * const src_str,
+  const uint32_t * const input_radix,
+  const uint32_t * const output_radix,
+  uint32_t ** out_str
 )
 {
   static const char * csu = "str_convert_radix";
@@ -725,17 +825,17 @@ str_convert_radix(
   bigint_t n;
 
   bigint_init(&n);
-  if (!res) {res = __bigint_set_str(&n, src_str, input_radix);}
+  if (!res) {res = __u32_bigint_set_str(&n, src_str, input_radix);}
 
   if (!res) {
-    size_t len = __bigint_get_str(NULL, 0, output_radix, &n);
+    size_t len = __u32_bigint_get_str(NULL, 0, output_radix, &n);
 
-    char * out = calloc(len + 1, 1);
+    uint32_t * out = calloc(len + 1, sizeof(uint32_t));
     if (out == NULL) {
       res = -ENOMEM;
     }
     if (!res) {
-      res = __bigint_get_str(out, len, output_radix, &n);
+      res = __u32_bigint_get_str(out, len, output_radix, &n);
       if (res <= len && res > 0) {
         *out_str = out;
         res = 0;
@@ -749,18 +849,21 @@ str_convert_radix(
 
 static
 int
-pad_text(char ** str, const size_t minlen, const char c)
+pad_text(uint32_t ** str, size_t minlen, const uint32_t c)
 {
   int res = 0;
-  char * p = NULL;
-  int len = strlen(*str);
+  uint32_t * p = NULL;
+  int len = u32_strlen(*str);
   if (len < minlen) {
-    if ((p = realloc(*str, minlen + 1)) == NULL) {
+    if ((p = realloc(*str, (minlen + 1) * sizeof(uint32_t))) == NULL) {
       res = -ENOMEM;
     } else {
       // Moving memory to end first before setting new locations
-      memmove(p + (minlen - len), p, len + 1); // Include null terminator
-      memset(p, c, (minlen-len));
+      memmove(p + (minlen - len), p, (len + 1) * sizeof(uint32_t)); // Include null terminator
+      //      memset(p, c, (minlen-len));
+      for (int i = 0; i < minlen-len; i++) {
+        p[i] = c;
+      }
       *str = p;
     }
   }
@@ -781,24 +884,44 @@ fpe_decrypt(
 
   int res = 0;
   struct fpe_ffs_parsed * parsed = NULL;
-  char * ct_base2 = NULL;
-  char * pt_base2 = NULL;
-  char * pt_trimmed = NULL;
+  uint32_t * ct_base2 = NULL;
+  uint32_t * pt_base2 = NULL;
+  uint32_t * pt_trimmed = NULL;
+
+  uint8_t * u8_ct_base2 = NULL;
+  uint8_t * u8_pt_base2 = NULL;
 
   const struct ubiq_platform_ffs * ffs_definition = NULL;
   struct ubiq_platform_fpe_key * key = NULL;
+
+  /**
+  * U8 ctbuf in
+  * => convert ct to u32
+  * => convert ct to in base 2
+  * => convert ct to utf8
+  * => decrypt ct to pt in utf8 - base 2
+  * => convert pt to utf32
+  * => convert pt in base 2 to input radix
+  * => convert pt to utf 8
+  */
 
   /*
   * Need to parse the CT to get the encryption algorithm and key number
   */
 
+  uint32_t * u32_ctbuf = NULL;
+
+  // Convert the u8 cipher text to u32, so character lengths and matching work correctly.
+
   res = ubiq_platform_fpe_encryption_get_ffs_def(enc, ffs_name, &ffs_definition);
 
-  if (!res) {res = CAPTURE_ERROR(enc, fpe_ffs_parsed_create(&parsed, ctlen), NULL);}
-  if (!res) {res = CAPTURE_ERROR(enc, ubiq_platform_fpe_string_parse(ffs_definition, PARSE_OUTPUT_TO_INPUT, ctbuf, ctlen, parsed),"Invalid input string");}
+  if (!res) {res = convert_to_utf32_len(ctbuf, ctlen, &u32_ctbuf);}
+  // Since UTF8 is multibyte, need to use u32 version's string length to build buffer correctly
+  if (!res) {res = CAPTURE_ERROR(enc, fpe_ffs_parsed_create(&parsed, u32_strlen(u32_ctbuf)), NULL);}
+  if (!res) {res = CAPTURE_ERROR(enc, ubiq_platform_fpe_string_parse(ffs_definition, PARSE_OUTPUT_TO_INPUT, u32_ctbuf, u32_strlen(u32_ctbuf), parsed),"Invalid input string");}
 
   if (!res) {
-    size_t len = strlen(parsed->trimmed_buf);
+    size_t len = u32_strlen(parsed->trimmed_buf);
      if (len <ffs_definition->min_input_length || len > ffs_definition->max_input_length) {
        res = CAPTURE_ERROR(enc, -EINVAL, "Input length does not match FFS parameters");
      }
@@ -820,23 +943,25 @@ fpe_decrypt(
 
       // Length of the string based on algorithm and actual number of characters need to represent
       // largest value when converted to binary string
-      int padded_string_length = ceil(fmax(FF1_BASE2_MIN_LENGTH,log2(strlen(ffs_definition->input_character_set)) * strlen(parsed->trimmed_buf)));
+      int padded_string_length = ceil(fmax(FF1_BASE2_MIN_LENGTH,log2(u32_strlen(ffs_definition->input_character_set)) * u32_strlen(parsed->trimmed_buf)));
 
       res = CAPTURE_ERROR(enc, pad_text(&ct_base2,padded_string_length, BASE2_CHARSET[0]), NULL);
 
-    if (!res) {pt_base2 = calloc(strlen(ct_base2) + 1, 1);}
-    if (pt_base2 == NULL) {
-      res = CAPTURE_ERROR(enc, -ENOMEM, NULL);
+      if (!res) {res = convert_utf32_to_utf8(ct_base2, &u8_ct_base2);}
+      if (!res) {
+        if ((u8_pt_base2 =  calloc(padded_string_length + 1, sizeof(uint8_t))) == NULL) {
+        res = CAPTURE_ERROR(enc, -ENOMEM, NULL);
+      }
     }
   }
 
   // TODO - Need logic to check tweak source and error out depending on supplied tweak
   if (!res) {
     struct ff1_ctx * ctx;
-    res = ff1_ctx_create(&ctx, key->buf, key->len, ffs_definition->tweak.buf, ffs_definition->tweak.len, ffs_definition->tweak_min_len, ffs_definition->tweak_max_len, strlen(BASE2_CHARSET));
+    res = ff1_ctx_create(&ctx, key->buf, key->len, ffs_definition->tweak.buf, ffs_definition->tweak.len, ffs_definition->tweak_min_len, ffs_definition->tweak_max_len, u32_strlen(BASE2_CHARSET));
 
     if (!CAPTURE_ERROR(enc, res, "Failure with ff1_ctx_create")) {
-      res = CAPTURE_ERROR(enc, ff1_decrypt(ctx, pt_base2, ct_base2, NULL, 0), "Failure with ff1_decrypt");
+      res = CAPTURE_ERROR(enc, ff1_decrypt(ctx, u8_pt_base2, u8_ct_base2, NULL, 0), "Failure with ff1_decrypt");
     }
     ff1_ctx_destroy(ctx);
 
@@ -844,23 +969,27 @@ fpe_decrypt(
 
   // Convert PT to output radix
   if (!res) {
-    res = str_convert_radix(
-      pt_base2,
-      BASE2_CHARSET,
-      ffs_definition->input_character_set,
-      &pt_trimmed);
 
-    CAPTURE_ERROR(enc, res, "Unable to format results into input character set");
+    if (!CAPTURE_ERROR(enc, res = convert_to_utf32(u8_pt_base2, &pt_base2), "Failure to covert pt to UTF32")) {
+      res = str_convert_radix(
+        pt_base2,
+        BASE2_CHARSET,
+        ffs_definition->input_character_set,
+        &pt_trimmed);
 
-    if (pt_trimmed == NULL) {
-      res = CAPTURE_ERROR(enc, -ENOMEM, NULL);
+      CAPTURE_ERROR(enc, res, "Unable to format results into input character set");
+
+      if (pt_trimmed == NULL) {
+        res = CAPTURE_ERROR(enc, -ENOMEM, NULL);
+      }
     }
+
   }
 
   // Merge PT to formatted output
   if (!res) {
-    int d = strlen(parsed->formatted_dest_buf) - 1;
-    int s = strlen(pt_trimmed) - 1;
+    int d = u32_strlen(parsed->formatted_dest_buf) - 1;
+    int s = u32_strlen(pt_trimmed) - 1;
     while (s >= 0 && d >= 0)
     {
       // Find the first available destination character
@@ -878,12 +1007,17 @@ fpe_decrypt(
   }
 
   if (!res) {
-    *ptbuf = strdup(parsed->formatted_dest_buf);
-    if (*ptbuf != NULL) {
-      *ptlen = strlen(*ptbuf);
-    } else {
-      res = CAPTURE_ERROR(enc, -ENOMEM, NULL);
-    }
+    // Need to convert from u32 back to u8 and add null terminator
+    res = convert_utf32_to_utf8(parsed->formatted_dest_buf, (uint8_t ** const)ptbuf);
+    // Number of bytes not code points
+    *ptlen = u8_strlen(*ptbuf);
+    // *ptbuf = u32_to_u8(parsed->formatted_dest_buf, u32_strlen(parsed->formatted_dest_buf), NULL, ptlen);
+    // if (*ptbuf != NULL) {
+    //   *ptbuf = realloc(*ptbuf, 1 + *ptlen);
+    //   *ptbuf[*ptlen] = '\0';
+    // } else {
+    //   res = CAPTURE_ERROR(enc, -ENOMEM, NULL);
+    // }
   }
   fpe_key_destroy(key);
   fpe_ffs_parsed_destroy(parsed);
@@ -907,21 +1041,40 @@ fpe_encrypt(
   static const char * csu = "fpe_encrypt";
   int res = 0;
   struct fpe_ffs_parsed * parsed = NULL;
-  char * ct_base2 = NULL;
-  char * pt_base2 = NULL;
-  char * ct_trimmed = NULL;
+  uint32_t * ct_base2 = NULL;
+  uint32_t * pt_base2 = NULL;
+  uint32_t * ct_trimmed = NULL;
   const struct ubiq_platform_ffs * ffs_definition = NULL;
   struct ubiq_platform_fpe_key * key = NULL;
+
+  uint8_t * u8_ct_base2 = NULL;
+  uint8_t * u8_pt_base2 = NULL;
+
+  uint32_t * u32_ptbuf = NULL;
+
+
+  /**
+  * U8 ptbuf in
+  * => convert pt to u32
+  * => convert pt to in base 2
+  * => convert pt to utf8
+  * => decrypt pt to ct in utf8 - base 2
+  * => convert ct to utf32
+  * => convert ct in base 2 to input radix
+  * => convert ct to utf 8
+  */
 
   // ffs_definition is cached so do not delete
   res = ubiq_platform_fpe_encryption_get_ffs_def(enc, ffs_name, &ffs_definition);
 
+  if (!res) {res = convert_to_utf32_len(ptbuf, ptlen, &u32_ptbuf);}
+
   // Trim pt
-  if (!res) {res = CAPTURE_ERROR(enc, fpe_ffs_parsed_create(&parsed, ptlen), NULL); }
-  if (!res) {res = CAPTURE_ERROR(enc, ubiq_platform_fpe_string_parse(ffs_definition, PARSE_INPUT_TO_OUTPUT, ptbuf, ptlen, parsed), "Invalid input string");}
+  if (!res) {res = CAPTURE_ERROR(enc, fpe_ffs_parsed_create(&parsed, u32_strlen(u32_ptbuf)), NULL); }
+  if (!res) {res = CAPTURE_ERROR(enc, ubiq_platform_fpe_string_parse(ffs_definition, PARSE_INPUT_TO_OUTPUT, u32_ptbuf, u32_strlen(u32_ptbuf), parsed), "Invalid input string");}
 
   if (!res) {
-    size_t len = strlen(parsed->trimmed_buf);
+    size_t len = u32_strlen(parsed->trimmed_buf);
      if (len <ffs_definition->min_input_length || len > ffs_definition->max_input_length) {
        res = CAPTURE_ERROR(enc, -EINVAL, "Input length does not match FFS parameters");
      }
@@ -939,18 +1092,19 @@ fpe_encrypt(
       BASE2_CHARSET,
       &pt_base2);
 
-    if (!res) {
-      // Figure out how long to pad the binary string.  Formula is input_radix^len = 2^Y which is log2(input_radix) * len
-      // Due to FF1 constraints, the there is a minimum length for a base2 string, so make sure to be at least that long too
-      // or fpe will fail
-      int padded_string_length = ceil(fmax(FF1_BASE2_MIN_LENGTH,log2(strlen(ffs_definition->input_character_set)) * strlen(parsed->trimmed_buf)));
+    // Figure out how long to pad the binary string.  Formula is input_radix^len = 2^Y which is log2(input_radix) * len
+    // Due to FF1 constraints, the there is a minimum length for a base2 string, so make sure to be at least that long too
+    // or fpe will fail
+    int padded_string_length = ceil(fmax(FF1_BASE2_MIN_LENGTH,log2(u32_strlen(ffs_definition->input_character_set)) * u32_strlen(parsed->trimmed_buf)));
 
-      // The padding may re-allocate so make sure to allow for pt_base2 to change pointer
-      res = CAPTURE_ERROR(enc, pad_text(&pt_base2, padded_string_length, BASE2_CHARSET[0]), NULL);
-    }
+    // The padding may re-allocate so make sure to allow for pt_base2 to change pointer
+    res = CAPTURE_ERROR(enc, pad_text(&pt_base2, padded_string_length, BASE2_CHARSET[0]), NULL);
+
+    if (!res) {res = convert_utf32_to_utf8(pt_base2, &u8_pt_base2);}
+
     // Allocate buffer of same size for ct_base2
     if (!res) {
-      if ((ct_base2 = calloc(strlen(pt_base2) + 1, 1)) == NULL) {
+      if ((u8_ct_base2 = calloc(padded_string_length + 1, sizeof(uint8_t))) == NULL) {
         res = CAPTURE_ERROR(enc, -ENOMEM, NULL);
       }
     }
@@ -962,15 +1116,17 @@ fpe_encrypt(
   if (!res) {
     struct ff1_ctx * ctx;
 
-    res = ff1_ctx_create(&ctx, key->buf, key->len, ffs_definition->tweak.buf, ffs_definition->tweak.len, ffs_definition->tweak_min_len, ffs_definition->tweak_max_len, strlen(BASE2_CHARSET));
+    res = ff1_ctx_create(&ctx, key->buf, key->len, ffs_definition->tweak.buf, ffs_definition->tweak.len, ffs_definition->tweak_min_len, ffs_definition->tweak_max_len, u32_strlen(BASE2_CHARSET));
     if (!CAPTURE_ERROR(enc, res, "Failure with ff1_ctx_create")) {
-      res = CAPTURE_ERROR(enc, ff1_encrypt(ctx, ct_base2, pt_base2, NULL, 0), "Failure with ff1_encrypt");
+      res = CAPTURE_ERROR(enc, ff1_encrypt(ctx, u8_ct_base2, u8_pt_base2, NULL, 0), "Failure with ff1_encrypt");
     }
     ff1_ctx_destroy(ctx);
   }
 
   // Convert PT to output radix
   if (!res) {
+    res = convert_to_utf32(u8_ct_base2, &ct_base2);
+
     res = str_convert_radix(
       ct_base2,
       BASE2_CHARSET,
@@ -986,8 +1142,8 @@ fpe_encrypt(
 
   // Merge PT to formatted output
   if (!res) {
-    int d = strlen(parsed->formatted_dest_buf) - 1;
-    int s = strlen(ct_trimmed) - 1;
+    int d = u32_strlen(parsed->formatted_dest_buf) - 1;
+    int s = u32_strlen(ct_trimmed) - 1;
     while (s >= 0 && d >= 0)
     {
       // Find the first available destination character
@@ -1012,17 +1168,18 @@ fpe_encrypt(
     /*
     * eFPE
     */
-    char * pos = parsed->formatted_dest_buf;
-    while (ffs_definition->passthrough_character_set != NULL && (*pos != '\0') && (NULL != strchr(ffs_definition->passthrough_character_set, *pos))) {pos++;};
+    uint32_t * pos = parsed->formatted_dest_buf;
+    while (ffs_definition->passthrough_character_set != NULL && (*pos != 0) && (NULL != u32_strchr(ffs_definition->passthrough_character_set, *pos))) {pos++;};
     res = encode_keynum(ffs_definition, key->key_number, pos);
     CAPTURE_ERROR(enc, res, "Unable to encode key material into results");
   }
 
   if (!res) {
-    *ctbuf = strdup(parsed->formatted_dest_buf);
+    convert_utf32_to_utf8(parsed->formatted_dest_buf, (uint8_t**)ctbuf);
+//    *ctbuf = u32_strdup(parsed->formatted_dest_buf);
 
     if (*ctbuf != NULL) {
-      *ctlen = strlen(*ctbuf);
+      *ctlen = u8_strlen(*ctbuf);
     } else {
       res = CAPTURE_ERROR(enc, -ENOMEM, NULL);
     }
