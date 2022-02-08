@@ -171,3 +171,163 @@ TEST(c_parsing, auto)
   ASSERT_EQ(u32_strcmp(empty_formatted_output, res_formatted),0);
 
 }
+
+// Creates a string and randomly creates input / passthrough characters and then determines what the
+// output should look like, and then calls
+TEST(utf8_utf32, u8_to_u32)
+{
+//  const char * pt = "®123456789ÑÁ abdefghijklmnop";
+  const uint8_t * pt = (uint8_t *)"®ÑÁ"; //"®ÑÁ";
+  const uint8_t * input_character_set = (uint8_t *)"®123456789ÑÁabdefghijklmnop";
+  const uint8_t * passthrough_character_set = (uint8_t *)" -";
+
+  uint32_t * u32_pt;
+  uint32_t * u32_input;
+  uint32_t * u32_passthrough;
+
+  uint8_t * u8_pt;
+  uint8_t * u8_input;
+  uint8_t * u8_passthrough;
+
+  ASSERT_EQ(u8_check(pt,u8_strlen(pt)), nullptr);
+  ASSERT_EQ(u8_check(input_character_set,u8_strlen(input_character_set)), nullptr);
+  ASSERT_EQ(u8_check(passthrough_character_set,u8_strlen(passthrough_character_set)), nullptr);
+
+  ASSERT_EQ(convert_utf8_to_utf32((char *)pt,  &u32_pt), 0);
+  ASSERT_EQ(convert_utf8_to_utf32((char *)input_character_set, &u32_input), 0);
+  ASSERT_EQ(convert_utf8_to_utf32((char *)passthrough_character_set, &u32_passthrough), 0);
+
+  ASSERT_EQ(convert_utf32_to_utf8(u32_pt,  &u8_pt), 0);
+  ASSERT_EQ(convert_utf32_to_utf8(u32_input, &u8_input), 0);
+  ASSERT_EQ(convert_utf32_to_utf8(u32_passthrough, &u8_passthrough), 0);
+
+  ASSERT_EQ(u8_strcmp(pt, u8_pt), 0);
+  ASSERT_EQ(u8_strcmp(input_character_set, u8_input), 0);
+  ASSERT_EQ(u8_strcmp(passthrough_character_set, u8_passthrough), 0);
+
+}
+
+TEST(utf8_utf32, u8_len_to_u32)
+{
+//  const char * pt = "®123456789ÑÁ abdefghijklmnop";
+  const uint8_t * pt = (uint8_t *)"®ÑÁ"; //"®ÑÁ";
+  const uint8_t * input_character_set = (uint8_t *)"®123456789ÑÁabdefghijklmnop";
+  const uint8_t * passthrough_character_set = (uint8_t *)" -";
+
+  uint32_t * u32_pt;
+  uint32_t * u32_input;
+  uint32_t * u32_passthrough;
+
+  uint8_t * u8_pt;
+  uint8_t * u8_input;
+  uint8_t * u8_passthrough;
+
+  ASSERT_EQ(u8_check(pt,u8_strlen(pt)), nullptr);
+  ASSERT_EQ(u8_check(input_character_set,u8_strlen(input_character_set)), nullptr);
+  ASSERT_EQ(u8_check(passthrough_character_set,u8_strlen(passthrough_character_set)), nullptr);
+
+  ASSERT_EQ(convert_utf8_len_to_utf32((char *)pt, u8_strlen(pt), &u32_pt), 0);
+  ASSERT_EQ(convert_utf8_len_to_utf32((char *)input_character_set, u8_strlen(input_character_set), &u32_input), 0);
+  ASSERT_EQ(convert_utf8_len_to_utf32((char *)passthrough_character_set, u8_strlen(passthrough_character_set), &u32_passthrough), 0);
+
+  ASSERT_EQ(convert_utf32_to_utf8(u32_pt,  &u8_pt), 0);
+  ASSERT_EQ(convert_utf32_to_utf8(u32_input, &u8_input), 0);
+  ASSERT_EQ(convert_utf32_to_utf8(u32_passthrough, &u8_passthrough), 0);
+
+  ASSERT_EQ(u8_strcmp(pt, u8_pt), 0);
+  ASSERT_EQ(u8_strcmp(input_character_set, u8_input), 0);
+  ASSERT_EQ(u8_strcmp(passthrough_character_set, u8_passthrough), 0);
+}
+
+
+TEST(utf8_utf32, parse)
+{
+//  const char * pt = "®123456789ÑÁ abdefghijklmnop";
+  const uint8_t * pt = (uint8_t *)"23456®23456Ñ23456Á23456"; //"®ÑÁ";
+  const uint8_t * input_character_set = (uint8_t *)"®123456789ÑÁabdefghijklmnop";
+  const uint8_t * passthrough_character_set = (uint8_t *)" -";
+
+  uint32_t * u32_pt;
+  uint32_t * u32_input;
+  uint32_t * u32_passthrough;
+
+  uint8_t * u8_pt;
+  uint8_t * u8_input;
+  uint8_t * u8_passthrough;
+
+  uint32_t * u32_trimmed;
+  uint32_t * u32_empty;
+
+
+  ASSERT_EQ(u8_check(pt,u8_strlen(pt)), nullptr);
+  ASSERT_EQ(u8_check(input_character_set,u8_strlen(input_character_set)), nullptr);
+  ASSERT_EQ(u8_check(passthrough_character_set,u8_strlen(passthrough_character_set)), nullptr);
+
+  ASSERT_EQ(convert_utf8_len_to_utf32((char *)pt, u8_strlen(pt), &u32_pt), 0);
+  ASSERT_EQ(convert_utf8_len_to_utf32((char *)input_character_set, u8_strlen(input_character_set), &u32_input), 0);
+  ASSERT_EQ(convert_utf8_len_to_utf32((char *)passthrough_character_set, u8_strlen(passthrough_character_set), &u32_passthrough), 0);
+
+  u32_trimmed = (uint32_t*)calloc(u32_strlen(u32_pt) + 1, sizeof(uint32_t));
+  u32_empty = (uint32_t*)calloc(u32_strlen(u32_pt) + 1, sizeof(uint32_t));
+  init_u32(u32_empty, U'z', u32_strlen(u32_pt) + 1);
+
+  ASSERT_EQ(0, ubiq_platform_efpe_parsing_parse_input(u32_pt, u32_input, u32_passthrough,
+    u32_trimmed, u32_empty));
+
+  ASSERT_EQ(0, u32_strcmp(u32_pt, u32_trimmed));
+
+  ASSERT_EQ(convert_utf32_to_utf8(u32_trimmed, &u8_pt), 0);
+  ASSERT_EQ(u8_strcmp(pt, u8_pt), 0);
+
+}
+
+TEST(utf8_utf32, parse2)
+{
+//  const char * pt = "®123456789ÑÁ abdefghijklmnop";
+  const uint8_t * pt = (uint8_t *)   "23456®23456Ñ23456Á23456";
+  const uint8_t * input_character_set = (uint8_t *)"123456789ÑÁabdefghijklmnop";
+  const uint8_t * passthrough_character_set = (uint8_t *)" ®";
+  const uint8_t * trimmed = (uint8_t *)"2345623456Ñ23456Á23456";
+  const uint8_t * empty = (uint8_t *)"zzzzz®zzzzzzzzzzzzzzzzz";
+
+  uint32_t * u32_pt;
+  uint32_t * u32_input;
+  uint32_t * u32_passthrough;
+
+  uint8_t * u8_pt;
+  uint8_t * u8_input;
+  uint8_t * u8_passthrough;
+
+  uint32_t * u32_trimmed;
+  uint32_t * u32_empty;
+
+  uint8_t * u8_trimmed;
+  uint8_t * u8_empty;
+
+  ASSERT_EQ(u8_check(pt,u8_strlen(pt)), nullptr);
+  ASSERT_EQ(u8_check(input_character_set,u8_strlen(input_character_set)), nullptr);
+  ASSERT_EQ(u8_check(passthrough_character_set,u8_strlen(passthrough_character_set)), nullptr);
+
+  ASSERT_EQ(convert_utf8_len_to_utf32((char *)pt, u8_strlen(pt), &u32_pt), 0);
+  ASSERT_EQ(convert_utf8_len_to_utf32((char *)input_character_set, u8_strlen(input_character_set), &u32_input), 0);
+  ASSERT_EQ(convert_utf8_len_to_utf32((char *)passthrough_character_set, u8_strlen(passthrough_character_set), &u32_passthrough), 0);
+
+  u32_trimmed = (uint32_t*)calloc(u32_strlen(u32_pt) + 1, sizeof(uint32_t));
+  u32_empty = (uint32_t*)calloc(u32_strlen(u32_pt) + 1, sizeof(uint32_t));
+  init_u32(u32_empty, U'z', u32_strlen(u32_pt) + 1);
+
+  ASSERT_EQ(0, ubiq_platform_efpe_parsing_parse_input(u32_pt, u32_input, u32_passthrough,
+    u32_trimmed, u32_empty));
+
+
+//  ASSERT_EQ(0, u32_strcmp(u32_pt, u32_trimmed));
+
+  ASSERT_EQ(convert_utf32_to_utf8(u32_trimmed, &u8_trimmed), 0);
+  printf("u8_trimmed length %d\n", u8_strlen(u8_trimmed));
+  printf("trimmed length %d\n", u8_strlen(trimmed));
+  ASSERT_EQ(u8_strcmp(trimmed, u8_trimmed), 0);
+
+  ASSERT_EQ(convert_utf32_to_utf8(u32_empty, &u8_empty), 0);
+  ASSERT_EQ(u8_strcmp(empty, u8_empty), 0);
+
+}
