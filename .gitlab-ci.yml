@@ -34,6 +34,7 @@ build-debian:
         - apt -y install cmake gcc g++
         - apt -y install libcurl4-openssl-dev libssl-dev
         - apt -y install dpkg-dev file libgmp-dev
+        - apt -y install libunistring-dev
     script:
         - cmake -S. -Bbuild
         - cmake --build build -- -j$(nproc)
