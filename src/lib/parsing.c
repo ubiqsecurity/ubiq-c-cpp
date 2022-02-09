@@ -58,20 +58,15 @@ convert_utf8_to_utf32(
 {
   int res = -ENOMEM;
 
-  printf("u8_strlen (%d)\n", u8_strlen(utf8_src));
-
-
   uint32_t * tmp = NULL;
   size_t lengthp = 0;
-  tmp = u8_to_u32(utf8_src, u8_strlen(utf8_src) , NULL, &lengthp);
-  tmp[lengthp] = 0;
-  printf("lengthp (%d)\n", lengthp);
-  printf("u32_strlen (%d)\n", u32_strlen(tmp));
+  // +1 for null terminator in input
+  tmp = u8_to_u32(utf8_src, u8_strlen(utf8_src) + 1, NULL, &lengthp);
   if (NULL != tmp) {
     *utf32_dst = tmp;
     res = 0;
   } else {
-    res = -errno; //printf("errno %d\n", errno);
+    res = -errno;
   }
   return res;
 }
@@ -87,10 +82,8 @@ convert_utf8_len_to_utf32(
 
   uint32_t * tmp = NULL;
   size_t lengthp = 0;
-//  size_t str_bytes = u8_strlen(utf8_src);
 
-  // printf("u8_strlen %d\n", u8_strlen(utf8_src));
-  // Convert the utf8 to utf32, up to u8_width + 1
+  // Convert the utf8 to utf32, No null terminator so need to realloc and add
   tmp = u8_to_u32(utf8_src, len , NULL, &lengthp);
   if (NULL != tmp) {
     tmp = realloc(tmp, (lengthp + 1) * sizeof(uint32_t));
@@ -100,7 +93,7 @@ convert_utf8_len_to_utf32(
       res = 0;
     }
   } else {
-    res = -errno; //printf("errno %d\n", errno);
+    res = -errno;
   }
   return res;
 }
@@ -115,19 +108,14 @@ int convert_utf32_to_utf8(
   size_t lengthp = 0;
   size_t str_bytes = u32_strlen(utf32_src);
 
-  // Convert the utf8 to utf32, up to u8_width + 1
-  tmp = u32_to_u8(utf32_src, u32_strlen(utf32_src) +1 , NULL, &lengthp);
-  tmp[lengthp] = 0;
+  // Convert the utf8 to utf32, up to u8_width + 1.  +1 for null terminator to output
+  tmp = u32_to_u8(utf32_src, u32_strlen(utf32_src) + 1 , NULL, &lengthp);
   if (NULL != tmp) {
     *utf8_dst = tmp;
     res = 0;
   } else {
-    res = -errno; //printf("errno %d\n", errno);
+    res = -errno;
   }
-  // Extend and set null terminator
-  // tmp = realloc(tmp, (lengthp + 1)* sizeof(uint8_t));
-  // tmp[lengthp] = '\0';
-
 
   return res;
 }
