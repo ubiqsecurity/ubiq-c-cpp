@@ -813,6 +813,7 @@ fpe_decrypt(
 
   uint8_t * u8_ct_base2 = NULL;
   uint8_t * u8_pt_base2 = NULL;
+  uint32_t * u32_ctbuf = NULL;
 
   const struct ubiq_platform_ffs * ffs_definition = NULL;
   struct ubiq_platform_fpe_key * key = NULL;
@@ -832,7 +833,6 @@ fpe_decrypt(
   * Need to parse the CT to get the encryption algorithm and key number
   */
 
-  uint32_t * u32_ctbuf = NULL;
 
   // Convert the u8 cipher text to u32, so character lengths and matching work correctly.
 
@@ -934,19 +934,18 @@ fpe_decrypt(
     res = convert_utf32_to_utf8(parsed->formatted_dest_buf, (uint8_t ** const)ptbuf);
     // Number of bytes not code points
     *ptlen = u8_strlen(*ptbuf);
-    // *ptbuf = u32_to_u8(parsed->formatted_dest_buf, u32_strlen(parsed->formatted_dest_buf), NULL, ptlen);
-    // if (*ptbuf != NULL) {
-    //   *ptbuf = realloc(*ptbuf, 1 + *ptlen);
-    //   *ptbuf[*ptlen] = '\0';
-    // } else {
-    //   res = CAPTURE_ERROR(enc, -ENOMEM, NULL);
-    // }
   }
+
   fpe_key_destroy(key);
   fpe_ffs_parsed_destroy(parsed);
   free(ct_base2);
   free(pt_base2);
   free(pt_trimmed);
+
+  free(u8_ct_base2);
+  free(u8_pt_base2);
+
+  free(u32_ctbuf);
   return res;
 }
 
@@ -972,7 +971,6 @@ fpe_encrypt(
 
   uint8_t * u8_ct_base2 = NULL;
   uint8_t * u8_pt_base2 = NULL;
-
   uint32_t * u32_ptbuf = NULL;
 
 
@@ -1113,6 +1111,11 @@ fpe_encrypt(
   free(ct_base2);
   free(pt_base2);
   free(ct_trimmed);
+
+  free(u8_ct_base2);
+  free(u8_pt_base2);
+  free(u32_ptbuf);
+
   return res;
 }
 
