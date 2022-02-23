@@ -38,6 +38,10 @@ else()
     curl crypto gmp)
 endif()
 
+target_link_libraries(
+    unittests
+    unistring)
+
 add_custom_target(
   run_tests
   COMMAND unittests

@@ -3,21 +3,23 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <stdio.h>
+#include <unistr.h>
 
 int
 ubiq_platform_efpe_parsing_parse_input(
-    const char * const input_string, // Null terminated
-    const char * const input_character_set, // Null terminated
-    const char * const passthrough_character_set, // Null terminated
-    char * trimmed_characters, // Preallocated and filled with char[0] from input characterset.  Should be same length as input string
-    char * empty_formatted_output // Preallocated and filled with char[0] from OUTPUT characterset, Should be same length as input string
+    const uint32_t * const input_string, // Null terminated
+    const uint32_t * const input_character_set, // Null terminated
+    const uint32_t * const passthrough_character_set, // Null terminated
+    uint32_t * trimmed_characters, // Preallocated and filled with char[0] from input characterset.  Should be same length as input string
+    uint32_t * empty_formatted_output // Preallocated and filled with char[0] from OUTPUT characterset, Should be same length as input string
   )
   {
     int err;
 
-    const char * i = input_string;
-    char * f = empty_formatted_output;
-    char * t = trimmed_characters;
+    const uint32_t * i = input_string;
+    uint32_t * f = empty_formatted_output;
+    uint32_t * t = trimmed_characters;
 
     err = 0;
 
@@ -25,19 +27,19 @@ ubiq_platform_efpe_parsing_parse_input(
     {
       // If the input string matches a passthrough character, copy
       // to empty formatted output string
-      if (passthrough_character_set && strchr(passthrough_character_set, *i))
+      if (passthrough_character_set && u32_strchr(passthrough_character_set, *i))
       {
         *f = *i;
       }
       // If the string is in the input characterset,
       // copy to trimmed characters
-      else if (strchr(input_character_set, *i))
+      else if (u32_strchr(input_character_set, *i))
       {
         *t = *i;
         t++;
         // Trimmed may be shorter than input so make sure to include null terminator
         // after last character
-        *t = '\0';
+        *t = 0;
       } else {
         err = -EINVAL;
       }
@@ -47,3 +49,73 @@ ubiq_platform_efpe_parsing_parse_input(
     }
     return err;
   }
+
+// Null terminated
+int
+convert_utf8_to_utf32(
+  const char * const utf8_src,
+  uint32_t ** const utf32_dst)
+{
+  int res = -ENOMEM;
+
+  uint32_t * tmp = NULL;
+  size_t lengthp = 0;
+  // +1 for null terminator in input
+  tmp = u8_to_u32(utf8_src, u8_strlen(utf8_src) + 1, NULL, &lengthp);
+  if (NULL != tmp) {
+    *utf32_dst = tmp;
+    res = 0;
+  } else {
+    res = -errno;
+  }
+  return res;
+}
+
+// No Null Terminator
+int
+convert_utf8_len_to_utf32(
+  const char * const utf8_src,
+  const size_t len, // no null terminator
+  uint32_t ** const utf32_dst)
+{
+  int res = -ENOMEM;
+
+  uint32_t * tmp = NULL;
+  size_t lengthp = 0;
+
+  // Convert the utf8 to utf32, No null terminator so need to realloc and add
+  tmp = u8_to_u32(utf8_src, len , NULL, &lengthp);
+  if (NULL != tmp) {
+    tmp = realloc(tmp, (lengthp + 1) * sizeof(uint32_t));
+    if (tmp != NULL) {
+      tmp[lengthp] = 0;
+      *utf32_dst = tmp;
+      res = 0;
+    }
+  } else {
+    res = -errno;
+  }
+  return res;
+}
+
+int convert_utf32_to_utf8(
+  const uint32_t * const utf32_src,
+  uint8_t ** const utf8_dst)
+{
+  int res = 0;
+
+  uint8_t * tmp = NULL;
+  size_t lengthp = 0;
+  size_t str_bytes = u32_strlen(utf32_src);
+
+  // Convert the utf8 to utf32, up to u8_width + 1.  +1 for null terminator to output
+  tmp = u32_to_u8(utf32_src, u32_strlen(utf32_src) + 1 , NULL, &lengthp);
+  if (NULL != tmp) {
+    *utf8_dst = tmp;
+    res = 0;
+  } else {
+    res = -errno;
+  }
+
+  return res;
+}
