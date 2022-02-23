@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.4.3.0 - 2022-02-23
+* Add full support for UTF-8 strings for (e)FPE
+
 ## 0.4.2.0 - 2021-10-12
 * Improve error handling / reporting
 
