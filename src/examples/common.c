@@ -272,7 +272,7 @@ ubiq_fpe_usage(
     }
 
     fprintf(stderr, "Usage: %s -e|-d INPUT -s|-p -n FFS [-c CREDENTIALS] [-P PROFILE]\n", cmd);
-    fprintf(stderr, "Encrypt or decrypt data using the Ubiq service\n");
+    fprintf(stderr, "Encrypt or decrypt data using the Ubiq eFPE service\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "  -h                       Show this help message and exit\n");
     fprintf(stderr, "  -V                       Show program's version number and exit\n");
@@ -282,8 +282,8 @@ ubiq_fpe_usage(
     fprintf(stderr, "  -d INPUT                 Decrypt the supplied input string\n");
     fprintf(stderr, "                             escape or use quotes if input string\n");
     fprintf(stderr, "                             contains special characters\n");
-    fprintf(stderr, "  -s                       Use the simple FPE encryption / decryption interfaces\n");
-    fprintf(stderr, "  -b                       Use the bulk FPE encryption / decryption interfaces\n");
+    fprintf(stderr, "  -s                       Use the simple eFPE encryption / decryption interfaces\n");
+    fprintf(stderr, "  -b                       Use the bulk eFPE encryption / decryption interfaces\n");
     fprintf(stderr, "  -n FFS                   Use the supplied Field Format Specification\n");
     fprintf(stderr, "  -c CREDENTIALS           Set the file name with the API credentials\n");
     fprintf(stderr, "                             (default: ~/.ubiq/credentials)\n");

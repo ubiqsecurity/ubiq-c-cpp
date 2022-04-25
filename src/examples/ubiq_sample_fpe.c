@@ -20,7 +20,7 @@ ubiq_fpe_simple_encrypt(
     ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
 
   if (!res) {
-    printf("FPE Encrypted Data Results => '%.*s'\n", ctlen, ctbuf);
+    printf("eFPE Encrypted Data Results => '%.*s'\n", ctlen, ctbuf);
   } else {
     fprintf(stderr, "Encryption Error Code: %d\n\n", res);
   }
@@ -42,7 +42,7 @@ ubiq_fpe_simple_decrypt(
     ffs_name, NULL, 0, ct, strlen(ct), &ptbuf, &ptlen);
 
   if (!res) {
-    printf("FPE Decrypt Data Results => '%.*s'\n", ptlen, ptbuf);
+    printf("eFPE Decrypt Data Results => '%.*s'\n", ptlen, ptbuf);
   } else {
     fprintf(stderr, "Decryption Error Code: %d\n\n", res);
   }
@@ -69,7 +69,7 @@ ubiq_fpe_bulk_encrypt(
       ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
 
     if (!res) {
-      printf("FPE Encrypted Data Results => '%.*s'\n", ctlen, ctbuf);
+      printf("eFPE Encrypted Data Results => '%.*s'\n", ctlen, ctbuf);
     } else {
       int err_num;
       char * err_msg = NULL;
@@ -102,7 +102,7 @@ ubiq_fpe_bulk_decrypt(
       ffs_name, NULL, 0, ct, strlen(ct), &ptbuf, &ptlen);
 
     if (!res) {
-      printf("FPE Decrypt Data Results => '%.*s'\n", ptlen, ptbuf);
+      printf("eFPE Decrypt Data Results => '%.*s'\n", ptlen, ptbuf);
     } else {
       int err_num;
       char * err_msg = NULL;
