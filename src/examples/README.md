@@ -131,7 +131,7 @@ $ ./ubiq_sample-c -i /tmp/readme.enc -o /tmp/README.out -d -p -c credentials
 
 
 ## Documentation for ubiq_sample_fpe.c and ubiq_sample_fpe.cpp
-Format preserving encryption (FPE/eFPE) is an optionally available feature. Please contact support@ubiqsecurity.com to add this capability to your account.
+This library also incorporates Ubiq Format Preserving Encryption (eFPE).  eFPE allows encrypting so that the output cipher text is in the same format as the original plaintext. This includes preserving special characters and control over what characters are permitted in the cipher text. For example, consider encrypting a social security number '123-45-6789'. The cipher text will maintain the dashes and look something like: 'W$+-qF-oMMV'.
 
 
 See the [C API docs](https://dev.ubiqsecurity.com/docs/api).
@@ -163,7 +163,7 @@ $ ./ubiq_sample_fpe-c++ -h
 ```
 
 <pre>
-Encrypt or decrypt data using the Ubiq (e)FPE service
+Encrypt or decrypt data using the Ubiq eFPE service
 
   -h                       Show this help message and exit
   -V                       Show program's version number and exit
@@ -173,8 +173,8 @@ Encrypt or decrypt data using the Ubiq (e)FPE service
   -d INPUT                 Decrypt the supplied input string
                              escape or use quotes if input string
                              contains special characters
-  -s                       Use the simple FPE encryption / decryption interfaces
-  -b                       Use the bulk FPE encryption / decryption interfaces
+  -s                       Use the simple eFPE encryption / decryption interfaces
+  -b                       Use the bulk eFPE encryption / decryption interfaces
   -n FFS                   Use the supplied Field Format Specification
   -c CREDENTIALS           Set the file name with the API credentials
                              (default: ~/.ubiq/credentials)
@@ -204,12 +204,10 @@ imposes its own set of rules revolving around how the data is formatted and what
 given format. For example, you would not expect to see alpha characters in a social security number and the model
 will identify that as a formatting error. A few models to consider are:
 
--   ALPHANUM_SSN 
--   BIRTH_DATE 
--   GENERIC_STRING 
+-   ALPHANUM_SSN
+-   BIRTH_DATE
+-   GENERIC_STRING
 -   SO_ALPHANUM_PIN
 
 Additional information on how to use these FFS models in your own applications is available by contacting
 Ubiq. You may also view some use-cases implemented in the unit test source files "fpeencrypt.cpp" and "fpedecrypt.cpp"
-
-

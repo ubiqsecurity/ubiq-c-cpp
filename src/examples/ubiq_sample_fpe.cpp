@@ -14,7 +14,7 @@ ubiq_fpe_simple_encrypt(
   std::string ct;
   ct = ubiq::platform::fpe::encrypt(creds, ffs_name, pt);
 
-  std::cout << "FPE Encrypted Data Results => '" << ct << "'" << std::endl;
+  std::cout << "eFPE Encrypted Data Results => '" << ct << "'" << std::endl;
 }
 
 static
@@ -27,7 +27,7 @@ ubiq_fpe_simple_decrypt(
   std::string pt;
   pt = ubiq::platform::fpe::decrypt(creds, ffs_name, ct);
 
-  std::cout << "FPE Decrypt Data Results => '" << pt << "'" << std::endl;
+  std::cout << "eFPE Decrypt Data Results => '" << pt << "'" << std::endl;
 
 }
 
@@ -44,7 +44,7 @@ ubiq_fpe_bulk_encrypt(
 
   ct = enc.encrypt(ffs_name, pt);
 
-  std::cout << "FPE Encrypted Data Results => '" << ct << "'" << std::endl;
+  std::cout << "eFPE Encrypted Data Results => '" << ct << "'" << std::endl;
 
 }
 
@@ -59,7 +59,7 @@ ubiq_fpe_bulk_decrypt(
   ubiq::platform::fpe::decryption dec(creds);
   pt = dec.decrypt(ffs_name, ct);
 
-  std::cout << "FPE Decrypt Data Results => '" << pt << "'" << std::endl;
+  std::cout << "eFPE Decrypt Data Results => '" << pt << "'" << std::endl;
 }
 
 int main(const int argc, char * const argv[])
