@@ -1,4 +1,6 @@
 #include <gtest/gtest.h>
+#include <unistr.h>
+#include <uniwidth.h>
 
 #include "ubiq/platform.h"
 #include <ubiq/platform/internal/credentials.h>
@@ -44,6 +46,26 @@ TEST_F(cpp_fpe_encrypt, simple)
   EXPECT_EQ(ct, ct2);
 }
 
+TEST_F(cpp_fpe_encrypt, simple_search)
+{
+  std::string pt("ABCDEFGHI");
+  std::vector<std::string> ct, ct2;
+
+  ASSERT_NO_THROW(
+      ct = ubiq::platform::fpe::encrypt_for_search(_creds, "ALPHANUM_SSN", pt));
+
+  ASSERT_NO_THROW(
+      ct2 = ubiq::platform::fpe::encrypt_for_search(_creds, "ALPHANUM_SSN", std::vector<std::uint8_t>(), pt));
+
+      EXPECT_EQ(ct, ct2);
+
+  for (auto x : ct) {
+      std::string ptbuf = ubiq::platform::fpe::decrypt(_creds, "ALPHANUM_SSN", x);
+      EXPECT_EQ(pt, ptbuf);
+  }
+}
+
+
 TEST_F(cpp_fpe_encrypt, bulk)
 {
   std::string ffs_name("ALPHANUM_SSN");
@@ -58,6 +80,28 @@ TEST_F(cpp_fpe_encrypt, bulk)
       ct2 = _enc.encrypt(ffs_name, std::vector<std::uint8_t>(), pt));
 
   EXPECT_EQ(ct, ct2);
+}
+
+TEST_F(cpp_fpe_encrypt, bulk_search)
+{
+  std::string ffs_name("ALPHANUM_SSN");
+  std::string pt("ABCDEFGHI");
+  std::vector<std::string> ct, ct2;
+
+  _enc = ubiq::platform::fpe::encryption(_creds);
+  _dec = ubiq::platform::fpe::decryption(_creds);
+  ASSERT_NO_THROW(
+      ct = _enc.encrypt_for_search(ffs_name, pt));
+
+  ASSERT_NO_THROW(
+      ct2 = _enc.encrypt_for_search(ffs_name, std::vector<std::uint8_t>(), pt));
+
+  EXPECT_EQ(ct, ct2);
+
+  for (auto x : ct) {
+    std::string ptbuf = _dec.decrypt(ffs_name, x);
+    EXPECT_EQ(pt, ptbuf);
+  }
 }
 
 TEST_F(cpp_fpe_encrypt, invalid_ffs)
@@ -284,6 +328,59 @@ TEST(c_fpe_encrypt, simple)
     free(ptbuf);
 }
 
+TEST(c_fpe_encrypt, simple_search)
+{
+    static const char * const pt = " 01121231231231231& 1 &2311200 ";
+//    static const char * const pt = "00001234567890";//234567890";
+    static const char * const ffs_name = "ALPHANUM_SSN";
+
+    struct ubiq_platform_credentials * creds;
+    char ** ctbuf(nullptr);
+    size_t ctcount(0);
+    char * ptbuf(nullptr);
+    size_t ptlen;
+    int res;
+
+    res = ubiq_platform_credentials_create(&creds);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_encrypt_for_search(creds,
+      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctcount);
+    EXPECT_EQ(res, 0);
+    EXPECT_TRUE(ctcount >= 0);
+    EXPECT_EQ(strlen(pt), strlen(ctbuf[0]));
+
+    for (int i = 0; i < ctcount; i++) {
+      char * ptbuf = NULL;
+      size_t ptlen = 0;
+      EXPECT_EQ(u8_width((uint8_t *)pt, strlen(pt),""), u8_width((uint8_t *)ctbuf[i], strlen(ctbuf[i]), ""));
+
+      // Decrypt and compare with PT
+      res = ubiq_platform_fpe_decrypt(creds,
+        ffs_name, NULL, 0, ctbuf[i], strlen(ctbuf[i]), &ptbuf, &ptlen);
+      EXPECT_EQ(res, 0);
+
+      EXPECT_EQ(strcmp(pt, ptbuf),0);
+
+      free(ptbuf);
+
+    }
+
+    // res = ubiq_platform_fpe_decrypt(creds,
+    //   ffs_name, NULL, 0, (char *)ctbuf, strlen(ctbuf), &ptbuf, &ptlen);
+    // EXPECT_EQ(res, 0);
+    //
+    // EXPECT_EQ(strcmp(pt, ptbuf),0);
+
+    ubiq_platform_credentials_destroy(creds);
+
+    for (int i = 0; i < ctcount; i++) {
+      free(ctbuf[i]);
+    }
+    free(ctbuf);
+    free(ptbuf);
+}
+
 TEST(c_fpe_encrypt, piecewise)
 {
     static const char * const pt = " 01121231231231231& 1 &2311200 ";
@@ -338,6 +435,54 @@ TEST(c_fpe_encrypt, piecewise)
     free(ctbuf);
     free(ptbuf);
     free(ptbuf2);
+}
+
+TEST(c_fpe_encrypt, piecewise_search)
+{
+    static const char * const pt = " 01121231231231231& 1 &2311200 ";
+//    static const char * const pt = "00001234567890";//234567890";
+    static const char * const ffs_name = "ALPHANUM_SSN";
+
+    struct ubiq_platform_credentials * creds;
+    struct ubiq_platform_fpe_enc_dec_obj *enc;
+    char ** ctbuf(nullptr);
+    size_t ctcount(0);
+    int res;
+
+    res = ubiq_platform_credentials_create(&creds);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_encrypt_data_for_search(enc,
+      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctcount);
+    EXPECT_EQ(res, 0);
+    EXPECT_TRUE(ctcount >= 0);
+
+    for (int i = 0; i < ctcount; i++) {
+      char * ptbuf = NULL;
+      size_t ptlen = 0;
+      EXPECT_EQ(u8_width((uint8_t *)pt, strlen(pt),""), u8_width((uint8_t *)ctbuf[i], strlen(ctbuf[i]), ""));
+
+      // Decrypt each one and confirm results match PT
+      res = ubiq_platform_fpe_decrypt_data(enc,
+         ffs_name, NULL, 0, ctbuf[i], strlen(ctbuf[i]), &ptbuf, &ptlen);
+      EXPECT_EQ(res, 0);
+
+      EXPECT_EQ(strcmp(pt, ptbuf),0);
+      free(ptbuf);
+    }
+
+
+    ubiq_platform_fpe_enc_dec_destroy(enc);
+
+    ubiq_platform_credentials_destroy(creds);
+
+    for (int i = 0; i < ctcount; i++) {
+      free(ctbuf[i]);
+    }
+    free(ctbuf);
 }
 
 TEST(c_fpe_encrypt, mixed_forward)

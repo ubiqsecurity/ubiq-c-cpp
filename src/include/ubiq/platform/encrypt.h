@@ -39,6 +39,17 @@ ubiq_platform_fpe_encrypt(
     const char * const ptbuf, const size_t ptlen,
     char ** const ctbuf, size_t * const ctlen);
 
+// ctbuf is array of NULL terminated UTF8 strings
+// length is not returned since each ctbuf element may be different number of
+// bytes due to multi-byte characters
+UBIQ_PLATFORM_API
+int
+ubiq_platform_fpe_encrypt_for_search(
+    const struct ubiq_platform_credentials * const creds,
+    const char * const ffs_name,
+    const void * const tweak, const size_t tweaklen,
+    const char * const ptbuf, const size_t ptlen,
+    char *** const ctbuf, size_t * const count);
 
 /* Opaque encryption object */
 struct ubiq_platform_encryption;
@@ -140,6 +151,7 @@ ubiq_platform_encryption_end(
  * *******************************************
  */
 
+// Piecewise functions
 UBIQ_PLATFORM_API
 int
 ubiq_platform_fpe_enc_dec_create(
@@ -154,6 +166,19 @@ ubiq_platform_fpe_encrypt_data(
   const uint8_t * const tweak, const size_t tweaklen,
   const char * const ptbuf, const size_t ptlen,
   char ** const ctbuf, size_t * const ctlen
+);
+
+// ctbuf is array of NULL terminated UTF8 strings
+// length is not returned since each ctbuf element may be different number of
+// bytes due to multi-byte characters
+UBIQ_PLATFORM_API
+int
+ubiq_platform_fpe_encrypt_data_for_search(
+  struct ubiq_platform_fpe_enc_dec_obj * const enc,
+  const char * const ffs_name,
+  const uint8_t * const tweak, const size_t tweaklen,
+  const char * const ptbuf, const size_t ptlen,
+  char *** const ctbuf, size_t * const count
 );
 
 UBIQ_PLATFORM_API
@@ -257,9 +282,16 @@ namespace ubiq {
 
         namespace fpe {
 
+          // Simple
           UBIQ_PLATFORM_API
           std::string
           encrypt(const credentials & creds,
+                  const std::string & ffs_name,
+                  const std::string & pt);
+
+          UBIQ_PLATFORM_API
+          std::vector<std::string>
+          encrypt_for_search(const credentials & creds,
                   const std::string & ffs_name,
                   const std::string & pt);
 
@@ -271,9 +303,17 @@ namespace ubiq {
                   const std::string & pt);
 
           UBIQ_PLATFORM_API
+          std::vector<std::string>
+          encrypt_for_search(const credentials & creds,
+                  const std::string & ffs_name,
+                  const std::vector<std::uint8_t> & tweak,
+                  const std::string & pt);
+
+          UBIQ_PLATFORM_API
           std::string
           get_error(struct ubiq_platform_fpe_enc_dec_obj * const enc);
 
+          // Bulk
           class encryption
           {
           public:
@@ -314,8 +354,25 @@ namespace ubiq {
 
             UBIQ_PLATFORM_API
             virtual
+            std::vector<std::string>
+            encrypt_for_search(
+              const std::string & ffs_name,
+              const std::string & pt
+            ) ;
+
+            UBIQ_PLATFORM_API
+            virtual
             std::string
             encrypt(
+              const std::string & ffs_name,
+              const std::vector<std::uint8_t> & tweak,
+              const std::string & pt
+            ) ;
+
+            UBIQ_PLATFORM_API
+            virtual
+            std::vector<std::string>
+            encrypt_for_search(
               const std::string & ffs_name,
               const std::vector<std::uint8_t> & tweak,
               const std::string & pt

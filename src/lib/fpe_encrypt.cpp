@@ -28,6 +28,48 @@ encryption::encrypt(
   return encrypt(ffs_name, std::vector<std::uint8_t>(), pt);
 }
 
+std::vector<std::string>
+encryption::encrypt_for_search(
+  const std::string & ffs_name,
+  const std::string & pt
+)
+{
+  return encrypt_for_search(ffs_name, std::vector<std::uint8_t>(), pt);
+}
+
+
+std::vector<std::string>
+encryption::encrypt_for_search(
+  const std::string & ffs_name,
+  const std::vector<std::uint8_t> & tweak,
+  const std::string & pt
+)
+{
+  std::vector<std::string> ct;
+  int res;
+  char ** ctbuf;
+  size_t count;
+
+  res = ubiq_platform_fpe_encrypt_data_for_search(
+    _enc.get(), ffs_name.data(),
+    tweak.data(), tweak.size(),
+    pt.data(), pt.length(),
+    &ctbuf, &count);
+  if (res != 0) {
+      throw std::system_error(-res, std::generic_category(), get_error(_enc.get()));
+  }
+
+  ct.reserve(count);
+  // ct length is not reliable for all elements of ctbuf since the multibyte UTF8
+  // may be different for each value.
+  for (int i=0; i< count; i++) {
+    ct.emplace(ct.end(), std::move(std::string(ctbuf[i])));
+    std::free(ctbuf[i]);
+  }
+  std::free(ctbuf);
+  return ct;
+}
+
 std::string
 encryption::encrypt(
   const std::string & ffs_name,
@@ -83,6 +125,37 @@ ubiq::platform::fpe::encrypt(
     return v;
 }
 
+std::vector<std::string>
+ubiq::platform::fpe::encrypt_for_search(
+    const credentials & creds,
+    const std::string & ffs_name,
+    const std::vector<std::uint8_t> & tweak,
+    const std::string & pt)
+{
+  std::vector<std::string> ct;
+  char ** ctbuf;
+  size_t count;
+  int res;
+
+  res = ubiq_platform_fpe_encrypt_for_search(&*creds, ffs_name.data(),
+  tweak.data(), tweak.size(),
+  pt.data(), pt.length(),
+  &ctbuf, &count);
+  if (res != 0) {
+      throw std::system_error(-res, std::generic_category());
+  }
+
+  ct.reserve(count);
+  // ct length is not reliable for all elements of ctbuf since the multibyte UTF8
+  // may be different for each value.
+  for (int i=0; i< count; i++) {
+    ct.emplace(ct.end(), std::move(std::string(ctbuf[i])));
+    std::free(ctbuf[i]);
+  }
+  std::free(ctbuf);
+
+  return ct;
+}
 std::string
 ubiq::platform::fpe::encrypt(
     const credentials & creds,
@@ -90,6 +163,15 @@ ubiq::platform::fpe::encrypt(
     const std::string & pt)
 {
   return encrypt(creds, ffs_name, std::vector<std::uint8_t>(), pt);
+}
+
+std::vector<std::string>
+ubiq::platform::fpe::encrypt_for_search(
+    const credentials & creds,
+    const std::string & ffs_name,
+    const std::string & pt)
+{
+  return encrypt_for_search(creds, ffs_name, std::vector<std::uint8_t>(), pt);
 }
 
 std::string
