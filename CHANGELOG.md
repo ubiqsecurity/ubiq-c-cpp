@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.4.4.0 - 2022-05-03
+* Add encrypt_for_search capabilities
+
 ## 0.4.3.0 - 2022-02-23
 * Add full support for UTF-8 strings for (e)FPE
 
