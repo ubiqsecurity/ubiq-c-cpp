@@ -162,7 +162,7 @@ $ ./ubiq_sample_fpe-c -h
 $ ./ubiq_sample_fpe-c++ -h
 ```
 
-<pre>
+```console
 Encrypt or decrypt data using the Ubiq eFPE service
 
   -h                       Show this help message and exit
@@ -179,7 +179,7 @@ Encrypt or decrypt data using the Ubiq eFPE service
   -c CREDENTIALS           Set the file name with the API credentials
                              (default: ~/.ubiq/credentials)
   -P PROFILE               Identify the profile within the credentials file
-</pre>
+```
 
 
 
@@ -194,20 +194,3 @@ $ ./ubiq_sample_fpe-c -e '123-45-6789' -n ALPHANUM_SSN -s
 ```console
 $ ./ubiq_sample_fpe-c -d 'W#]-iV-`,"j' -n ALPHANUM_SSN -s
 ```
-
-
-
-#### Other FFS models to explore
-
-Depending on your installation, there are a wide variety of FFS models that are available. Each FFS model
-imposes its own set of rules revolving around how the data is formatted and what characters are legal for the
-given format. For example, you would not expect to see alpha characters in a social security number and the model
-will identify that as a formatting error. A few models to consider are:
-
--   ALPHANUM_SSN
--   BIRTH_DATE
--   GENERIC_STRING
--   SO_ALPHANUM_PIN
-
-Additional information on how to use these FFS models in your own applications is available by contacting
-Ubiq. You may also view some use-cases implemented in the unit test source files "fpeencrypt.cpp" and "fpedecrypt.cpp"
