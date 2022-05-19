@@ -301,7 +301,7 @@ TEST_F(cpp_fpe_encrypt, invalid_keynum)
 
 TEST(c_fpe_encrypt, piecewise)
 {
-    static const char * const pt = " 01121231231231231& 1 &2311200 ";
+    static const char * const pt = "123 456-7890";
 //    static const char * const pt = "00001234567890";//234567890";
     static const char * const ffs_name = "ALPHANUM_SSN";
 
@@ -377,7 +377,7 @@ TEST(c_fpe_encrypt, piecewise_cached)
 
 TEST(c_fpe_encrypt, utf8)
 {
-    static const char * const pt = " 0112123123123";
+    static const char * const pt = " 01121 2312-3123";
 //    static const char * const pt = "00001234567890";//234567890";
 //    static const char * const ffs_name = "MTB";
 

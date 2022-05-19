@@ -64,6 +64,9 @@
 
 static const time_t CACHE_DURATION = 3 * 24 * 60 * 60;
 
+typedef enum {MULTIBYTE=0, SIMPLE_CHAR=1}  ffs_character_types ;
+typedef enum {PARSE_INPUT_TO_OUTPUT = 0, PARSE_OUTPUT_TO_INPUT = 1} conversion_direction_type;
+
 /**************************************************************************************
  *
  * Structures
@@ -81,6 +84,14 @@ struct fpe_ffs_parsed
 {
   char * trimmed_buf;
   char * formatted_dest_buf;
+};
+
+struct parsed_data
+{
+  void * trimmed_buf;
+  void * formatted_dest_buf;
+  int element_size;
+  ffs_character_types char_types;
 };
 
 struct ubiq_platform_fpe_enc_dec_obj
@@ -126,6 +137,7 @@ struct ffs {
   } tweak;
   int tweak_min_len;
   int tweak_max_len;
+  ffs_character_types character_types;
 };
 
 // struct u32_ffs {
@@ -281,8 +293,10 @@ ffs_create(
         e->input_character_set = NULL;
         e->output_character_set = NULL;
         e->passthrough_character_set = NULL;
+        e->character_types = MULTIBYTE;
   } else {
           debug(csu, "No Multibyte UTF8 found");
+        e->character_types = SIMPLE_CHAR;
   }
 
 
@@ -314,13 +328,86 @@ ffs_create(
 
 static
 void
-fpe_ffs_parsed_destroy(
+parsed_destroy(
   void * const parsed
 )
 {
   free((void *)parsed);
 }
 
+static
+int parse_data(
+  const struct ffs * ffs,
+  const conversion_direction_type conversion_direction, // input to output, or output to input
+  const char * const source_string,
+  const size_t source_len,
+  struct parsed_data * const parsed
+)
+{
+  static const char * csu = "parse_data";
+  int res = 0;
+  const void * src_char_set = NULL;
+  uint32_t dest_zeroth_char = 0;
+  // struct fpe_ffs_parsed * p;
+
+  if (ffs->character_types == MULTIBYTE) {
+ debug(csu, "(uint32_t *)parsed->trimmed_buf");
+
+  } else {
+    char dest_zeroth_char;
+    char * src_char_set = NULL;
+    if (conversion_direction == PARSE_INPUT_TO_OUTPUT) {// input to output
+      src_char_set = ffs->input_character_set;
+      dest_zeroth_char = ffs->output_character_set[0];
+    } else if (conversion_direction == PARSE_OUTPUT_TO_INPUT) {
+      src_char_set = ffs->output_character_set;
+      dest_zeroth_char = ffs->input_character_set[0];
+    } else {
+      res = -EINVAL;
+    }
+
+    if (!res) {
+      
+
+      // for (int i = 0; i < source_len; i++) {
+      //   ((char *)parsed->trimmed_buf)[i] = src_char_set[0];
+      //   ((char *)parsed->formatted_dest_buf)[i] = dest_zeroth_char;
+      // }
+      // memset(parsed->trimmed_buf, src_char_set[0], source_len);
+      // memset(parsed->formatted_dest_buf, dest_zeroth_char, source_len);
+
+      res = parsing_decompose_string(
+        source_string, src_char_set, ffs->passthrough_character_set,
+        dest_zeroth_char,
+        parsed->trimmed_buf, parsed->formatted_dest_buf);
+
+    }
+    debug(csu, (char *)parsed->trimmed_buf);
+    debug(csu, (char *)parsed->formatted_dest_buf);
+    // Standard acsii
+  }
+
+
+  // Using uint32, so not bytes, but unicode characters.  Initialize the
+  // values, leaving the null terminator
+  // if (!res) {
+  //   for (int i = 0; i < source_len; i++) {
+  //     parsed->trimmed_buf[i] = src_char_set[0];
+  //     parsed->formatted_dest_buf[i] = dest_zeroth_char;
+  //   }
+  //   // memset(parsed->trimmed_buf, src_char_set[0], source_len);
+  //   // memset(parsed->formatted_dest_buf, dest_zeroth_char, source_len);
+
+  //   res = ubiq_platform_efpe_parsing_parse_input(
+  //     source_string, src_char_set, ffs->passthrough_character_set,
+  //     parsed->trimmed_buf, parsed->formatted_dest_buf);
+
+  // }
+
+  return res;
+}
+
+#ifdef NODEF
 static
 int fpe_u32_ffs_parsed_create(
   struct u32_fpe_ffs_parsed ** parsed,
@@ -376,6 +463,44 @@ int fpe_ffs_parsed_create(
   *parsed = p;
   return res;
 }
+#endif
+
+static
+int parsed_create(
+  struct parsed_data ** const parsed,
+  const ffs_character_types char_types,
+  const size_t buf_len
+)
+{
+  struct parsed_data *p;
+
+  int res = -ENOMEM;
+  size_t element_size = sizeof(char);
+
+  if (char_types == MULTIBYTE) {
+    element_size = sizeof(uint32_t);
+  }
+
+  // Single alloc and just point to locations in the object.  The element size will
+  // automatically help align to right boundaries
+  p = calloc(1, sizeof(*p) + 2 * (buf_len + 1) * element_size);
+  if (p) {
+
+    p->trimmed_buf = (p + 1);
+    p->formatted_dest_buf = p->trimmed_buf + (buf_len + 1) * element_size;
+    p->element_size = element_size;
+    p->char_types = char_types;
+    if (p->trimmed_buf && p->formatted_dest_buf) {
+      res = 0;
+    } else {
+      parsed_destroy(p);
+      p = NULL;
+    }
+  }
+  *parsed = p;
+  return res;
+}
+
 
 static
 void *
@@ -631,15 +756,15 @@ ubiq_platform_fpe_encrypt_data(
   static const char * csu = "ubiq_platform_fpe_encrypt_data";
   int res = 0;
   const struct ffs * ffs_definition = NULL;
-
+  struct parsed_data * parsed = NULL;
 
   // Get FFS (cache or otherwise)
   res = ffs_get_def(enc, ffs_name, &ffs_definition);
 
+  // Create an object to hold the parsed data, 
+  if (!res) { res = CAPTURE_ERROR(enc, parsed_create(&parsed, ffs_definition->character_types, ptlen),  NULL); }
 
-
-    // Parse pt (FFS, parsed)
-
+  if (!res) { res = CAPTURE_ERROR(enc, parse_data(ffs_definition, PARSE_INPUT_TO_OUTPUT, ptbuf, ptlen, parsed ), "Invalid input string characters");}
     // Get Encryption object (cache or otherwise - returns ff1_ctx object (ffs_name and current key_number)
 
     // For encrypt - get FFS and get encryption object could be same call
@@ -659,6 +784,11 @@ ubiq_platform_fpe_encrypt_data(
     //     *ffs = ffs_definition;
     //     *parsed_data = parsed;
     // }
+
+
+    parsed_destroy(parsed);
+
+
     return res;
 }
 
