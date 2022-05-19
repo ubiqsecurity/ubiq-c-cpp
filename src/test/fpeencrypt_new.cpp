@@ -6,6 +6,7 @@
 #include "ubiq/platform.h"
 #include <ubiq/platform/internal/credentials.h>
 
+#ifdef NODEF
 class cpp_fpe_encrypt : public ::testing::Test
 {
 public:
@@ -296,15 +297,16 @@ TEST_F(cpp_fpe_encrypt, invalid_keynum)
   ASSERT_ANY_THROW(
       pt = _dec.decrypt(ffs_name, ct));
 }
+#endif
 
-#ifdef NODEF
-TEST(c_fpe_encrypt, simple)
+TEST(c_fpe_encrypt, piecewise)
 {
     static const char * const pt = " 01121231231231231& 1 &2311200 ";
 //    static const char * const pt = "00001234567890";//234567890";
     static const char * const ffs_name = "ALPHANUM_SSN";
 
     struct ubiq_platform_credentials * creds;
+    struct ubiq_platform_fpe_enc_dec_obj *enc;
     char * ctbuf(nullptr);
     size_t ctlen;
     char * ptbuf(nullptr);
@@ -314,15 +316,18 @@ TEST(c_fpe_encrypt, simple)
     res = ubiq_platform_credentials_create(&creds);
     ASSERT_EQ(res, 0);
 
-    res = ubiq_platform_fpe_encrypt(creds,
+    res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_encrypt_data(enc,
       ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
     EXPECT_EQ(res, 0);
+    // EXPECT_EQ(strlen(pt), ctlen);
 
-    res = ubiq_platform_fpe_decrypt(creds,
-      ffs_name, NULL, 0, (char *)ctbuf, strlen(ctbuf), &ptbuf, &ptlen);
-    EXPECT_EQ(res, 0);
 
-    EXPECT_EQ(strcmp(pt, ptbuf),0);
+    // EXPECT_EQ(strcmp(pt, ptbuf),0);
+
+    ubiq_platform_fpe_enc_dec_destroy(enc);
 
     ubiq_platform_credentials_destroy(creds);
 
@@ -330,6 +335,86 @@ TEST(c_fpe_encrypt, simple)
     free(ptbuf);
 }
 
+
+TEST(c_fpe_encrypt, piecewise_cached)
+{
+    static const char * const pt = " 01121231231231231& 1 &2311200 ";
+//    static const char * const pt = "00001234567890";//234567890";
+    static const char * const ffs_name = "ALPHANUM_SSN";
+
+    struct ubiq_platform_credentials * creds;
+    struct ubiq_platform_fpe_enc_dec_obj *enc;
+    char * ctbuf(nullptr);
+    size_t ctlen;
+    char * ptbuf(nullptr);
+    size_t ptlen;
+    int res;
+
+    res = ubiq_platform_credentials_create(&creds);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_encrypt_data(enc,
+      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+    EXPECT_EQ(res, 0);
+    // EXPECT_EQ(strlen(pt), ctlen);
+
+    res = ubiq_platform_fpe_encrypt_data(enc,
+      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+    EXPECT_EQ(res, 0);
+
+    // EXPECT_EQ(strcmp(pt, ptbuf),0);
+
+    ubiq_platform_fpe_enc_dec_destroy(enc);
+
+    ubiq_platform_credentials_destroy(creds);
+
+    free(ctbuf);
+    free(ptbuf);
+}
+
+TEST(c_fpe_encrypt, utf8)
+{
+    static const char * const pt = " 0112123123123";
+//    static const char * const pt = "00001234567890";//234567890";
+//    static const char * const ffs_name = "MTB";
+
+    struct ubiq_platform_credentials * creds;
+    struct ubiq_platform_fpe_enc_dec_obj *enc;
+    char * ctbuf(nullptr);
+    size_t ctlen;
+    char * ptbuf(nullptr);
+    size_t ptlen;
+    int res;
+
+    res = ubiq_platform_credentials_create(&creds);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_encrypt_data(enc,
+      "ascii7", NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+    EXPECT_EQ(res, 0);
+
+     res = ubiq_platform_fpe_encrypt_data(enc,
+      "ascii8", NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+    EXPECT_EQ(res, 0);
+  
+    // EXPECT_EQ(strlen(pt), ctlen);
+
+    // EXPECT_EQ(strcmp(pt, ptbuf),0);
+
+    ubiq_platform_fpe_enc_dec_destroy(enc);
+
+    ubiq_platform_credentials_destroy(creds);
+
+    free(ctbuf);
+    free(ptbuf);
+}
+#ifdef NODEF
 TEST(c_fpe_encrypt, simple_search)
 {
     static const char * const pt = " 01121231231231231& 1 &2311200 ";
@@ -1254,5 +1339,4 @@ TEST(c_fpe_encrypt, new)
     free(ptbuf);
     free(ptbuf2);
 }
-
 #endif

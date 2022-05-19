@@ -279,38 +279,38 @@ ubiq_platform_ffs_destroy(
   free(ffs);
 }
 
-void
-ubiq_platform_fpe_enc_dec_destroy(
-    struct ubiq_platform_fpe_enc_dec_obj * const e)
-{
-  const char * csu = "ubiq_platform_fpe_enc_dec_destroy";
+// void
+// ubiq_platform_fpe_enc_dec_destroy(
+//     struct ubiq_platform_fpe_enc_dec_obj * const e)
+// {
+//   const char * csu = "ubiq_platform_fpe_enc_dec_destroy";
 
-  if (e) {
-    int i= 0;
-    pthread_mutex_lock(&e->billing_lock);
-    cJSON * json_array = e->billing_elements;
-    e->billing_elements = NULL;
-    pthread_mutex_unlock(&e->billing_lock);
-    pthread_cond_signal(&e->process_billing_cond);
-    // If the billing thread is this, thread than we know there
-    // was a problem during setup so no need to join.
-    if (!pthread_equal(e->process_billing_thread,pthread_self())) {
-      pthread_join(e->process_billing_thread, NULL);
-    }
-    ubiq_platform_process_billing(e, &json_array);
-    pthread_cond_destroy(&e->process_billing_cond);
-    pthread_mutex_destroy(&e->billing_lock);
-    cJSON_Delete(json_array);
-    ubiq_platform_rest_handle_destroy(e->rest);
-    free(e->restapi);
-    free(e->encoded_papi);
-    free(e->srsa);
-    ubiq_platform_cache_destroy(e->ffs_cache);
-    ubiq_platform_cache_destroy(e->key_cache);
-    free(e->error.err_msg);
-  }
-  free(e);
-}
+//   if (e) {
+//     int i= 0;
+//     pthread_mutex_lock(&e->billing_lock);
+//     cJSON * json_array = e->billing_elements;
+//     e->billing_elements = NULL;
+//     pthread_mutex_unlock(&e->billing_lock);
+//     pthread_cond_signal(&e->process_billing_cond);
+//     // If the billing thread is this, thread than we know there
+//     // was a problem during setup so no need to join.
+//     if (!pthread_equal(e->process_billing_thread,pthread_self())) {
+//       pthread_join(e->process_billing_thread, NULL);
+//     }
+//     ubiq_platform_process_billing(e, &json_array);
+//     pthread_cond_destroy(&e->process_billing_cond);
+//     pthread_mutex_destroy(&e->billing_lock);
+//     cJSON_Delete(json_array);
+//     ubiq_platform_rest_handle_destroy(e->rest);
+//     free(e->restapi);
+//     free(e->encoded_papi);
+//     free(e->srsa);
+//     ubiq_platform_cache_destroy(e->ffs_cache);
+//     ubiq_platform_cache_destroy(e->key_cache);
+//     free(e->error.err_msg);
+//   }
+//   free(e);
+// }
 
 static
 int
@@ -666,29 +666,29 @@ ubiq_platform_fpe_decryption_get_key(
 }
 
 
-int ubiq_platform_fpe_enc_dec_create(
-    const struct ubiq_platform_credentials * const creds,
-//    const char * const ffs_name,
-    struct ubiq_platform_fpe_enc_dec_obj ** const enc)
-{
-    struct ubiq_platform_fpe_enc_dec_obj * e;
-    int res;
+// int ubiq_platform_fpe_enc_dec_create(
+//     const struct ubiq_platform_credentials * const creds,
+// //    const char * const ffs_name,
+//     struct ubiq_platform_fpe_enc_dec_obj ** const enc)
+// {
+//     struct ubiq_platform_fpe_enc_dec_obj * e;
+//     int res;
 
-    const char * const host = ubiq_platform_credentials_get_host(creds);
-    const char * const papi = ubiq_platform_credentials_get_papi(creds);
-    const char * const sapi = ubiq_platform_credentials_get_sapi(creds);
-    const char * const srsa = ubiq_platform_credentials_get_srsa(creds);
+//     const char * const host = ubiq_platform_credentials_get_host(creds);
+//     const char * const papi = ubiq_platform_credentials_get_papi(creds);
+//     const char * const sapi = ubiq_platform_credentials_get_sapi(creds);
+//     const char * const srsa = ubiq_platform_credentials_get_srsa(creds);
 
-    res = ubiq_platform_fpe_encryption_new(host, papi, sapi, srsa, &e);
+//     res = ubiq_platform_fpe_encryption_new(host, papi, sapi, srsa, &e);
 
-    if (res == 0) {
-        *enc = e;
-    } else {
-        ubiq_platform_fpe_enc_dec_destroy(e);
-    }
+//     if (res == 0) {
+//         *enc = e;
+//     } else {
+//         ubiq_platform_fpe_enc_dec_destroy(e);
+//     }
 
-    return res;
-}
+//     return res;
+// }
 
 static
 int ubiq_platform_fpe_string_parse(
@@ -1585,23 +1585,23 @@ ubiq_platform_fpe_decrypt(
   return res;
 }
 
-int
-ubiq_platform_fpe_encrypt_data(
-  struct ubiq_platform_fpe_enc_dec_obj * const enc,
-  const char * const ffs_name,
-  const uint8_t * const tweak, const size_t tweaklen,
-  const char * const ptbuf, const size_t ptlen,
-  char ** const ctbuf, size_t * const ctlen
-)
-{
-  int res = 0;
+// int
+// ubiq_platform_fpe_encrypt_data(
+//   struct ubiq_platform_fpe_enc_dec_obj * const enc,
+//   const char * const ffs_name,
+//   const uint8_t * const tweak, const size_t tweaklen,
+//   const char * const ptbuf, const size_t ptlen,
+//   char ** const ctbuf, size_t * const ctlen
+// )
+// {
+//   int res = 0;
 
-  res = fpe_encrypt(enc, ffs_name,
-    tweak, tweaklen, ptbuf, ptlen, ctbuf, ctlen);
-  if (!res) {res = ubiq_platform_add_billing(enc, ffs_name, ENCRYPT, 1);}
+//   res = fpe_encrypt(enc, ffs_name,
+//     tweak, tweaklen, ptbuf, ptlen, ctbuf, ctlen);
+//   if (!res) {res = ubiq_platform_add_billing(enc, ffs_name, ENCRYPT, 1);}
 
-  return res;
-}
+//   return res;
+// }
 
 int
 ubiq_platform_fpe_encrypt_data_for_search(
