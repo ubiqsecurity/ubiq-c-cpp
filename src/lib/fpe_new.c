@@ -73,6 +73,13 @@ typedef enum {PARSE_INPUT_TO_OUTPUT = 0, PARSE_OUTPUT_TO_INPUT = 1} conversion_d
  *
 **************************************************************************************/
 
+struct fpe_key {
+        void * buf;
+        size_t len;
+        unsigned int key_number;
+};
+
+
 /* Used if the FFS supports UTF8 characters */
 struct u32_fpe_ffs_parsed
 {
@@ -175,6 +182,32 @@ static void debug(const char * const csu, const char * const msg) {
   printf("DEBUG %s: %s\n", csu, msg);
 }
 
+static
+int
+fpe_key_create(struct fpe_key ** key){
+  struct fpe_key * k;
+
+  int res = -ENOMEM;
+
+  k = calloc(1, sizeof(*k));
+  if (k) {
+    *key = k;
+    res = 0;
+  }
+  return res;
+}
+
+static
+void
+fpe_key_destroy(struct fpe_key * const key){
+  if (key && key->buf) {
+    if (key->len > 0) {
+      memset(key->buf, 0, key->len);
+    }
+    free(key->buf);
+  }
+  free(key);
+}
 
 static
 int
@@ -351,7 +384,7 @@ int parse_data(
   // struct fpe_ffs_parsed * p;
 
   if (ffs->character_types == MULTIBYTE) {
- debug(csu, "(uint32_t *)parsed->trimmed_buf");
+    debug(csu, "(uint32_t *)parsed->trimmed_buf");
 
   } else {
     char dest_zeroth_char;
@@ -367,45 +400,18 @@ int parse_data(
     }
 
     if (!res) {
-      
-
-      // for (int i = 0; i < source_len; i++) {
-      //   ((char *)parsed->trimmed_buf)[i] = src_char_set[0];
-      //   ((char *)parsed->formatted_dest_buf)[i] = dest_zeroth_char;
-      // }
-      // memset(parsed->trimmed_buf, src_char_set[0], source_len);
-      // memset(parsed->formatted_dest_buf, dest_zeroth_char, source_len);
-
       res = parsing_decompose_string(
         source_string, src_char_set, ffs->passthrough_character_set,
         dest_zeroth_char,
         parsed->trimmed_buf, parsed->formatted_dest_buf);
-
     }
     debug(csu, (char *)parsed->trimmed_buf);
     debug(csu, (char *)parsed->formatted_dest_buf);
     // Standard acsii
   }
 
-
-  // Using uint32, so not bytes, but unicode characters.  Initialize the
-  // values, leaving the null terminator
-  // if (!res) {
-  //   for (int i = 0; i < source_len; i++) {
-  //     parsed->trimmed_buf[i] = src_char_set[0];
-  //     parsed->formatted_dest_buf[i] = dest_zeroth_char;
-  //   }
-  //   // memset(parsed->trimmed_buf, src_char_set[0], source_len);
-  //   // memset(parsed->formatted_dest_buf, dest_zeroth_char, source_len);
-
-  //   res = ubiq_platform_efpe_parsing_parse_input(
-  //     source_string, src_char_set, ffs->passthrough_character_set,
-  //     parsed->trimmed_buf, parsed->formatted_dest_buf);
-
-  // }
-
   return res;
-}
+} // parse_data
 
 #ifdef NODEF
 static
@@ -667,6 +673,121 @@ ubiq_platform_fpe_encryption(
 }
 
 static
+void free_ff1_ctx(void * ctx) {
+  ff1_ctx_destroy((struct ff1_ctx *const)ctx);
+}
+
+static
+int
+get_ctx(
+  struct ubiq_platform_fpe_enc_dec_obj * const e,
+  const struct ffs * const ffs,
+  int key_number,
+  struct ff1_ctx ** ff1_ctx 
+) 
+{
+  const char * const csu = "get_ctx";
+  int res = 0;
+  struct ff1_ctx * ctx = NULL;
+  int key_len = strlen(ffs->name) + 25; // magic number to accomodate a max int plus null terminator and colon
+  char * key_str = calloc(1, key_len);
+
+  snprintf(key_str, key_len, "%s:%d", ffs->name, key_number);
+  
+  ctx = (struct ff1_ctx *)ubiq_platform_cache_find_element(e->key_cache, key_str);
+ 
+  if (ctx != NULL) {
+    debug(csu, "key found in Cache");
+    *ff1_ctx = ctx;
+  } else {
+    if (!res) {
+        static const char * const fmt = "%s/fpe/key?ffs_name=%s&papi=%s";
+
+        cJSON * rsp_json = NULL;
+        char * url = NULL;
+        size_t len;
+
+        char * encoded_name = NULL;
+        res = ubiq_platform_rest_uri_escape(e->rest, ffs->name, &encoded_name);
+
+        if (!res) {
+          len = snprintf(NULL, 0, fmt, e->restapi, encoded_name, e->encoded_papi);
+          if ((url = malloc(len + 1)) == NULL) {
+            res = -ENOMEM;
+          } else {
+            snprintf(url, len + 1, fmt, e->restapi, encoded_name, e->encoded_papi);
+          }
+        }
+        free(encoded_name);
+
+        if (!res) {
+          res = ubiq_platform_rest_request(
+            e->rest,
+            HTTP_RM_GET, url, "application/json", NULL , 0);
+        }
+        free(url);
+        // If Success, simply proceed
+        if (!res) {
+          const http_response_code_t rc =
+              ubiq_platform_rest_response_code(e->rest);
+
+          if (rc != HTTP_RC_OK) {
+            res = save_rest_error(e, e->rest, rc);
+          } else {
+            const void * rsp = ubiq_platform_rest_response_content(e->rest, &len);
+            res = (rsp_json = cJSON_ParseWithLength(rsp, len)) ? 0 : INT_MIN;
+
+//            if (!res) { res = ubiq_platform_cache_add_element(e->key_cache, url, CACHE_DURATION,strndup(rsp, len), &free);}
+          }
+        }
+
+      struct fpe_key * k = NULL;
+      if (!res && rsp_json != NULL) {
+
+        res = fpe_key_create(&k);
+
+        res = ubiq_platform_common_fpe_parse_new_key(
+            rsp_json, e->srsa,
+            &k->buf, &k->len);
+
+        if (!CAPTURE_ERROR(e, res, "Unable to parse key from server")) {
+          const cJSON * kn = cJSON_GetObjectItemCaseSensitive(
+                            rsp_json, "key_number");
+          if (cJSON_IsString(kn) && kn->valuestring != NULL) {
+            const char * errstr = NULL;
+            uintmax_t n = strtoumax(kn->valuestring, NULL, 10);
+            if (n == UINTMAX_MAX && errno == ERANGE) {
+              res = CAPTURE_ERROR(e, -ERANGE, "Invalid key range");
+            } else {
+              k->key_number = (unsigned int)n;
+            }
+          } else {
+            res = CAPTURE_ERROR(e, -EBADMSG, "Invalid server response");
+          }
+        }
+      }
+      cJSON_Delete(rsp_json);
+      if (!res) {
+        size_t radix;
+        if (ffs->character_types == MULTIBYTE) {
+          radix = u32_strlen(ffs->u32_input_character_set);
+        } else {
+          radix = strlen(ffs->input_character_set);
+        }
+        res = ff1_ctx_create(&ctx, k->buf, k->len, ffs->tweak.buf, ffs->tweak.len, ffs->tweak_min_len, ffs->tweak_max_len, radix);
+        if (!res) { res = ubiq_platform_cache_add_element(e->key_cache, key_str, CACHE_DURATION, ctx, &free_ff1_ctx);}
+
+        fpe_key_destroy(k);
+
+      }
+    }
+  }
+  free(key_str);
+
+  return res;
+}
+
+static
 int
 ffs_get_def(
   struct ubiq_platform_fpe_enc_dec_obj * const e,
@@ -757,6 +878,7 @@ ubiq_platform_fpe_encrypt_data(
   int res = 0;
   const struct ffs * ffs_definition = NULL;
   struct parsed_data * parsed = NULL;
+  struct ff1_ctx * ctx = NULL;
 
   // Get FFS (cache or otherwise)
   res = ffs_get_def(enc, ffs_name, &ffs_definition);
@@ -767,6 +889,8 @@ ubiq_platform_fpe_encrypt_data(
   if (!res) { res = CAPTURE_ERROR(enc, parse_data(ffs_definition, PARSE_INPUT_TO_OUTPUT, ptbuf, ptlen, parsed ), "Invalid input string characters");}
     // Get Encryption object (cache or otherwise - returns ff1_ctx object (ffs_name and current key_number)
 
+  // Passing ffs_definition since it includes algorithm
+  if (!res) res = get_ctx(enc, ffs_definition, -1 , &ctx);
     // For encrypt - get FFS and get encryption object could be same call
     // For decrypt - need to get FFS first so know how to decode key num
     //               Then get Decryption Object (ff1_ctx) (ffs_name and key number)
