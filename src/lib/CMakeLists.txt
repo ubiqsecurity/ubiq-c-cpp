@@ -56,6 +56,12 @@ else()
 
     curl.c
     openssl.c)
+
+  target_compile_options(
+    c_objects
+    PUBLIC
+    -O2)
+   
 endif()
 
 target_include_directories(
