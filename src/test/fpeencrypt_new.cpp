@@ -322,7 +322,8 @@ TEST(c_fpe_encrypt, piecewise)
     res = ubiq_platform_fpe_encrypt_data(enc,
       ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
     EXPECT_EQ(res, 0);
-    // EXPECT_EQ(strlen(pt), ctlen);
+    EXPECT_EQ(strlen(pt), ctlen);
+    printf("CT (%s)\n", ctbuf);
 
 
     // EXPECT_EQ(strcmp(pt, ptbuf),0);

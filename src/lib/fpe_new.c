@@ -184,6 +184,49 @@ static void debug(const char * const csu, const char * const msg) {
 
 static
 int
+str_convert_radix(
+  const char * const src_str,
+  const char * const input_radix,
+  const char * const output_radix,
+  char * out_str
+)
+{
+  static const char * csu = "str_convert_radix";
+  int res = 0;
+  bigint_t n;
+  size_t len = strlen(src_str);
+  char * out = malloc(len + 1);
+
+  bigint_init(&n);
+
+  if (out == NULL) {
+    res = -ENOMEM;
+  }
+
+  printf("src_str %s\n", src_str);
+  if (!res) {res = __bigint_set_str(&n, src_str, input_radix);}
+
+  if (!res) {
+    res = __bigint_get_str(out, len, output_radix, &n);
+  printf("out %s\n", out);
+
+    size_t out_len = strlen(out);
+
+    // pad the leading characters of the output radix with zeroth character
+    char * c = out_str;
+    for (int i = 0; i < len - out_len; i++) {
+      *c = output_radix[0];
+      c++;
+    }
+    strcpy(c, out);
+  }
+  bigint_deinit(&n);
+  free(out);
+  return res;
+}
+
+static
+int
 fpe_key_create(struct fpe_key ** key){
   struct fpe_key * k;
 
@@ -687,6 +730,9 @@ get_ctx(
 ) 
 {
   const char * const csu = "get_ctx";
+  static const char radix36[] = "0123456789abcdefghijklmnopqrstuvwxyz";
+  static const char radix62[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+
   int res = 0;
   struct ff1_ctx * ctx = NULL;
   int key_len = strlen(ffs->name) + 25; // magic number to accomodate a max int plus null terminator and colon
@@ -698,7 +744,6 @@ get_ctx(
  
   if (ctx != NULL) {
     debug(csu, "key found in Cache");
-    *ff1_ctx = ctx;
   } else {
     if (!res) {
         static const char * const fmt = "%s/fpe/key?ffs_name=%s&papi=%s";
@@ -768,13 +813,13 @@ get_ctx(
       }
       cJSON_Delete(rsp_json);
       if (!res) {
-        size_t radix;
+        size_t radix_len;
         if (ffs->character_types == MULTIBYTE) {
-          radix = u32_strlen(ffs->u32_input_character_set);
+          radix_len = u32_strlen(ffs->u32_input_character_set);
+          res = ff1_ctx_create(&ctx, k->buf, k->len, ffs->tweak.buf, ffs->tweak.len, ffs->tweak_min_len, ffs->tweak_max_len, radix_len);
         } else {
-          radix = strlen(ffs->input_character_set);
+          res = ff1_ctx_create_custom_radix(&ctx, k->buf, k->len, ffs->tweak.buf, ffs->tweak.len, ffs->tweak_min_len, ffs->tweak_max_len, ffs->input_character_set);
         }
-        res = ff1_ctx_create(&ctx, k->buf, k->len, ffs->tweak.buf, ffs->tweak.len, ffs->tweak_min_len, ffs->tweak_max_len, radix);
         if (!res) { res = ubiq_platform_cache_add_element(e->key_cache, key_str, CACHE_DURATION, ctx, &free_ff1_ctx);}
 
         fpe_key_destroy(k);
@@ -782,6 +827,12 @@ get_ctx(
       }
     }
   }
+
+  if (!res) {
+      printf("%s ctx %p\n", csu, ctx);
+      *ff1_ctx = ctx;
+  }
+
   free(key_str);
 
   return res;
@@ -879,7 +930,7 @@ ubiq_platform_fpe_encrypt_data(
   const struct ffs * ffs_definition = NULL;
   struct parsed_data * parsed = NULL;
   struct ff1_ctx * ctx = NULL;
-
+  char * ct = NULL;
   // Get FFS (cache or otherwise)
   res = ffs_get_def(enc, ffs_name, &ffs_definition);
 
@@ -890,15 +941,28 @@ ubiq_platform_fpe_encrypt_data(
     // Get Encryption object (cache or otherwise - returns ff1_ctx object (ffs_name and current key_number)
 
   // Passing ffs_definition since it includes algorithm
-  if (!res) res = get_ctx(enc, ffs_definition, -1 , &ctx);
+  if (!res) {res = get_ctx(enc, ffs_definition, -1 , &ctx);}
     // For encrypt - get FFS and get encryption object could be same call
     // For decrypt - need to get FFS first so know how to decode key num
     //               Then get Decryption Object (ff1_ctx) (ffs_name and key number)
 
-
+    printf("%s ctx %p\n", csu, ctx);
     // ff1_encrypt
-
+    if (!res ) {
+      debug(csu, "before ct = malloc");
+      // TODO Need check for input character set in ascii8
+      ct = malloc(ptlen + 1);
+      debug(csu, "before ff1_encrypt");
+      res = ff1_encrypt(ctx, ct, parsed->trimmed_buf, tweak, tweaklen);
+      debug(csu, "after ff1_encrypt");
+      debug(csu, ct);
+    }
     // change radix
+      debug(csu, "before radix");
+    if (!res) { res = str_convert_radix(ct, ffs_definition->input_character_set, ffs_definition->output_character_set, ct);}
+
+      debug(csu, "after radix");
+      debug(csu, ct);
 
     // encrypt object includes key encoding data
 
@@ -909,8 +973,13 @@ ubiq_platform_fpe_encrypt_data(
     //     *parsed_data = parsed;
     // }
 
+    if (!res) {
+      *ctbuf = ct;      
+      *ctlen = ptlen;
+    }
 
     parsed_destroy(parsed);
+//    free(ct);
 
 
     return res;
