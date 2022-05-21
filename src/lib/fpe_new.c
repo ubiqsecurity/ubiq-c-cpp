@@ -182,6 +182,27 @@ static void debug(const char * const csu, const char * const msg) {
   printf("DEBUG %s: %s\n", csu, msg);
 }
 
+static int encode_keynum(
+  const struct ffs * ffs,
+  const unsigned int key_number,
+  char * const buf
+)
+{
+  int res = -EINVAL;
+
+  char * pos = strchr(ffs->output_character_set, (int)*buf);
+
+  // If *buf is null terminator or if the character cannot be found,
+  // it would be an error.
+  if (pos != NULL && *pos != 0){
+    size_t ct_value = pos - ffs->output_character_set;
+    ct_value += (key_number << ffs->msb_encoding_bits);
+    *buf = ffs->output_character_set[ct_value];
+    res = 0;
+  }
+  return res;
+}
+
 static
 int
 str_convert_radix(
@@ -725,7 +746,7 @@ int
 get_ctx(
   struct ubiq_platform_fpe_enc_dec_obj * const e,
   const struct ffs * const ffs,
-  int key_number,
+  int * key_number,
   struct ff1_ctx ** ff1_ctx 
 ) 
 {
@@ -738,7 +759,7 @@ get_ctx(
   int key_len = strlen(ffs->name) + 25; // magic number to accomodate a max int plus null terminator and colon
   char * key_str = calloc(1, key_len);
 
-  snprintf(key_str, key_len, "%s:%d", ffs->name, key_number);
+  snprintf(key_str, key_len, "%s:%d", ffs->name, *key_number);
   
   ctx = (struct ff1_ctx *)ubiq_platform_cache_find_element(e->key_cache, key_str);
  
@@ -805,6 +826,7 @@ get_ctx(
               res = CAPTURE_ERROR(e, -ERANGE, "Invalid key range");
             } else {
               k->key_number = (unsigned int)n;
+              *key_number = (int)n;
             }
           } else {
             res = CAPTURE_ERROR(e, -EBADMSG, "Invalid server response");
@@ -931,6 +953,7 @@ ubiq_platform_fpe_encrypt_data(
   struct parsed_data * parsed = NULL;
   struct ff1_ctx * ctx = NULL;
   char * ct = NULL;
+  int key_number = -1;
   // Get FFS (cache or otherwise)
   res = ffs_get_def(enc, ffs_name, &ffs_definition);
 
@@ -941,7 +964,7 @@ ubiq_platform_fpe_encrypt_data(
     // Get Encryption object (cache or otherwise - returns ff1_ctx object (ffs_name and current key_number)
 
   // Passing ffs_definition since it includes algorithm
-  if (!res) {res = get_ctx(enc, ffs_definition, -1 , &ctx);}
+  if (!res) {res = get_ctx(enc, ffs_definition, &key_number , &ctx);}
     // For encrypt - get FFS and get encryption object could be same call
     // For decrypt - need to get FFS first so know how to decode key num
     //               Then get Decryption Object (ff1_ctx) (ffs_name and key number)
@@ -961,12 +984,22 @@ ubiq_platform_fpe_encrypt_data(
       debug(csu, "before radix");
     if (!res) { res = str_convert_radix(ct, ffs_definition->input_character_set, ffs_definition->output_character_set, ct);}
 
-      debug(csu, "after radix");
-      debug(csu, ct);
+    debug(csu, "after radix");
+    debug(csu, ct);
 
-    // encrypt object includes key encoding data
+    // Encode ct
+    printf("key_number = %d\n", key_number);
+    encode_keynum(ffs_definition, key_number, ct);
 
     // Merge encoded key with cipher text
+    char * tmp = strdup(parsed->formatted_dest_buf);
+    size_t src_idx=0;
+    for (size_t i = 0; i < ptlen; i++) {
+      // Anything that isn't a zeroth character is a passthrough and can be skipped
+      if (tmp[i] == ffs_definition->output_character_set[0]) {
+        tmp[i] = ct[src_idx++];
+      } 
+    }
 
     // if (!res) {
     //     *ffs = ffs_definition;
@@ -974,7 +1007,7 @@ ubiq_platform_fpe_encrypt_data(
     // }
 
     if (!res) {
-      *ctbuf = ct;      
+      *ctbuf = tmp;      
       *ctlen = ptlen;
     }
 
