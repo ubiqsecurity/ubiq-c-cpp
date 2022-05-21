@@ -179,7 +179,7 @@ struct ffs {
 **************************************************************************************/
 
 static void debug(const char * const csu, const char * const msg) {
-  printf("DEBUG %s: %s\n", csu, msg);
+  return; //printf("DEBUG %s: %s\n", csu, msg);
 }
 
 static int encode_keynum(
@@ -216,7 +216,10 @@ str_convert_radix(
   int res = 0;
   bigint_t n;
   size_t len = strlen(src_str);
-  char * out = malloc(len + 1);
+  // Malloc causes valgrind to consider out uninitialized and spits out warnings
+  char * out = calloc(len + 1,sizeof(char));
+  // char * out = malloc(len + 1);
+  // memset(out,0,len + 1);
 
   bigint_init(&n);
 
@@ -224,16 +227,16 @@ str_convert_radix(
     res = -ENOMEM;
   }
 
-  printf("src_str %s\n", src_str);
+  // printf("src_str %s\n", src_str);
   if (!res) {res = __bigint_set_str(&n, src_str, input_radix);}
 
   if (!res) {
     res = __bigint_get_str(out, len, output_radix, &n);
-  printf("out %s\n", out);
+    // printf("out %s\n", out);
 
     size_t out_len = strlen(out);
 
-    // pad the leading characters of the output radix with zeroth character
+    // // pad the leading characters of the output radix with zeroth character
     char * c = out_str;
     for (int i = 0; i < len - out_len; i++) {
       *c = output_radix[0];
@@ -851,7 +854,6 @@ get_ctx(
   }
 
   if (!res) {
-      printf("%s ctx %p\n", csu, ctx);
       *ff1_ctx = ctx;
   }
 
@@ -969,7 +971,6 @@ ubiq_platform_fpe_encrypt_data(
     // For decrypt - need to get FFS first so know how to decode key num
     //               Then get Decryption Object (ff1_ctx) (ffs_name and key number)
 
-    printf("%s ctx %p\n", csu, ctx);
     // ff1_encrypt
     if (!res ) {
       debug(csu, "before ct = malloc");
@@ -987,8 +988,9 @@ ubiq_platform_fpe_encrypt_data(
     debug(csu, "after radix");
     debug(csu, ct);
 
+    key_number = 2; // DEBUG
+
     // Encode ct
-    printf("key_number = %d\n", key_number);
     encode_keynum(ffs_definition, key_number, ct);
 
     // Merge encoded key with cipher text
@@ -1012,7 +1014,7 @@ ubiq_platform_fpe_encrypt_data(
     }
 
     parsed_destroy(parsed);
-//    free(ct);
+    free(ct);
 
 
     return res;
