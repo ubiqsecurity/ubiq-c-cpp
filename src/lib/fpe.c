@@ -1,3 +1,4 @@
+#ifdef NODEF
 #include "ubiq/platform.h"
 
 #include "ubiq/platform/internal/header.h"
@@ -1665,3 +1666,4 @@ ubiq_platform_fpe_get_last_error(
 
   return res;
 }
+#endif

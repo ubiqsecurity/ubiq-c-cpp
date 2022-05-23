@@ -185,7 +185,7 @@ struct ctx_cache_element {
 **************************************************************************************/
 
 static void debug(const char * const csu, const char * const msg) {
-  printf("DEBUG %s: %s\n", csu, msg);
+  return; //printf("DEBUG %s: %s\n", csu, msg);
 }
 
 static int encode_keynum(
@@ -915,7 +915,7 @@ get_ctx(
         }
         if (!res) { res = ctx_cache_element_create(&ctx_element, ctx, k->key_number);}
         if (!res) {res = ubiq_platform_cache_add_element(e->key_cache, key_str, CACHE_DURATION, ctx_element, &ctx_cache_element_destroy);}
-        printf("DEBUG - after create cache element %d  %p\n", res, ctx_element->fpe_ctx);
+        // printf("DEBUG - after create cache element %d  %p\n", res, ctx_element->fpe_ctx);
       }
       fpe_key_destroy(k);
     }
@@ -1124,12 +1124,12 @@ ubiq_platform_fpe_decrypt_data(
   // decode key number
   if (!res) { res = CAPTURE_ERROR(enc, decode_keynum(ffs_definition, parsed->trimmed_buf, &key_number ), "Unable to determine key number in cipher text");}
 
-  printf("key number %d\n", key_number );
+  // printf("key number %d\n", key_number );
   // Get Encryption object (cache or otherwise - returns ff1_ctx object (ffs_name and current key_number)
   if (!res) {
     res = get_ctx(enc, ffs_definition, &key_number , &ctx);}
 
-  printf("key number %d\n", key_number );
+  // printf("key number %d\n", key_number );
 
   // Convert radix back to input character set
   debug("parsed->trimmed_buf BEFORE str_convert_radix", parsed->trimmed_buf);
@@ -1144,7 +1144,7 @@ ubiq_platform_fpe_decrypt_data(
   debug("parsed->trimmed_buf after str_convert_radix ", parsed->trimmed_buf);
 
   //  ff1_decrypt
-        printf("BEFORE decrypt %d  %p\n", res, ctx);
+        // printf("BEFORE decrypt %d  %p\n", res, ctx);
         pt = malloc(ctlen + 1);
   if (!res) {res = CAPTURE_ERROR(enc, ff1_decrypt(ctx, pt,  parsed->trimmed_buf, tweak, tweaklen), "Failure with ff1_decrypt");}
 
@@ -1241,4 +1241,104 @@ ubiq_platform_fpe_enc_dec_destroy(
     free(e->error.err_msg);
   }
   free(e);
+}
+
+int
+ubiq_platform_fpe_get_last_error(
+  struct ubiq_platform_fpe_enc_dec_obj * const enc,
+  int * const err_num,
+  char ** const err_msg
+)
+{
+  int res = -EINVAL;
+
+  if (enc != NULL) {
+    res = 0;
+    *err_num = enc->error.err_num;
+    if (enc->error.err_msg != NULL) {
+      *err_msg = strdup(enc->error.err_msg);
+      if (*err_msg == NULL) {
+        res = -errno;
+      }
+    }
+  }
+
+  return res;
+}
+
+int
+ubiq_platform_fpe_encrypt(
+    const struct ubiq_platform_credentials * const creds,
+    const char * const ffs_name,
+    const void * const tweak, const size_t tweaklen,
+    const char * const ptbuf, const size_t ptlen,
+    char ** const ctbuf, size_t * const ctlen)
+{
+
+  struct ubiq_platform_fpe_enc_dec_obj * enc;
+  int res = 0;
+
+  // Create Structure that will handle REST calls.
+  // Std voltron gets additional information, this will
+  // simply allocate structure.  Mapping creds to individual strings
+  enc = NULL;
+  res = ubiq_platform_fpe_enc_dec_create(creds,  &enc);
+
+  if (!res) {
+     res = ubiq_platform_fpe_encrypt_data(enc, ffs_name,
+       tweak, tweaklen, ptbuf, ptlen, ctbuf, ctlen);
+    // TODO BILLING
+  }
+  ubiq_platform_fpe_enc_dec_destroy(enc);
+
+  return res;
+}
+
+int
+ubiq_platform_fpe_decrypt(
+    const struct ubiq_platform_credentials * const creds,
+    const char * const ffs_name,
+    const void * const tweak, const size_t tweaklen,
+    const void * const ctbuf, const size_t ctlen,
+    char ** const ptbuf, size_t * const ptlen)
+{
+  struct ubiq_platform_fpe_enc_dec_obj * enc;
+  int res = 0;
+
+  enc = NULL;
+  res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
+
+  if (!res) {
+    res  = ubiq_platform_fpe_decrypt_data(enc, ffs_name, tweak, tweaklen, ctbuf, ctlen, ptbuf, ptlen);
+    // TODO BILLING
+  }
+    ubiq_platform_fpe_enc_dec_destroy(enc);
+  return res;
+}
+
+//************ TODO
+
+int
+ubiq_platform_fpe_encrypt_for_search(
+    const struct ubiq_platform_credentials * const creds,
+    const char * const ffs_name,
+    const void * const tweak, const size_t tweaklen,
+    const char * const ptbuf, const size_t ptlen,
+    char *** const ctbuf, size_t * const count)
+{
+  return -1;
+
+}
+
+int
+ubiq_platform_fpe_encrypt_data_for_search(
+  struct ubiq_platform_fpe_enc_dec_obj * const enc,
+  const char * const ffs_name,
+  const uint8_t * const tweak, const size_t tweaklen,
+  const char * const ptbuf, const size_t ptlen,
+  char *** const ctbuf, size_t * const count
+)
+{
+  return -1;
+
 }

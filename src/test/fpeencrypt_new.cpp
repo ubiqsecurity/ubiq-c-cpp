@@ -6,7 +6,6 @@
 #include "ubiq/platform.h"
 #include <ubiq/platform/internal/credentials.h>
 
-#ifdef NODEF
 class cpp_fpe_encrypt : public ::testing::Test
 {
 public:
@@ -67,7 +66,6 @@ TEST_F(cpp_fpe_encrypt, simple_search)
   }
 }
 
-
 TEST_F(cpp_fpe_encrypt, bulk)
 {
   std::string ffs_name("ALPHANUM_SSN");
@@ -84,27 +82,28 @@ TEST_F(cpp_fpe_encrypt, bulk)
   EXPECT_EQ(ct, ct2);
 }
 
-TEST_F(cpp_fpe_encrypt, bulk_search)
-{
-  std::string ffs_name("ALPHANUM_SSN");
-  std::string pt("ABCDEFGHI");
-  std::vector<std::string> ct, ct2;
+// #ifdef NODEF
+// TEST_F(cpp_fpe_encrypt, bulk_search)
+// {
+//   std::string ffs_name("ALPHANUM_SSN");
+//   std::string pt("ABCDEFGHI");
+//   std::vector<std::string> ct, ct2;
 
-  _enc = ubiq::platform::fpe::encryption(_creds);
-  _dec = ubiq::platform::fpe::decryption(_creds);
-  ASSERT_NO_THROW(
-      ct = _enc.encrypt_for_search(ffs_name, pt));
+//   _enc = ubiq::platform::fpe::encryption(_creds);
+//   _dec = ubiq::platform::fpe::decryption(_creds);
+//   ASSERT_NO_THROW(
+//       ct = _enc.encrypt_for_search(ffs_name, pt));
 
-  ASSERT_NO_THROW(
-      ct2 = _enc.encrypt_for_search(ffs_name, std::vector<std::uint8_t>(), pt));
+//   ASSERT_NO_THROW(
+//       ct2 = _enc.encrypt_for_search(ffs_name, std::vector<std::uint8_t>(), pt));
 
-  EXPECT_EQ(ct, ct2);
+//   EXPECT_EQ(ct, ct2);
 
-  for (auto x : ct) {
-    std::string ptbuf = _dec.decrypt(ffs_name, x);
-    EXPECT_EQ(pt, ptbuf);
-  }
-}
+//   for (auto x : ct) {
+//     std::string ptbuf = _dec.decrypt(ffs_name, x);
+//     EXPECT_EQ(pt, ptbuf);
+//   }
+// }
 
 TEST_F(cpp_fpe_encrypt, invalid_ffs)
 {
@@ -297,7 +296,7 @@ TEST_F(cpp_fpe_encrypt, invalid_keynum)
   ASSERT_ANY_THROW(
       pt = _dec.decrypt(ffs_name, ct));
 }
-#endif
+// #endif
 
 TEST(c_fpe_encrypt, piecewise)
 {
@@ -323,7 +322,6 @@ TEST(c_fpe_encrypt, piecewise)
       ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
     EXPECT_EQ(res, 0);
     EXPECT_EQ(strlen(pt), ctlen);
-    printf("CT (%s)\n", ctbuf);
 
 
     // EXPECT_EQ(strcmp(pt, ptbuf),0);
@@ -360,7 +358,7 @@ TEST(c_fpe_decrypt, piecewise)
       ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
     EXPECT_EQ(res, 0);
     EXPECT_EQ(strlen(pt), ctlen);
-    printf("CT (%s)\n", ctbuf);
+    // printf("CT (%s)\n", ctbuf);
 
     res = ubiq_platform_fpe_decrypt_data(enc,
       ffs_name, NULL, 0, ctbuf, ctlen, &ptbuf, &ptlen);
@@ -375,7 +373,7 @@ TEST(c_fpe_decrypt, piecewise)
 
     EXPECT_EQ(res, 0);
     EXPECT_EQ(strlen(pt), ptlen);
-    printf("PT (%s)\n", ptbuf);
+    // printf("PT (%s)\n", ptbuf);
 
     EXPECT_EQ(strcmp(pt, ptbuf),0);
 
@@ -470,6 +468,53 @@ TEST(c_fpe_encrypt, 1m)
 
 }
 
+TEST(c_fpe_decrypt, 1m)
+{
+  static const char * const ffs_name = "ALPHANUM_SSN";
+  static const char * const ct = "!!= J*K-42c(";
+
+    struct ubiq_platform_credentials * creds;
+    struct ubiq_platform_fpe_enc_dec_obj *enc;
+
+    char * ptbuf(nullptr);
+    size_t ptlen;
+
+    std::chrono::duration<double, std::nano> ubiq_times = std::chrono::steady_clock::duration::zero();
+    std::chrono::duration<double, std::nano> first_call = std::chrono::steady_clock::duration::zero();
+
+    int res;
+    res = ubiq_platform_credentials_create(&creds);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
+    ASSERT_EQ(res, 0);
+
+        auto start = std::chrono::steady_clock::now();
+    res = ubiq_platform_fpe_decrypt_data(enc,
+      ffs_name, NULL, 0, ct, strlen(ct), &ptbuf, &ptlen);
+      free(ptbuf);
+    auto end = std::chrono::steady_clock::now();
+    first_call = (end - start);
+
+    for (unsigned long i = 0; i < 1000000; i++) {
+        auto start = std::chrono::steady_clock::now();
+    res = ubiq_platform_fpe_decrypt_data(enc,
+      ffs_name, NULL, 0, ct, strlen(ct), &ptbuf, &ptlen);
+          free(ptbuf);
+        auto end = std::chrono::steady_clock::now();
+
+        ubiq_times += (end - start);
+    }
+
+    ubiq_platform_fpe_enc_dec_destroy(enc);
+
+    ubiq_platform_credentials_destroy(creds);
+
+    std::cerr << "\t first: " << std::chrono::duration<double, std::milli>(first_call).count() << " ms " << std::endl;
+    std::cerr << "\t total: " << std::chrono::duration<double, std::milli>(ubiq_times).count() << " ms " << std::endl;
+
+}
+
 TEST(c_fpe_encrypt, piecewise_cached)
 {
     static const char * const pt = " 01121231231231231& 1 &2311200 ";
@@ -494,7 +539,6 @@ TEST(c_fpe_encrypt, piecewise_cached)
       ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
     EXPECT_EQ(res, 0);
     EXPECT_EQ(strlen(pt), ctlen);
-    printf("CT (%s)\n", ctbuf);
 
     free(ctbuf);
 
@@ -502,7 +546,6 @@ TEST(c_fpe_encrypt, piecewise_cached)
       ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
     EXPECT_EQ(res, 0);
     EXPECT_EQ(strlen(pt), ctlen);
-    printf("CT (%s)\n", ctbuf);
 
     // EXPECT_EQ(strcmp(pt, ptbuf),0);
 

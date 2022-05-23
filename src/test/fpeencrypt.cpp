@@ -6,7 +6,7 @@
 #include "ubiq/platform.h"
 #include <ubiq/platform/internal/credentials.h>
 
-class cpp_fpe_encrypt : public ::testing::Test
+class cpp_fpe_encrypt_2 : public ::testing::Test
 {
 public:
     void SetUp(void);
@@ -18,22 +18,22 @@ protected:
     ubiq::platform::fpe::decryption _dec;
 };
 
-void cpp_fpe_encrypt::SetUp(void)
+void cpp_fpe_encrypt_2::SetUp(void)
 {
     ASSERT_TRUE((bool)_creds);
 }
 
-void cpp_fpe_encrypt::TearDown(void)
+void cpp_fpe_encrypt_2::TearDown(void)
 {
 }
 
-TEST_F(cpp_fpe_encrypt, none)
+TEST_F(cpp_fpe_encrypt_2, none)
 {
   ASSERT_NO_THROW(
       _enc = ubiq::platform::fpe::encryption(_creds));
 }
 
-TEST_F(cpp_fpe_encrypt, simple)
+TEST_F(cpp_fpe_encrypt_2, simple)
 {
   std::string pt("ABCDEFGHI");
   std::string ct, ct2;
@@ -47,7 +47,7 @@ TEST_F(cpp_fpe_encrypt, simple)
   EXPECT_EQ(ct, ct2);
 }
 
-TEST_F(cpp_fpe_encrypt, simple_search)
+TEST_F(cpp_fpe_encrypt_2, simple_search)
 {
   std::string pt("ABCDEFGHI");
   std::vector<std::string> ct, ct2;
@@ -67,7 +67,7 @@ TEST_F(cpp_fpe_encrypt, simple_search)
 }
 
 
-TEST_F(cpp_fpe_encrypt, bulk)
+TEST_F(cpp_fpe_encrypt_2, bulk)
 {
   std::string ffs_name("ALPHANUM_SSN");
   std::string pt("ABCDEFGHI");
@@ -83,7 +83,7 @@ TEST_F(cpp_fpe_encrypt, bulk)
   EXPECT_EQ(ct, ct2);
 }
 
-TEST_F(cpp_fpe_encrypt, bulk_search)
+TEST_F(cpp_fpe_encrypt_2, bulk_search)
 {
   std::string ffs_name("ALPHANUM_SSN");
   std::string pt("ABCDEFGHI");
@@ -105,7 +105,7 @@ TEST_F(cpp_fpe_encrypt, bulk_search)
   }
 }
 
-TEST_F(cpp_fpe_encrypt, invalid_ffs)
+TEST_F(cpp_fpe_encrypt_2, invalid_ffs)
 {
   std::string pt("ABCDEFGHI");
   std::string ct;
@@ -119,7 +119,7 @@ TEST_F(cpp_fpe_encrypt, invalid_ffs)
       ct = _dec.decrypt("ERROR FFS", pt));
 }
 
-TEST_F(cpp_fpe_encrypt, invalid_creds)
+TEST_F(cpp_fpe_encrypt_2, invalid_creds)
 {
   std::string ffs_name("ALPHANUM_SSN");
   std::string pt("ABCDEFGHI");
@@ -136,7 +136,7 @@ TEST_F(cpp_fpe_encrypt, invalid_creds)
       ct = _dec.decrypt(ffs_name, pt));
 }
 
-TEST_F(cpp_fpe_encrypt, invalid_PT_CT)
+TEST_F(cpp_fpe_encrypt_2, invalid_PT_CT)
 {
   std::string ffs_name("SSN");
   std::string pt(" 123456789$");
@@ -153,7 +153,7 @@ TEST_F(cpp_fpe_encrypt, invalid_PT_CT)
       ct = _dec.decrypt(ffs_name, pt));
 }
 
-TEST_F(cpp_fpe_encrypt, invalid_LEN)
+TEST_F(cpp_fpe_encrypt_2, invalid_LEN)
 {
   std::string ffs_name("SSN");
   std::string shortpt(" 1234");
@@ -175,7 +175,7 @@ TEST_F(cpp_fpe_encrypt, invalid_LEN)
       ct = _dec.decrypt(ffs_name, longpt));
 }
 
-TEST_F(cpp_fpe_encrypt, invalid_specific_creds)
+TEST_F(cpp_fpe_encrypt_2, invalid_specific_creds)
 {
   std::string ffs_name("ALPHANUM_SSN");
   std::string pt(" 123456789");
@@ -280,7 +280,7 @@ TEST_F(cpp_fpe_encrypt, invalid_specific_creds)
 
 }
 
-TEST_F(cpp_fpe_encrypt, invalid_keynum)
+TEST_F(cpp_fpe_encrypt_2, invalid_keynum)
 {
   std::string ffs_name("SO_ALPHANUM_PIN");
   std::string pt(" 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ");
@@ -1173,7 +1173,7 @@ TEST(c_fpe_encrypt, error_handling_invalid_keynum)
 }
 
 
-TEST_F(cpp_fpe_encrypt, 1m)
+TEST_F(cpp_fpe_encrypt_2, 1m)
 {
   std::string ffs_name("ALPHANUM_SSN");
   std::string pt("ABCDEFGHI");
