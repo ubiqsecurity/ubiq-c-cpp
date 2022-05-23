@@ -1026,26 +1026,35 @@ ubiq_platform_fpe_encrypt_data(
 //    key_number = 2; // DEBUG
 
     // Encode ct
-    encode_keynum(ffs_definition, key_number, ct);
-
-    // Merge encoded key with cipher text
-    char * tmp = strdup(parsed->formatted_dest_buf);
-    size_t src_idx=0;
-    for (size_t i = 0; i < ptlen; i++) {
-      // Anything that isn't a zeroth character is a passthrough and can be skipped
-      if (tmp[i] == ffs_definition->output_character_set[0]) {
-        tmp[i] = ct[src_idx++];
-      } 
+    if (!res) {
+      res = encode_keynum(ffs_definition, key_number, ct);
     }
 
+    if (!res) {
+    // Merge encoded key with cipher text
+      char * tmp = strdup(parsed->formatted_dest_buf);
+      if (tmp == NULL) {
+        res = -ENOMEM;
+      }
+
+      if (!res) {
+        size_t src_idx=0;
+        for (size_t i = 0; i < ptlen; i++) {
+          // Anything that isn't a zeroth character is a passthrough and can be skipped
+          if (tmp[i] == ffs_definition->output_character_set[0]) {
+            tmp[i] = ct[src_idx++];
+          } 
+        }
+      }
     // if (!res) {
     //     *ffs = ffs_definition;
     //     *parsed_data = parsed;
     // }
 
-    if (!res) {
-      *ctbuf = tmp;      
-      *ctlen = ptlen;
+      if (!res) {
+        *ctbuf = tmp;      
+        *ctlen = ptlen;
+      }
     }
 
     parsed_destroy(parsed);
