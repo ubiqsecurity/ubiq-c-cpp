@@ -1626,7 +1626,7 @@ ubiq_platform_fpe_encrypt_data_for_search(
 
 
 int
-ubiq_platform_fpe_decrypt_data(
+ubiq_platform_fpe_decrypt_data2(
   struct ubiq_platform_fpe_enc_dec_obj * const enc,
   const char * const ffs_name,
   const uint8_t * const tweak, const size_t tweaklen,

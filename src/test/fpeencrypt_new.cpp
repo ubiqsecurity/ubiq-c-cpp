@@ -336,6 +336,57 @@ TEST(c_fpe_encrypt, piecewise)
     free(ptbuf);
 }
 
+TEST(c_fpe_decrypt, piecewise)
+{
+    static const char * const pt = "123 456-7890";
+//    static const char * const pt = "00001234567890";//234567890";
+    static const char * const ffs_name = "ALPHANUM_SSN";
+
+    struct ubiq_platform_credentials * creds;
+    struct ubiq_platform_fpe_enc_dec_obj *enc;
+    char * ctbuf(nullptr);
+    size_t ctlen;
+    char * ptbuf(nullptr);
+    size_t ptlen;
+    int res;
+
+    res = ubiq_platform_credentials_create(&creds);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_encrypt_data(enc,
+      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+    EXPECT_EQ(res, 0);
+    EXPECT_EQ(strlen(pt), ctlen);
+    printf("CT (%s)\n", ctbuf);
+
+    res = ubiq_platform_fpe_decrypt_data(enc,
+      ffs_name, NULL, 0, ctbuf, ctlen, &ptbuf, &ptlen);
+
+    if (res) {
+      int err_num;
+      char * err_msg = NULL;
+
+      res = ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
+      printf("error: %s\n", err_msg);
+    }
+
+    EXPECT_EQ(res, 0);
+    EXPECT_EQ(strlen(pt), ptlen);
+    printf("PT (%s)\n", ptbuf);
+
+    EXPECT_EQ(strcmp(pt, ptbuf),0);
+
+    ubiq_platform_fpe_enc_dec_destroy(enc);
+
+    ubiq_platform_credentials_destroy(creds);
+
+    free(ctbuf);
+    free(ptbuf);
+}
+
 TEST(c_fpe_encrypt, piecewise_bad_char)
 {
     static const char * const pt = "123 456-7abc";
@@ -409,6 +460,10 @@ TEST(c_fpe_encrypt, 1m)
 
         ubiq_times += (end - start);
     }
+
+    ubiq_platform_fpe_enc_dec_destroy(enc);
+
+    ubiq_platform_credentials_destroy(creds);
 
     std::cerr << "\t first: " << std::chrono::duration<double, std::milli>(first_call).count() << " ms " << std::endl;
     std::cerr << "\t total: " << std::chrono::duration<double, std::milli>(ubiq_times).count() << " ms " << std::endl;
