@@ -649,8 +649,8 @@ TEST(c_fpe_encrypt, simple_search)
     free(ctbuf);
     free(ptbuf);
 }
-
-TEST(c_fpe_encrypt, piecewise)
+#endif
+TEST(c_fpe_encrypt, piecewise2)
 {
     static const char * const pt = " 01121231231231231& 1 &2311200 ";
 //    static const char * const pt = "00001234567890";//234567890";
@@ -1521,4 +1521,3 @@ TEST(c_fpe_encrypt, new)
     free(ptbuf);
     free(ptbuf2);
 }
-#endif

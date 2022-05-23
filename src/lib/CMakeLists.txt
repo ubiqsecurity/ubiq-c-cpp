@@ -21,7 +21,6 @@ add_library(
   decrypt.c
   encrypt.c
   fpe.c
-  fpe_new.c
   init.c
   parsing.c
   rest.c

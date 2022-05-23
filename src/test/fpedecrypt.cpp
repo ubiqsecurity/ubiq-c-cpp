@@ -113,3 +113,43 @@ TEST_F(cpp_fpe_decrypt, bulk_generic_string)
 {
     encrypt_decrypt_bulk("GENERIC_STRING", "1234567890ABCDEFGHIJKLMNOP");
 }
+
+TEST(c_fpe_decrypt, piecewise_bad_char)
+{
+// 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ
+// !"#$%'()*+./0123456789:<=>ABCDEFGHIJKLMNOPQRSTUVWXYZ[]_`abcdefghijklmnopqrstuvwxyz{}~
+// &- ;@^|\
+
+    static const char * const pt = "!!= J*K,-42c(";
+//    static const char * const pt = "00001234567890";//234567890";
+    static const char * const ffs_name = "ALPHANUM_SSN";
+
+    struct ubiq_platform_credentials * creds;
+    struct ubiq_platform_fpe_enc_dec_obj *enc;
+    char * ctbuf(nullptr);
+    size_t ctlen;
+    char * ptbuf(nullptr);
+    size_t ptlen;
+    int res;
+
+    res = ubiq_platform_credentials_create(&creds);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_decrypt_data(enc,
+      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+    EXPECT_EQ(res, -EINVAL);
+    EXPECT_EQ(strlen(pt), ctlen);
+
+
+    // EXPECT_EQ(strcmp(pt, ptbuf),0);
+
+    ubiq_platform_fpe_enc_dec_destroy(enc);
+
+    ubiq_platform_credentials_destroy(creds);
+
+    free(ctbuf);
+    free(ptbuf);
+}
