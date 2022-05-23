@@ -124,7 +124,7 @@ TEST(c_fpe_decrypt, piecewise_bad_char)
 //    static const char * const pt = "00001234567890";//234567890";
     static const char * const ffs_name = "ALPHANUM_SSN";
 
-    pt[1] = 127;
+    pt[1] = 124;
 
     struct ubiq_platform_credentials * creds;
     struct ubiq_platform_fpe_enc_dec_obj *enc;
@@ -155,6 +155,215 @@ TEST(c_fpe_decrypt, piecewise_bad_char)
     }
 
     // EXPECT_EQ(strcmp(pt, ptbuf),0);
+
+    ubiq_platform_fpe_enc_dec_destroy(enc);
+
+    ubiq_platform_credentials_destroy(creds);
+
+    free(ctbuf);
+    free(ptbuf);
+}
+
+
+TEST(c_fpe_decrypt, piecewise_too_short)
+{
+// 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ
+// !"#$%'()*+./0123456789:<=>ABCDEFGHIJKLMNOPQRSTUVWXYZ[]_`abcdefghijklmnopqrstuvwxyz{}~
+// &- ;@^|\
+
+    char pt [] = "!!!";
+//    static const char * const pt = "00001234567890";//234567890";
+    static const char * const ffs_name = "ALPHANUM_SSN";
+
+    pt[1] = 124;
+
+    struct ubiq_platform_credentials * creds;
+    struct ubiq_platform_fpe_enc_dec_obj *enc;
+    char * ctbuf(nullptr);
+    size_t ctlen;
+    char * ptbuf(nullptr);
+    size_t ptlen;
+    int res;
+
+    res = ubiq_platform_credentials_create(&creds);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_decrypt_data(enc,
+      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+    EXPECT_EQ(res, -EINVAL);
+    if (res) {
+      int err_num;
+      char * err_msg = NULL;
+
+      res = ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
+      printf("error: %s\n", err_msg);
+      free(err_msg);
+    } else {
+        EXPECT_EQ(strlen(pt), ctlen);
+    }
+
+    // EXPECT_EQ(strcmp(pt, ptbuf),0);
+
+    ubiq_platform_fpe_enc_dec_destroy(enc);
+
+    ubiq_platform_credentials_destroy(creds);
+
+    free(ctbuf);
+    free(ptbuf);
+}
+
+
+TEST(c_fpe_decrypt, piecewise_all_zeroth)
+{
+// 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ
+// !"#$%'()*+./0123456789:<=>ABCDEFGHIJKLMNOPQRSTUVWXYZ[]_`abcdefghijklmnopqrstuvwxyz{}~
+// &- ;@^|\
+
+    char pt [] = "!!!!!!!!!!!!!!";
+//    static const char * const pt = "00001234567890";//234567890";
+    static const char * const ffs_name = "ALPHANUM_SSN";
+
+    pt[1] = 124;
+
+    struct ubiq_platform_credentials * creds;
+    struct ubiq_platform_fpe_enc_dec_obj *enc;
+    char * ctbuf(nullptr);
+    size_t ctlen;
+    char * ptbuf(nullptr);
+    size_t ptlen;
+    int res;
+
+    res = ubiq_platform_credentials_create(&creds);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_decrypt_data(enc,
+      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+    EXPECT_EQ(res, 0);
+    if (res) {
+      int err_num;
+      char * err_msg = NULL;
+
+      res = ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
+      printf("error: %s\n", err_msg);
+      free(err_msg);
+    } else {
+        EXPECT_EQ(strlen(pt), ctlen);
+    }
+
+    // EXPECT_EQ(strcmp(pt, ptbuf),0);
+
+    ubiq_platform_fpe_enc_dec_destroy(enc);
+
+    ubiq_platform_credentials_destroy(creds);
+
+    free(ctbuf);
+    free(ptbuf);
+}
+
+TEST(c_fpe_decrypt, piecewise_all_passthrough)
+{
+// 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ
+// !"#$%'()*+./0123456789:<=>ABCDEFGHIJKLMNOPQRSTUVWXYZ[]_`abcdefghijklmnopqrstuvwxyz{}~
+// &- ;@^|\
+
+    char pt [] = "--------------------";
+//    static const char * const pt = "00001234567890";//234567890";
+    static const char * const ffs_name = "ALPHANUM_SSN";
+
+    pt[1] = 124;
+
+    struct ubiq_platform_credentials * creds;
+    struct ubiq_platform_fpe_enc_dec_obj *enc;
+    char * ctbuf(nullptr);
+    size_t ctlen;
+    char * ptbuf(nullptr);
+    size_t ptlen;
+    int res;
+
+    res = ubiq_platform_credentials_create(&creds);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_decrypt_data(enc,
+      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+    EXPECT_EQ(res, -EINVAL);
+    if (res) {
+      int err_num;
+      char * err_msg = NULL;
+
+      res = ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
+      printf("error: %s\n", err_msg);
+      free(err_msg);
+    } else {
+        EXPECT_EQ(strlen(pt), ctlen);
+    }
+
+    // EXPECT_EQ(strcmp(pt, ptbuf),0);
+
+    ubiq_platform_fpe_enc_dec_destroy(enc);
+
+    ubiq_platform_credentials_destroy(creds);
+
+    free(ctbuf);
+    free(ptbuf);
+}
+
+TEST(c_fpe_decrypt, piecewise_leading_passthrough)
+{
+// 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ
+// !"#$%'()*+./0123456789:<=>ABCDEFGHIJKLMNOPQRSTUVWXYZ[]_`abcdefghijklmnopqrstuvwxyz{}~
+// &- ;@^|\
+
+    char pt [] = "- - - ---------12-45-6789---------------";
+//               "-|-------------!%-Bp-23WP---------------"
+//    static const char * const pt = "00001234567890";//234567890";
+    static const char * const ffs_name = "ALPHANUM_SSN";
+
+    pt[1] = 124;
+
+    struct ubiq_platform_credentials * creds;
+    struct ubiq_platform_fpe_enc_dec_obj *enc;
+    char * ctbuf(nullptr);
+    size_t ctlen;
+    char * ptbuf(nullptr);
+    size_t ptlen;
+    int res;
+
+    res = ubiq_platform_credentials_create(&creds);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_encrypt_data(enc,
+      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+    EXPECT_EQ(res, 0);
+    if (res) {
+      int err_num;
+      char * err_msg = NULL;
+
+      res = ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
+      printf("error: %s\n", err_msg);
+      free(err_msg);
+    } else {
+        EXPECT_EQ(strlen(pt), ctlen);
+    }
+
+    printf("ctbuf %s\n", ctbuf);
+
+    res = ubiq_platform_fpe_decrypt_data(enc,
+      ffs_name, NULL, 0,ctbuf, ctlen, &ptbuf, &ptlen);
+    EXPECT_EQ(res, 0);
+
+    EXPECT_EQ(strcmp(pt, ptbuf),0);
 
     ubiq_platform_fpe_enc_dec_destroy(enc);
 
