@@ -240,13 +240,12 @@ str_convert_radix(
 {
   int debug = 0;
   static const char * csu = "str_convert_radix";
+  static size_t magic_number = 50; // Allow for null and extra space in get_string function
   int res = 0;
   bigint_t n;
   size_t len = strlen(src_str);
   // Malloc causes valgrind to consider out uninitialized and spits out warnings
-  char * out = calloc(len + 50,sizeof(char));
-  // char * out = malloc(len + 1);
-  // memset(out,0,len + 1);
+  char * out = calloc(len + magic_number,sizeof(char));
 
   bigint_init(&n);
 
@@ -263,18 +262,25 @@ str_convert_radix(
   (debug) && printf("output_radix ----%s----\n", output_radix);
 
   if (!res) {
-    res = __bigint_get_str(out, len+50, output_radix, &n);
+    res = __bigint_get_str(out, len+magic_number, output_radix, &n);
     (debug) && printf("__bigint_get_str res (%d), out %s\n", res, out);
 
     size_t out_len = strlen(out);
 
-    // // pad the leading characters of the output radix with zeroth character
-    char * c = out_str;
-    for (int i = 0; i < len - out_len; i++) {
-      *c = output_radix[0];
-      c++;
+    // Make sure the get_string succeeded
+    if ((!res) && (out_len > len)) {
+      res = -EINVAL;
+    } 
+    
+    if (!res) {
+      // // pad the leading characters of the output radix with zeroth character
+      char * c = out_str;
+      for (int i = 0; i < len - out_len; i++) {
+        *c = output_radix[0];
+        c++;
+      }
+      strcpy(c, out);
     }
-    strcpy(c, out);
   }
   bigint_deinit(&n);
   free(out);
@@ -1032,7 +1038,7 @@ ubiq_platform_fpe_encrypt_data(
   // Create an object to hold the parsed data, 
   if (!res) { res = CAPTURE_ERROR(enc, parsed_create(&parsed, ffs_definition->character_types, ptlen),  NULL); }
 
-  if (!res) { res = CAPTURE_ERROR(enc, parse_data(ffs_definition, PARSE_INPUT_TO_OUTPUT, ptbuf, ptlen, parsed ), "Invalid input string characters");}
+  if (!res) { res = CAPTURE_ERROR(enc, parse_data(ffs_definition, PARSE_INPUT_TO_OUTPUT, ptbuf, ptlen, parsed ), "Invalid input string character(s)");}
     // Get Encryption object (cache or otherwise - returns ff1_ctx object (ffs_name and current key_number)
 
   // Passing ffs_definition since it includes algorithm
@@ -1079,10 +1085,6 @@ ubiq_platform_fpe_encrypt_data(
           } 
         }
       }
-    // if (!res) {
-    //     *ffs = ffs_definition;
-    //     *parsed_data = parsed;
-    // }
 
       if (!res) {
         *ctbuf = tmp;      
@@ -1119,33 +1121,26 @@ ubiq_platform_fpe_decrypt_data(
   // Create an object to hold the parsed data and parse
   if (!res) { res = CAPTURE_ERROR(enc, parsed_create(&parsed, ffs_definition->character_types, ctlen),  "Unable to allocate memory"); }
 
-  if (!res) { res = CAPTURE_ERROR(enc, parse_data(ffs_definition, PARSE_OUTPUT_TO_INPUT, ctbuf, ctlen, parsed ), "Invalid input string characters");}
+  if (!res) { res = CAPTURE_ERROR(enc, parse_data(ffs_definition, PARSE_OUTPUT_TO_INPUT, ctbuf, ctlen, parsed ), "Invalid input string character(s)");}
 
   // decode key number
   if (!res) { res = CAPTURE_ERROR(enc, decode_keynum(ffs_definition, parsed->trimmed_buf, &key_number ), "Unable to determine key number in cipher text");}
 
   // printf("key number %d\n", key_number );
   // Get Encryption object (cache or otherwise - returns ff1_ctx object (ffs_name and current key_number)
-  if (!res) {
-    res = get_ctx(enc, ffs_definition, &key_number , &ctx);}
+  if (!res) {res = get_ctx(enc, ffs_definition, &key_number , &ctx);}
 
   // printf("key number %d\n", key_number );
 
   // Convert radix back to input character set
   debug("parsed->trimmed_buf BEFORE str_convert_radix", parsed->trimmed_buf);
-  if (!res) {res = str_convert_radix( parsed->trimmed_buf, ffs_definition->output_character_set, ffs_definition->input_character_set, parsed->trimmed_buf);}
-  // {
-  //   char buf[500];
-  // if (!res) {res = str_convert_radix( "!!=J*K42c(", ffs_definition->output_character_set, ffs_definition->input_character_set, buf);}
-  // debug("buf str_convert_radix", buf);
-
-
-  // }
+  // Random input string could mean input string does not convert to input radix within the same space limitations
+  if (!res) {res = CAPTURE_ERROR(enc, str_convert_radix( parsed->trimmed_buf, ffs_definition->output_character_set, ffs_definition->input_character_set, parsed->trimmed_buf), "Invalid input string");}
   debug("parsed->trimmed_buf after str_convert_radix ", parsed->trimmed_buf);
 
   //  ff1_decrypt
         // printf("BEFORE decrypt %d  %p\n", res, ctx);
-        pt = malloc(ctlen + 1);
+  pt = malloc(ctlen + 1);
   if (!res) {res = CAPTURE_ERROR(enc, ff1_decrypt(ctx, pt,  parsed->trimmed_buf, tweak, tweaklen), "Failure with ff1_decrypt");}
 
   debug("parsed->trimmed_buf after ff1_decrypt", pt);
