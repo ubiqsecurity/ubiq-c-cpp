@@ -166,6 +166,11 @@ struct ffs {
 //   int tweak_max_len;
 // };
 
+
+struct ctx_cache_element {
+  void * fpe_ctx;
+};
+
 /*
 *
 *
@@ -323,6 +328,28 @@ static int get_json_int(
   const cJSON * j = cJSON_GetObjectItemCaseSensitive(ffs_data, field_name);
   if (cJSON_IsNumber(j)) {
     *destination = j->valueint;
+  }
+  return res;
+}
+
+static void
+ctx_cache_element_destroy(void * const e) {
+  struct ctx_cache_element * ctx = (struct ctx_cache_element *) e;
+   ff1_ctx_destroy((struct ff1_ctx *const)ctx->fpe_ctx);
+   free(e);
+}
+
+static int
+ctx_cache_element_create(struct ctx_cache_element ** e,
+  struct ff1_ctx *const ff1_ctx
+) {
+  int res = -ENOMEM;
+  struct ctx_cache_element * ctx = NULL;
+  ctx = calloc(1, sizeof(*ctx));
+  if (ctx != NULL) {
+    ctx->fpe_ctx = ff1_ctx;
+    *e = ctx;
+    res = 0;
   }
   return res;
 }
@@ -739,10 +766,10 @@ ubiq_platform_fpe_encryption(
     return res;
 }
 
-static
-void free_ff1_ctx(void * ctx) {
-  ff1_ctx_destroy((struct ff1_ctx *const)ctx);
-}
+// static
+// void free_ff1_ctx(void * ctx) {
+//   ff1_ctx_destroy((struct ff1_ctx *const)ctx);
+// }
 
 static
 int
@@ -758,16 +785,18 @@ get_ctx(
   static const char radix62[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 
   int res = 0;
-  struct ff1_ctx * ctx = NULL;
+  struct ctx_cache_element * ctx_element = NULL;
+  // struct ff1_ctx * ctx = NULL;
   int key_len = strlen(ffs->name) + 25; // magic number to accomodate a max int plus null terminator and colon
   char * key_str = calloc(1, key_len);
 
   snprintf(key_str, key_len, "%s:%d", ffs->name, *key_number);
   
-  ctx = (struct ff1_ctx *)ubiq_platform_cache_find_element(e->key_cache, key_str);
+  ctx_element = (struct ctx_cache_element *)ubiq_platform_cache_find_element(e->key_cache, key_str);
  
-  if (ctx != NULL) {
+  if (ctx_element != NULL) {
     debug(csu, "key found in Cache");
+    *key_number = 0;
   } else {
     if (!res) {
         static const char * const fmt = "%s/fpe/key?ffs_name=%s&papi=%s";
@@ -806,7 +835,6 @@ get_ctx(
             const void * rsp = ubiq_platform_rest_response_content(e->rest, &len);
             res = (rsp_json = cJSON_ParseWithLength(rsp, len)) ? 0 : INT_MIN;
 
-//            if (!res) { res = ubiq_platform_cache_add_element(e->key_cache, url, CACHE_DURATION,strndup(rsp, len), &free);}
           }
         }
 
@@ -839,13 +867,16 @@ get_ctx(
       cJSON_Delete(rsp_json);
       if (!res) {
         size_t radix_len;
+        struct ff1_ctx * ctx = NULL;
         if (ffs->character_types == MULTIBYTE) {
           radix_len = u32_strlen(ffs->u32_input_character_set);
           res = ff1_ctx_create(&ctx, k->buf, k->len, ffs->tweak.buf, ffs->tweak.len, ffs->tweak_min_len, ffs->tweak_max_len, radix_len);
         } else {
           res = ff1_ctx_create_custom_radix(&ctx, k->buf, k->len, ffs->tweak.buf, ffs->tweak.len, ffs->tweak_min_len, ffs->tweak_max_len, ffs->input_character_set);
         }
-        if (!res) { res = ubiq_platform_cache_add_element(e->key_cache, key_str, CACHE_DURATION, ctx, &free_ff1_ctx);}
+        if (!res) { 
+          ctx_cache_element_create(&ctx_element, ctx);
+          res = ubiq_platform_cache_add_element(e->key_cache, key_str, CACHE_DURATION, ctx_element, &ctx_cache_element_destroy);}
 
         fpe_key_destroy(k);
 
@@ -854,7 +885,7 @@ get_ctx(
   }
 
   if (!res) {
-      *ff1_ctx = ctx;
+      *ff1_ctx = ctx_element->fpe_ctx;
   }
 
   free(key_str);
@@ -988,7 +1019,7 @@ ubiq_platform_fpe_encrypt_data(
     debug(csu, "after radix");
     debug(csu, ct);
 
-    key_number = 2; // DEBUG
+//    key_number = 2; // DEBUG
 
     // Encode ct
     encode_keynum(ffs_definition, key_number, ct);
