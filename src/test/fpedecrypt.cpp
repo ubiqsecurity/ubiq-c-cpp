@@ -175,7 +175,6 @@ TEST(c_fpe_decrypt, piecewise_too_short)
 //    static const char * const pt = "00001234567890";//234567890";
     static const char * const ffs_name = "ALPHANUM_SSN";
 
-    pt[1] = 124;
 
     struct ubiq_platform_credentials * creds;
     struct ubiq_platform_fpe_enc_dec_obj *enc;
@@ -226,8 +225,6 @@ TEST(c_fpe_decrypt, piecewise_all_zeroth)
 //    static const char * const pt = "00001234567890";//234567890";
     static const char * const ffs_name = "ALPHANUM_SSN";
 
-    pt[1] = 124;
-
     struct ubiq_platform_credentials * creds;
     struct ubiq_platform_fpe_enc_dec_obj *enc;
     char * ctbuf(nullptr);
@@ -275,8 +272,6 @@ TEST(c_fpe_decrypt, piecewise_all_passthrough)
     char pt [] = "--------------------";
 //    static const char * const pt = "00001234567890";//234567890";
     static const char * const ffs_name = "ALPHANUM_SSN";
-
-    pt[1] = 124;
 
     struct ubiq_platform_credentials * creds;
     struct ubiq_platform_fpe_enc_dec_obj *enc;
@@ -326,8 +321,6 @@ TEST(c_fpe_decrypt, piecewise_leading_passthrough)
 //               "-|-------------!%-Bp-23WP---------------"
 //    static const char * const pt = "00001234567890";//234567890";
     static const char * const ffs_name = "ALPHANUM_SSN";
-
-    pt[1] = 124;
 
     struct ubiq_platform_credentials * creds;
     struct ubiq_platform_fpe_enc_dec_obj *enc;
