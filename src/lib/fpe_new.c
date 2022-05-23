@@ -169,6 +169,7 @@ struct ffs {
 
 struct ctx_cache_element {
   void * fpe_ctx;
+  unsigned int key_number;
 };
 
 /*
@@ -341,13 +342,15 @@ ctx_cache_element_destroy(void * const e) {
 
 static int
 ctx_cache_element_create(struct ctx_cache_element ** e,
-  struct ff1_ctx *const ff1_ctx
+  struct ff1_ctx *const ff1_ctx,
+  unsigned int key_number
 ) {
   int res = -ENOMEM;
   struct ctx_cache_element * ctx = NULL;
   ctx = calloc(1, sizeof(*ctx));
   if (ctx != NULL) {
     ctx->fpe_ctx = ff1_ctx;
+    ctx->key_number = key_number;
     *e = ctx;
     res = 0;
   }
@@ -796,7 +799,6 @@ get_ctx(
  
   if (ctx_element != NULL) {
     debug(csu, "key found in Cache");
-    *key_number = 0;
   } else {
     if (!res) {
         static const char * const fmt = "%s/fpe/key?ffs_name=%s&papi=%s";
@@ -857,7 +859,7 @@ get_ctx(
               res = CAPTURE_ERROR(e, -ERANGE, "Invalid key range");
             } else {
               k->key_number = (unsigned int)n;
-              *key_number = (int)n;
+
             }
           } else {
             res = CAPTURE_ERROR(e, -EBADMSG, "Invalid server response");
@@ -875,7 +877,7 @@ get_ctx(
           res = ff1_ctx_create_custom_radix(&ctx, k->buf, k->len, ffs->tweak.buf, ffs->tweak.len, ffs->tweak_min_len, ffs->tweak_max_len, ffs->input_character_set);
         }
         if (!res) { 
-          ctx_cache_element_create(&ctx_element, ctx);
+          ctx_cache_element_create(&ctx_element, ctx, k->key_number);
           res = ubiq_platform_cache_add_element(e->key_cache, key_str, CACHE_DURATION, ctx_element, &ctx_cache_element_destroy);}
 
         fpe_key_destroy(k);
@@ -886,6 +888,8 @@ get_ctx(
 
   if (!res) {
       *ff1_ctx = ctx_element->fpe_ctx;
+      *key_number = ctx_element->key_number;
+
   }
 
   free(key_str);
