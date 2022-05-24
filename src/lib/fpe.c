@@ -144,6 +144,7 @@ struct ffs {
   } tweak;
   int tweak_min_len;
   int tweak_max_len;
+  // TODO really need to determine if input character set is multibyte
   ffs_character_types character_types;
 };
 
@@ -368,15 +369,16 @@ static int get_json_int(
 static void
 ctx_cache_element_destroy(void * const e) {
   struct ctx_cache_element * ctx = (struct ctx_cache_element *) e;
-   ff1_ctx_destroy((struct ff1_ctx *const)ctx->fpe_ctx);
-   free(e);
+  ff1_ctx_destroy((struct ff1_ctx *const)ctx->fpe_ctx);
+  free(e);
 }
 
 static int
-ctx_cache_element_create(struct ctx_cache_element ** e,
+ctx_cache_element_create(
+  struct ctx_cache_element ** e,
   struct ff1_ctx *const ff1_ctx,
-  unsigned int key_number
-) {
+  unsigned int key_number)
+{
   int res = -ENOMEM;
   struct ctx_cache_element * ctx = NULL;
   ctx = calloc(1, sizeof(*ctx));
@@ -498,6 +500,44 @@ parsed_destroy(
 }
 
 static
+int parsed_create(
+  struct parsed_data ** const parsed,
+  const ffs_character_types char_types,
+  const size_t buf_len
+)
+{
+  struct parsed_data *p;
+
+  int res = -ENOMEM;
+  size_t element_size = sizeof(char);
+
+  // TODO - Be smarter about uint32 based on input / passthrough / output character types
+
+  if (char_types == MULTIBYTE) {
+    element_size = sizeof(uint32_t);
+  }
+
+  // Single alloc and just point to locations in the object.  The element size will
+  // automatically help align to right boundaries
+  p = calloc(1, sizeof(*p) + 2 * (buf_len + 1) * element_size);
+  if (p) {
+
+    p->trimmed_buf = (p + 1);
+    p->formatted_dest_buf = p->trimmed_buf + (buf_len + 1) * element_size;
+    p->element_size = element_size;
+    p->char_types = char_types;
+    if (p->trimmed_buf && p->formatted_dest_buf) {
+      res = 0;
+    } else {
+      parsed_destroy(p);
+      p = NULL;
+    }
+  }
+  *parsed = p;
+  return res;
+}
+
+static
 int parse_data(
   const struct ffs * ffs,
   const conversion_direction_type conversion_direction, // input to output, or output to input
@@ -512,6 +552,7 @@ int parse_data(
   uint32_t dest_zeroth_char = 0;
   // struct fpe_ffs_parsed * p;
 
+  // TODO - be smarter about types based on the input / passthrough / output character sets
   if (ffs->character_types == MULTIBYTE) {
     debug(csu, "(uint32_t *)parsed->trimmed_buf");
 
@@ -542,107 +583,13 @@ int parse_data(
   return res;
 } // parse_data
 
-#ifdef NODEF
-static
-int fpe_u32_ffs_parsed_create(
-  struct u32_fpe_ffs_parsed ** parsed,
-  const size_t buf_len
-)
-{
-  struct u32_fpe_ffs_parsed *p;
-
-  int res = -ENOMEM;
-
-  // Single alloc and just point to locations in the object
-  p = calloc(1, sizeof(*p) + 2 * (buf_len + 1) * sizeof(uint32_t));
-  if (p) {
-
-    p->u32_trimmed_buf = (uint32_t *) (p + 1);
-    p->u32_formatted_dest_buf = (uint32_t *)  p->u32_trimmed_buf + buf_len + 1;
-
-    if (p->u32_trimmed_buf && p->u32_formatted_dest_buf) {
-      res = 0;
-    } else {
-      fpe_ffs_parsed_destroy(p);
-      p = NULL;
-    }
-  }
-  *parsed = p;
-  return res;
-}
-
-static
-int fpe_ffs_parsed_create(
-  struct fpe_ffs_parsed ** parsed,
-  const size_t buf_len
-)
-{
-  struct fpe_ffs_parsed *p;
-
-  int res = -ENOMEM;
-
-  // Single alloc and just point to locations in the object
-  p = calloc(1, sizeof(*p) + 2 * (buf_len + 1) * sizeof(char));
-  if (p) {
-
-    p->trimmed_buf = (char *) (p + 1);
-    p->formatted_dest_buf = (char *)  p->trimmed_buf + buf_len + 1;
-
-    if (p->trimmed_buf && p->formatted_dest_buf) {
-      res = 0;
-    } else {
-      fpe_ffs_parsed_destroy(p);
-      p = NULL;
-    }
-  }
-  *parsed = p;
-  return res;
-}
-#endif
-
-static
-int parsed_create(
-  struct parsed_data ** const parsed,
-  const ffs_character_types char_types,
-  const size_t buf_len
-)
-{
-  struct parsed_data *p;
-
-  int res = -ENOMEM;
-  size_t element_size = sizeof(char);
-
-  if (char_types == MULTIBYTE) {
-    element_size = sizeof(uint32_t);
-  }
-
-  // Single alloc and just point to locations in the object.  The element size will
-  // automatically help align to right boundaries
-  p = calloc(1, sizeof(*p) + 2 * (buf_len + 1) * element_size);
-  if (p) {
-
-    p->trimmed_buf = (p + 1);
-    p->formatted_dest_buf = p->trimmed_buf + (buf_len + 1) * element_size;
-    p->element_size = element_size;
-    p->char_types = char_types;
-    if (p->trimmed_buf && p->formatted_dest_buf) {
-      res = 0;
-    } else {
-      parsed_destroy(p);
-      p = NULL;
-    }
-  }
-  *parsed = p;
-  return res;
-}
-
-
 static
 void *
 process_billing(void * data) {
     // TODO
 }
 
+// TODO
 static
 int
 ubiq_platform_process_billing(
@@ -730,6 +677,60 @@ ubiq_platform_process_billing(
 
 static
 int
+get_key_cache_string(const char * const ffs_name,
+  const int key_number,
+  char ** str) 
+{
+  size_t key_len = strlen(ffs_name) + 25; // magic number to accomodate a max int plus null terminator and colon
+  char * key_str = calloc(1, key_len);
+
+  snprintf(key_str, key_len, "%s:%d", ffs_name, key_number);
+
+  *str = key_str;
+  return 0;
+}
+
+static
+int
+create_and_add_ctx_cache(
+  struct ubiq_platform_fpe_enc_dec_obj * const e,
+  const struct ffs * const ffs,
+  int key_number,
+  struct fpe_key * key,
+  struct ctx_cache_element ** element)
+{
+  int res = 0;
+
+  struct ctx_cache_element * ctx_element = NULL;
+
+  char * key_str = NULL;
+
+  get_key_cache_string(ffs->name, key_number, &key_str);
+
+  struct ff1_ctx * ctx = NULL;
+  if (ffs->character_types == MULTIBYTE) {
+    size_t radix_len = u32_strlen(ffs->u32_input_character_set);
+    res = ff1_ctx_create(&ctx, key->buf, key->len, ffs->tweak.buf, ffs->tweak.len, ffs->tweak_min_len, ffs->tweak_max_len, radix_len);
+  } else {
+    res = ff1_ctx_create_custom_radix(&ctx, key->buf, key->len, ffs->tweak.buf, ffs->tweak.len, ffs->tweak_min_len, ffs->tweak_max_len, ffs->input_character_set);
+  }
+
+  if (!res) { res = ctx_cache_element_create(&ctx_element, ctx, key->key_number);}
+  if (!res) {res = ubiq_platform_cache_add_element(e->key_cache, key_str, CACHE_DURATION, ctx_element, &ctx_cache_element_destroy);}
+
+  if (!res) {
+    *element = ctx_element;
+  } else {
+    ctx_cache_element_destroy(ctx_element);
+  }
+  free(key_str);
+  return res;
+
+}
+
+
+static
+int
 ubiq_platform_fpe_encryption(
     const char * const host,
     const char * const papi, const char * const sapi,
@@ -801,11 +802,6 @@ ubiq_platform_fpe_encryption(
     return res;
 }
 
-// static
-// void free_ff1_ctx(void * ctx) {
-//   ff1_ctx_destroy((struct ff1_ctx *const)ctx);
-// }
-
 static
 int
 get_ctx(
@@ -822,10 +818,9 @@ get_ctx(
   int res = 0;
   struct ctx_cache_element * ctx_element = NULL;
   // struct ff1_ctx * ctx = NULL;
-  int key_len = strlen(ffs->name) + 25; // magic number to accomodate a max int plus null terminator and colon
-  char * key_str = calloc(1, key_len);
+  char * key_str = NULL;
 
-  snprintf(key_str, key_len, "%s:%d", ffs->name, *key_number);
+  get_key_cache_string(ffs->name, *key_number, &key_str);
   
   ctx_element = (struct ctx_cache_element *)ubiq_platform_cache_find_element(e->key_cache, key_str);
  
@@ -911,16 +906,35 @@ get_ctx(
       }
       cJSON_Delete(rsp_json);
       if (!res) {
-        size_t radix_len;
-        struct ff1_ctx * ctx = NULL;
-        if (ffs->character_types == MULTIBYTE) {
-          radix_len = u32_strlen(ffs->u32_input_character_set);
-          res = ff1_ctx_create(&ctx, k->buf, k->len, ffs->tweak.buf, ffs->tweak.len, ffs->tweak_min_len, ffs->tweak_max_len, radix_len);
-        } else {
-          res = ff1_ctx_create_custom_radix(&ctx, k->buf, k->len, ffs->tweak.buf, ffs->tweak.len, ffs->tweak_min_len, ffs->tweak_max_len, ffs->input_character_set);
+
+        res = create_and_add_ctx_cache(e,ffs, k->key_number, k, &ctx_element);
+
+        if (!res && (*key_number == -1)) {
+          res = create_and_add_ctx_cache(e,ffs, *key_number, k, &ctx_element);
         }
-        if (!res) { res = ctx_cache_element_create(&ctx_element, ctx, k->key_number);}
-        if (!res) {res = ubiq_platform_cache_add_element(e->key_cache, key_str, CACHE_DURATION, ctx_element, &ctx_cache_element_destroy);}
+
+        // struct ff1_ctx * ctx = NULL;
+        // if (ffs->character_types == MULTIBYTE) {
+        //   size_t radix_len = u32_strlen(ffs->u32_input_character_set);
+        //   res = ff1_ctx_create(&ctx, k->buf, k->len, ffs->tweak.buf, ffs->tweak.len, ffs->tweak_min_len, ffs->tweak_max_len, radix_len);
+        // } else {
+        //   res = ff1_ctx_create_custom_radix(&ctx, k->buf, k->len, ffs->tweak.buf, ffs->tweak.len, ffs->tweak_min_len, ffs->tweak_max_len, ffs->input_character_set);
+        // }
+        // if (!res) { res = ctx_cache_element_create(&ctx_element, ctx, k->key_number);}
+        // if (!res) {res = ubiq_platform_cache_add_element(e->key_cache, key_str, CACHE_DURATION, ctx_element, &ctx_cache_element_destroy);}
+
+        // If the key number passed in was -1, then this is a request for encrypt.  
+        // The keystr contains the string for -1, but we not have the information for an additional
+        // ctx object based on the actual key number.  This will save a server call if the encrypt / decrypt
+        // call are called for the same key number.
+
+        // if (key_number == -1) {
+        //   struct ctx_cache_element * tmp_ctx_element = NULL;
+        //   res = ctx_cache_element_create(&ctx_element, ctx
+        // }
+
+
+
         // printf("DEBUG - after create cache element %d  %p\n", res, ctx_element->fpe_ctx);
       }
       fpe_key_destroy(k);

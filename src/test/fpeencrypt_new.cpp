@@ -334,6 +334,9 @@ TEST(c_fpe_encrypt, piecewise)
     free(ptbuf);
 }
 
+
+
+
 TEST(c_fpe_decrypt, piecewise)
 {
     static const char * const pt = "123 456-7890";
@@ -580,12 +583,13 @@ TEST(c_fpe_encrypt, utf8)
     res = ubiq_platform_fpe_encrypt_data(enc,
       "ascii7", NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
     EXPECT_EQ(res, 0);
+    EXPECT_EQ(strlen(pt), ctlen);
+    printf("PT %s ctbuf %s\n", pt, ctbuf);
 
     //  res = ubiq_platform_fpe_encrypt_data(enc,
     //   "ascii8", NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
     // EXPECT_EQ(res, 0);
   
-    // EXPECT_EQ(strlen(pt), ctlen);
 
     // EXPECT_EQ(strcmp(pt, ptbuf),0);
 
@@ -881,6 +885,7 @@ TEST(c_fpe_encrypt, 10_cycles)
 TEST(c_fpe_encrypt, generic)
 {
     static const char * const pt = " 1234567890ABCDEFGHIJKLMNOP";
+    static const char * const ct = "  %?$I9Z\"3#N`hwhqdB5w:P;>>F";
 //    static const char * const pt = "00001234567890";//234567890";
     static const char * const ffs_name = "GENERIC_STRING";
 
@@ -897,12 +902,15 @@ TEST(c_fpe_encrypt, generic)
     res = ubiq_platform_fpe_encrypt(creds,
       ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
     EXPECT_EQ(res, 0);
+    EXPECT_EQ(strlen(pt), ctlen);
+    EXPECT_EQ(strcmp(ct, ctbuf), 0) << "pt(" << pt << ")    ctbuf(" << ctbuf << ")" << std::endl;
 
     res = ubiq_platform_fpe_decrypt(creds,
-      ffs_name, NULL, 0, (char *)ctbuf, strlen(ctbuf), &ptbuf, &ptlen);
+      ffs_name, NULL, 0, ctbuf, strlen(ctbuf), &ptbuf, &ptlen);
     EXPECT_EQ(res, 0);
+    EXPECT_EQ(strlen(pt), ptlen);
 
-    EXPECT_EQ(strcmp(pt, ptbuf),0);
+    EXPECT_EQ(strcmp(pt, ptbuf),0) << "pt(" << pt << ")    ptbuf(" << ptbuf << ")" << std::endl;
 
     ubiq_platform_credentials_destroy(creds);
 
