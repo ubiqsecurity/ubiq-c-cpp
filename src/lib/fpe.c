@@ -27,6 +27,8 @@
 #include <stdlib.h>
 #include <uniwidth.h>
 
+#include <locale.h>
+
 #include "cJSON/cJSON.h"
 
 /**************************************************************************************
@@ -146,10 +148,10 @@ struct ffs {
   int max_input_length;
   char * tweak_source;
   char * regex;
-  char * input_character_set;
+  char * input_character_set; // WILL be set regardless of whether data is ascii or utf8
   char * output_character_set;
   char * passthrough_character_set;
-  uint32_t * u32_input_character_set;
+  uint32_t * u32_input_character_set; // Needed for convenience.  Can be null.
   uint32_t * u32_output_character_set;
   uint32_t * u32_passthrough_character_set;
   int msb_encoding_bits;
@@ -221,6 +223,27 @@ static int encode_keynum(
     size_t ct_value = pos - ffs->output_character_set;
     ct_value += (key_number << ffs->msb_encoding_bits);
     *buf = ffs->output_character_set[ct_value];
+    res = 0;
+  }
+  return res;
+}
+
+static int u32_encode_keynum(
+  const struct ffs * ffs,
+  const unsigned int key_number,
+  uint32_t * const buf
+)
+{
+  int res = -EINVAL;
+
+  uint32_t * pos = u32_strchr(ffs->u32_output_character_set, (int)*buf);
+
+  // If *buf is null terminator or if the character cannot be found,
+  // it would be an error.
+  if (pos != NULL && *pos != 0){
+    size_t ct_value = pos - ffs->u32_output_character_set;
+    ct_value += (key_number << ffs->msb_encoding_bits);
+    *buf = ffs->u32_output_character_set[ct_value];
     res = 0;
   }
   return res;
@@ -624,10 +647,10 @@ ffs_create(
         if (!res) {res = convert_utf8_to_utf32(e->output_character_set, &e->u32_output_character_set);}
         if (!res) {res = convert_utf8_to_utf32(e->passthrough_character_set, &e->u32_passthrough_character_set);}
 
-        free(e->input_character_set);
+//        free(e->input_character_set);
         free(e->output_character_set);
         free(e->passthrough_character_set);
-        e->input_character_set = NULL;
+        // e->input_character_set = NULL;
         e->output_character_set = NULL;
         e->passthrough_character_set = NULL;
         e->character_types = UINT32;
@@ -635,7 +658,6 @@ ffs_create(
           debug(csu, "No Multibyte UTF8 found");
         e->character_types = UINT8;
   }
-
 
   if (!res) {res = get_json_int(ffs_data, "min_input_length", &e->min_input_length);}
   if (!res) {res = get_json_int(ffs_data, "max_input_length", &e->max_input_length);}
@@ -652,6 +674,10 @@ ffs_create(
     }
     free(s);
   }
+
+  printf("%s ffs->input_character_set(%s)\n", csu, e->input_character_set);
+  printf("%s ffs->u32_input_character_set(%S)\n", csu, e->u32_input_character_set);
+
 
   if (!res) {
     *ffs = e;
@@ -702,6 +728,7 @@ int parsed_create(
   const size_t buf_len
 )
 {
+  static const char * const csu = "parsed_create";
   struct parsed_data *p;
 
   int res = -ENOMEM;
@@ -711,7 +738,7 @@ int parsed_create(
     p->trimmed_buf = (uint8_t*)calloc(buf_len + 1, sizeof(uint8_t));
     // Original string length in u32;
     if (UINT32 == p->char_types) {
-      p->trimmed_buf = calloc(buf_len + 1, sizeof(uint32_t));
+      p->formatted_dest_buf = calloc(buf_len + 1, sizeof(uint32_t));
     } else {
     // Original string length but allow for all being 4 bytes long.
       p->formatted_dest_buf = calloc(4 * (buf_len + 1), sizeof(uint8_t));
@@ -741,6 +768,8 @@ int parse_data(
 
   // TODO - be smarter about types based on the input / passthrough / output character sets
   if (ffs->character_types == UINT32) {
+       setlocale(LC_ALL, "C.UTF-8");
+
     debug(csu, "(uint32_t *)parsed->trimmed_buf");
     uint32_t dest_zeroth_char;
     uint32_t * src_char_set = NULL;
@@ -758,15 +787,19 @@ int parse_data(
     // trimmed will be utf8
 
     // formatted_destination will be uint32;
-
-   if (!res) {
+printf("%s res(%d)\n", csu, res);
+    if (!res) {
       res = u32_parsing_decompose_string(
         source_string, src_char_set, ffs->u32_passthrough_character_set,
         dest_zeroth_char,
         parsed->trimmed_buf, parsed->formatted_dest_buf);
+printf("%s %s res(%d)\n", csu, "u32_parsing_decompose_string", res);
     }
     debug(csu, (char *)parsed->trimmed_buf);
     debug(csu, (char *)parsed->formatted_dest_buf);
+      printf("%s parsed trimmed_buf(%s)\n",csu, parsed->trimmed_buf);
+      printf("%s parsed formatted_dest_buf(%S)\n",csu, parsed->formatted_dest_buf);
+
     // Standard acsii
 
   } else {
@@ -912,7 +945,9 @@ create_and_add_ctx_cache(
   struct fpe_key * key,
   struct ctx_cache_element ** element)
 {
+  static const char * csu = "create_and_add_ctx_cache";
   int res = 0;
+       setlocale(LC_ALL, "C.UTF-8");
 
   struct ctx_cache_element * ctx_element = NULL;
 
@@ -921,12 +956,15 @@ create_and_add_ctx_cache(
   get_key_cache_string(ffs->name, key_number, &key_str);
 
   struct ff1_ctx * ctx = NULL;
-  if (ffs->character_types == UINT32) {
-    size_t radix_len = u32_strlen(ffs->u32_input_character_set);
-    res = ff1_ctx_create(&ctx, key->buf, key->len, ffs->tweak.buf, ffs->tweak.len, ffs->tweak_min_len, ffs->tweak_max_len, radix_len);
-  } else {
+  // if (ffs->character_types == UINT32) {
+  //   size_t radix_len = u32_strlen(ffs->u32_input_character_set);
+
+  // FF1 will be smart about ascii7 / utf8-u32 for input character set.  Simply pass in the character set
+  printf("%s ffs->input_character_set(%s)\n", csu, ffs->input_character_set);
     res = ff1_ctx_create_custom_radix(&ctx, key->buf, key->len, ffs->tweak.buf, ffs->tweak.len, ffs->tweak_min_len, ffs->tweak_max_len, ffs->input_character_set);
-  }
+  // } else {
+  //   res = ff1_ctx_create_custom_radix(&ctx, key->buf, key->len, ffs->tweak.buf, ffs->tweak.len, ffs->tweak_min_len, ffs->tweak_max_len, ffs->input_character_set);
+  // }
 
   if (!res) { res = ctx_cache_element_create(&ctx_element, ctx, key->key_number);}
   if (!res) {res = ubiq_platform_cache_add_element(e->key_cache, key_str, CACHE_DURATION, ctx_element, &ctx_cache_element_destroy);}
@@ -1253,12 +1291,13 @@ ubiq_platform_fpe_encrypt_data(
   char ** const ctbuf, size_t * const ctlen)
 {
   static const char * csu = "ubiq_platform_fpe_encrypt_data";
-  int debug_flag = 0;
+  int debug_flag = 1;
   int res = 0;
   const struct ffs * ffs_definition = NULL;
   struct parsed_data * parsed = NULL;
   struct ff1_ctx * ctx = NULL;
   char * ct = NULL;
+  uint32_t * u32_ct = NULL;
   int key_number = -1;
   // Get FFS (cache or otherwise)
   res = ffs_get_def(enc, ffs_name, &ffs_definition);
@@ -1283,13 +1322,13 @@ ubiq_platform_fpe_encrypt_data(
     // Get Encryption object (cache or otherwise - returns ff1_ctx object (ffs_name and current key_number)
   // Passing ffs_definition since it includes algorithm
   debug_flag && printf("%s \n \t%s\n \t %s\n",csu, ffs_definition->input_character_set, ffs_definition->output_character_set);
-  debug_flag && printf("%s \n \tres(%i)\n",csu, res);
+  debug_flag && printf("%s \n \t%s res(%i)\n",csu, "parse_data", res);
   if (!res) {res = get_ctx(enc, ffs_definition, &key_number , &ctx);}
     // For encrypt - get FFS and get encryption object could be same call
     // For decrypt - need to get FFS first so know how to decode key num
     //               Then get Decryption Object (ff1_ctx) (ffs_name and key number)
 
-  debug_flag && printf("%s \n \tres(%i)\n",csu, res);
+  debug_flag && printf("%s \n \t%s res(%i)\n",csu, "get_ctx", res);
     // ff1_encrypt
     if (!res ) {
       debug(csu, "before ct = malloc");
@@ -1311,7 +1350,28 @@ ubiq_platform_fpe_encrypt_data(
 
     // Convert to output radix - UTF8
 
-    if (!res) { res = str_convert_radix(ct, ffs_definition->input_character_set, ffs_definition->output_character_set, ct);}
+    // CT is in UTF8
+
+    // If formatted_output is UINT32, then need either passthrough or output characterset are utf8.
+    // Adjust processing accordingly.
+
+    if (!res) { 
+      if (ffs_definition->u32_output_character_set) {
+        // strlen may be longer than characters but not major issue
+        u32_ct = calloc((strlen(ct) + 1), sizeof(uint32_t));
+        if (!u32_ct) {
+          res = -ENOMEM;
+        } else {
+          res = str_convert_u32_radix(ct, ffs_definition->input_character_set, ffs_definition->u32_output_character_set, u32_ct);
+        }
+      // } else if (ffs_definition->u32_passthrough_character_set) {
+      //   res = str_convert_radix(ct, ffs_definition->input_character_set, ffs_definition->output_character_set, ct);
+        // if (!res) {res = convert_utf8_to_utf32(ct, &u32_ct);}
+      }else {
+        res = str_convert_radix(ct, ffs_definition->input_character_set, ffs_definition->output_character_set, ct);
+      }
+    }
+
 
     debug(csu, "after radix");
     debug(csu, ct);
@@ -1320,30 +1380,72 @@ ubiq_platform_fpe_encrypt_data(
     // Encode ct
     if (!res) {
       // Could change length of CT since number of bytes of first char could change.
-      res = encode_keynum(ffs_definition, key_number, ct);
+      if (u32_ct) {
+        res = u32_encode_keynum(ffs_definition, key_number, u32_ct);
+      } else {
+        res = encode_keynum(ffs_definition, key_number, ct);
+      }
     }
 
     if (!res) {
-    // Merge encoded key with cipher text
-      char * tmp = strdup(parsed->formatted_dest_buf);
-      if (tmp == NULL) {
-        res = -ENOMEM;
-      }
-
-      if (!res) {
-        size_t src_idx=0;
-        for (size_t i = 0; i < ptlen; i++) {
-          // Anything that isn't a zeroth character is a passthrough and can be skipped
-          if (tmp[i] == ffs_definition->output_character_set[0]) {
-            tmp[i] = ct[src_idx++];
-          } 
+      if (parsed->char_types == UINT32) {
+        uint32_t * tmp = u32_strdup(parsed->formatted_dest_buf);
+        if (tmp == NULL) {
+          res = -ENOMEM;
         }
+
+        if (!res) {
+          size_t src_idx=0;
+
+          if (ffs_definition->u32_output_character_set) {
+            for (size_t i = 0; i < u32_strlen(parsed->formatted_dest_buf); i++) {
+              if (tmp[i] == ffs_definition->u32_output_character_set[0]) {
+                tmp[i] = u32_ct[src_idx++];
+              }
+            } 
+          } // if
+          else {
+            // Possible that passthrough are utf8 but input / output are not
+            for (size_t i = 0; i < u32_strlen(parsed->formatted_dest_buf); i++) {
+              if (tmp[i] == ffs_definition->output_character_set[0]) {
+                tmp[i] = ct[src_idx++];
+              }
+            }
+          } // else
+        } // !res
+        if (!res) {
+          convert_utf32_to_utf8(tmp,(uint8_t **) ctbuf);
+          *ctlen = strlen(*ctbuf);
+//          *ctbuf = tmp;      
+//          *ctlen = ptlen;
+        }
+
+      } // UINT32
+      else {
+        char * tmp = strdup(parsed->formatted_dest_buf);
+        if (tmp == NULL) {
+          res = -ENOMEM;
+        }
+
+        if (!res) {
+          size_t src_idx=0;
+          for (size_t i = 0; i < ptlen; i++) {
+            // Anything that isn't a zeroth character is a passthrough and can be skipped
+            if (tmp[i] == ffs_definition->output_character_set[0]) {
+              tmp[i] = ct[src_idx++];
+            } 
+          }
+        }
+
+        if (!res) {
+          *ctbuf = tmp;      
+          *ctlen = ptlen;
+        }
+
       }
 
-      if (!res) {
-        *ctbuf = tmp;      
-        *ctlen = ptlen;
-      }
+
+    // Merge encoded key with cipher text
     }
     debug(csu, "Before Destroy parsed");
 

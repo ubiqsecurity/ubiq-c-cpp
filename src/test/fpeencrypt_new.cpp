@@ -47,6 +47,56 @@ TEST_F(cpp_fpe_encrypt, simple)
   EXPECT_EQ(ct, ct2);
 }
 
+TEST_F(cpp_fpe_encrypt, ascii7_rt)
+{
+  std::string pt("0123456 789ABCDEF-abcdef");
+  std::string ct;
+  std::string rt;
+
+  ASSERT_NO_THROW(
+      ct = ubiq::platform::fpe::encrypt(_creds, "ascii7", pt));
+
+  ASSERT_NO_THROW(
+      rt = ubiq::platform::fpe::decrypt(_creds, "ascii7", ct));
+
+  EXPECT_EQ(rt, pt);
+}
+
+TEST_F(cpp_fpe_encrypt, ascii8_rt)
+{
+  std::string pt("0ÑÒ12-345Õ6789abcABCÊÒËÌÍÎ ÏðñÓòóôÔ");
+  std::string ct;
+  std::string expected("0ÑÒ00-0AÞÕEÌc6jlO6ßlgÒF8gÌ ËK3ÓifMÔ");
+  std::string rt;
+
+  ASSERT_NO_THROW(
+      ct = ubiq::platform::fpe::encrypt(_creds, "ascii8", pt));
+
+  EXPECT_EQ(ct, expected);
+  // std::cout << "ct: " << ct << std::endl;
+
+  // ASSERT_NO_THROW(
+  //     rt = ubiq::platform::fpe::decrypt(_creds, "ascii8", ct));
+
+  EXPECT_EQ(rt, pt);
+}
+
+TEST_F(cpp_fpe_encrypt, unicode_rt)
+{
+  
+  std::string pt("Õ0123ʓ4Ò56789-abcAʒBʕCÊËÌÍʐÎÏðñòʔóôÑĵĶķĸ-ĹϺϻʑϼϽÓϾϿÔ");
+  std::string ct;
+  std::string rt;
+
+  ASSERT_NO_THROW(
+      ct = ubiq::platform::fpe::encrypt(_creds, "unicode", pt));
+
+  ASSERT_NO_THROW(
+      rt = ubiq::platform::fpe::decrypt(_creds, "unicode", ct));
+
+  EXPECT_EQ(rt, pt);
+}
+
 TEST_F(cpp_fpe_encrypt, simple_search)
 {
   std::string pt("ABCDEFGHI");
@@ -1498,27 +1548,27 @@ TEST(c_fpe_encrypt, new)
     res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
     ASSERT_EQ(res, 0);
 
-    // res = ubiq_platform_fpe_encrypt_data(enc,
-    //   ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
-    // EXPECT_EQ(res, 0);
-    // EXPECT_EQ(strlen(pt), ctlen);
+    res = ubiq_platform_fpe_encrypt_data(enc,
+      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+    EXPECT_EQ(res, 0);
+    EXPECT_EQ(strlen(pt), ctlen);
 
-    // res = ubiq_platform_fpe_encrypt_data(enc,
-    //   ffs_name, NULL, 0, pt, strlen(pt), &ctbuf2, &ctlen2);
-    // EXPECT_EQ(res, 0);
+    res = ubiq_platform_fpe_encrypt_data(enc,
+      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf2, &ctlen2);
+    EXPECT_EQ(res, 0);
 
-    // res = ubiq_platform_fpe_decrypt_data(enc,
-    //    ffs_name, NULL, 0, (char *)ctbuf, ctlen, &ptbuf, &ptlen);
-    // EXPECT_EQ(res, 0);
+    res = ubiq_platform_fpe_decrypt_data(enc,
+       ffs_name, NULL, 0, (char *)ctbuf, ctlen, &ptbuf, &ptlen);
+    EXPECT_EQ(res, 0);
 
-    // res = ubiq_platform_fpe_decrypt_data(enc,
-    //    ffs_name, NULL, 0, (char *)ctbuf2, ctlen2, &ptbuf2, &ptlen2);
-    // EXPECT_EQ(res, 0);
-    // //
-    // EXPECT_EQ(strcmp(pt, ptbuf),0);
-    // EXPECT_EQ(strcmp(pt, ptbuf2),0);
+    res = ubiq_platform_fpe_decrypt_data(enc,
+       ffs_name, NULL, 0, (char *)ctbuf2, ctlen2, &ptbuf2, &ptlen2);
+    EXPECT_EQ(res, 0);
+    //
+    EXPECT_EQ(strcmp(pt, ptbuf),0);
+    EXPECT_EQ(strcmp(pt, ptbuf2),0);
 
-    // EXPECT_EQ(ptlen, ctlen);
+    EXPECT_EQ(ptlen, ctlen);
 
     ubiq_platform_fpe_enc_dec_destroy(enc);
 
