@@ -95,6 +95,63 @@ parsing_decompose_string(
     return err;
   }
 
+int
+u32_parsing_decompose_string(
+    const uint8_t * const input_string, // Null terminated
+    const uint32_t * const input_character_set, // Null terminated
+    const uint32_t * const passthrough_character_set, // Null terminated
+    const uint32_t zeroth_char,
+    uint8_t * trimmed_characters, // Preallocated and filled with char[0] from input characterset.  Should be same length as input string
+    uint32_t * empty_formatted_output // Preallocated and filled with char[0] from OUTPUT characterset, Should be same length as input string
+  )
+{
+  int err;
+  err = 0;
+
+  uint32_t * u32_src = NULL;
+  uint32_t * f = empty_formatted_output;
+  uint32_t * u32_trimmed = (uint32_t *)calloc(strlen(input_string), sizeof(uint32_t));
+  uint32_t * t = u32_trimmed;
+
+  err = convert_utf8_to_utf32(input_string, &u32_src);
+
+  if (!err && u32_trimmed) {
+    err = -ENOMEM;
+  }
+
+  const uint32_t * i = u32_src;
+
+  while ((0 == err) && *i) {
+    // Making assumption that input character is more likely to be in input character set, not
+    // passthrough, so check input character set first, even though check may take longer.
+    if (u32_strchr(input_character_set, *i))
+    {
+      *t++ = *i;
+      *f++ = zeroth_char;
+      // Trimmed may be shorter than input so make sure to include null terminator
+      // after last character
+      *t = 0;
+    }
+    // If the input string matches a passthrough character, copy
+    // to empty formatted output string
+    else if (passthrough_character_set && u32_strchr(passthrough_character_set, *i))
+    {
+      *f++ = *i;
+    }
+    // If the string is in the input characterset,
+    // copy to trimmed characters
+    else  {
+      err = -EINVAL;
+    }
+    i++;
+  }
+
+  if (!err) {
+    convert_utf32_to_utf8(u32_trimmed, &trimmed_characters);
+  }
+  return err;
+}
+
 
 
 // Null terminated

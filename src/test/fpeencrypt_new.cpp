@@ -1460,7 +1460,7 @@ TEST_F(cpp_fpe_encrypt, 1m)
 
     ct = _enc.encrypt(ffs_name, pt);
 
-    for (unsigned long i = 0; i < 1000; i++) {
+    for (unsigned long i = 0; i < 1000000; i++) {
         auto start = std::chrono::steady_clock::now();
 
         ct = _enc.encrypt(ffs_name, pt);

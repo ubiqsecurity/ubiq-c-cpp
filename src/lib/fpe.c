@@ -64,7 +64,7 @@
 
 static const time_t CACHE_DURATION = 3 * 24 * 60 * 60;
 
-typedef enum {MULTIBYTE=0, SIMPLE_CHAR=1}  ffs_character_types ;
+typedef enum {UINT32=0, UINT8=1}  ffs_character_types ;
 typedef enum {PARSE_INPUT_TO_OUTPUT = 0, PARSE_OUTPUT_TO_INPUT = 1} conversion_direction_type;
 
 /**************************************************************************************
@@ -81,23 +81,39 @@ struct fpe_key {
 
 
 /* Used if the FFS supports UTF8 characters */
-struct u32_fpe_ffs_parsed
-{
-  uint32_t * u32_trimmed_buf;
-  uint32_t * u32_formatted_dest_buf;
-};
+// struct u32_fpe_ffs_parsed
+// {
+//   uint32_t * u32_trimmed_buf;
+//   uint32_t * u32_formatted_dest_buf;
+// };
 
-struct fpe_ffs_parsed
-{
-  char * trimmed_buf;
-  char * formatted_dest_buf;
-};
+// struct fpe_ffs_parsed
+// {
+//   char * trimmed_buf;
+//   char * formatted_dest_buf;
+// };
+
+// struct parsed_data
+// {
+//   // Trimmed will be either ascii or utf8
+//   // Allocated to PT / CT strlen
+//   void * trimmed_buf;
+//   // Will be either char or uint32_t
+//   // zeroth characte could  be MB, so length is worst case - 4 * strlen of PT or CT
+//   void * formatted_dest_buf;
+//   int element_size;
+//   ffs_character_types char_types;
+// };
 
 struct parsed_data
 {
-  void * trimmed_buf;
+  // Trimmed will be either ascii or utf8
+  // Allocated to PT / CT strlen
+  uint8_t * trimmed_buf;
+  // Will be either char or uint32_t
+  // zeroth character could  be MB, so length is worst case - 4 * strlen of PT or CT
   void * formatted_dest_buf;
-  int element_size;
+  // char types will be indication of whether formatted dest is uint32 or uint8
   ffs_character_types char_types;
 };
 
@@ -229,6 +245,163 @@ static int decode_keynum(
     }
   return res;
 }
+
+// TODO - Need function that will convert from char to u32 radix
+// TODO - need function that will convert from u32 to char radix
+
+static
+int
+str_convert_u32_radix(
+  const char * const src_str,
+  const char * const input_radix,
+  const uint32_t * output_radix,
+  uint32_t * out_str)
+{
+  static const char * csu = "str_convert_u32_radix";
+  static size_t magic_number = 50; // Allow for null and extra space in get_string function
+  int res = 0;
+  bigint_t n;
+
+  size_t len = strlen(src_str);
+  // Malloc causes valgrind to consider out uninitialized and spits out warnings
+  uint32_t * out = calloc(len + magic_number,sizeof(uint32_t));
+
+  bigint_init(&n);
+
+  if (out == NULL) {
+    res = -ENOMEM;
+  }
+
+  if (!res) {res = __bigint_set_str(&n, src_str, input_radix);}
+
+  if (!res) {
+    res = __u32_bigint_get_str(out, len+magic_number, output_radix, &n);
+    (debug) && printf("__bigint_get_str res (%d), out %s\n", res, out);
+
+    size_t out_len = u32_strlen(out);
+
+    // Make sure the get_string succeeded
+    if ((!res) && (out_len > len)) {
+      res = -EINVAL;
+    } 
+    
+    if (!res) {
+      // // pad the leading characters of the output radix with zeroth characterchar
+      uint32_t * c = out_str;
+      for (int i = 0; i < len - out_len; i++) {
+        *c = output_radix[0];
+        c++;
+      }
+      u32_strcpy(c, out);
+    }
+  }
+  bigint_deinit(&n);
+  free(out);
+  return res;
+}
+
+static
+int
+u32_str_convert_radix(
+  const uint32_t * const src_str,
+  const uint32_t * const input_radix,
+  const char * output_radix,
+  char * out_str)
+{
+  static const char * csu = "u32_str_convert_radix";
+  static size_t magic_number = 50; // Allow for null and extra space in get_string function
+  int res = 0;
+  bigint_t n;
+
+  size_t len = u32_strlen(src_str);
+  // Malloc causes valgrind to consider out uninitialized and spits out warnings
+  char * out = calloc(len + magic_number,sizeof(char));
+
+  bigint_init(&n);
+
+  if (out == NULL) {
+    res = -ENOMEM;
+  }
+
+  if (!res) {res = __u32_bigint_set_str(&n, src_str, input_radix);}
+
+  if (!res) {
+    res = __bigint_get_str(out, len+magic_number, output_radix, &n);
+    (debug) && printf("__bigint_get_str res (%d), out %s\n", res, out);
+
+    size_t out_len = strlen(out);
+
+    // Make sure the get_string succeeded
+    if ((!res) && (out_len > len)) {
+      res = -EINVAL;
+    } 
+    
+    if (!res) {
+      // // pad the leading characters of the output radix with zeroth characterchar
+      char * c = out_str;
+      for (int i = 0; i < len - out_len; i++) {
+        *c = output_radix[0];
+        c++;
+      }
+      strcpy(c, out);
+    }
+  }
+  bigint_deinit(&n);
+  free(out);
+  return res;
+}
+
+static
+int
+u32_str_convert_u32_radix(
+  const uint32_t * const src_str,
+  const uint32_t * const input_radix,
+  const uint32_t * output_radix,
+  uint32_t * out_str)
+{
+  static const char * csu = "u32_str_convert_u32_radix";
+  static size_t magic_number = 50; // Allow for null and extra space in get_string function
+  int res = 0;
+  bigint_t n;
+
+  size_t len = u32_strlen(src_str);
+  // Malloc causes valgrind to consider out uninitialized and spits out warnings
+  uint32_t * out = calloc(len + magic_number,sizeof(uint32_t));
+
+  bigint_init(&n);
+
+  if (out == NULL) {
+    res = -ENOMEM;
+  }
+
+  if (!res) {res = __u32_bigint_set_str(&n, src_str, input_radix);}
+
+  if (!res) {
+    res = __u32_bigint_get_str(out, len+magic_number, output_radix, &n);
+    (debug) && printf("__bigint_get_str res (%d), out %s\n", res, out);
+
+    size_t out_len = u32_strlen(out);
+
+    // Make sure the get_string succeeded
+    if ((!res) && (out_len > len)) {
+      res = -EINVAL;
+    } 
+    
+    if (!res) {
+      // // pad the leading characters of the output radix with zeroth character
+      uint32_t * c = out_str;
+      for (int i = 0; i < len - out_len; i++) {
+        *c = output_radix[0];
+        c++;
+      }
+      u32_strcpy(c, out);
+    }
+  }
+  bigint_deinit(&n);
+  free(out);
+  return res;
+}
+
 
 static
 int
@@ -457,10 +630,10 @@ ffs_create(
         e->input_character_set = NULL;
         e->output_character_set = NULL;
         e->passthrough_character_set = NULL;
-        e->character_types = MULTIBYTE;
+        e->character_types = UINT32;
   } else {
           debug(csu, "No Multibyte UTF8 found");
-        e->character_types = SIMPLE_CHAR;
+        e->character_types = UINT8;
   }
 
 
@@ -490,14 +663,37 @@ ffs_create(
 }
 
 
+// static
+// void
+// parsed_destroy(
+//   void * const parsed
+// )
+// {
+//   free((void *)parsed);
+// }
+
 static
 void
 parsed_destroy(
-  void * const parsed
+  struct parsed_data * const parsed
 )
 {
+  static const char * csu = "parsed_destroy";
+ 
+  if (parsed) {free(parsed->trimmed_buf);}
+  if (parsed) {free(parsed->formatted_dest_buf);}
   free((void *)parsed);
 }
+
+// static
+// int parsed_create(
+//   struct parsed_data ** const parsed,
+//   const ffs_character_types char_types,
+//   const size_t buf_len
+// ) 
+// {
+//   return -EINVAL;
+// }
 
 static
 int parsed_create(
@@ -509,23 +705,17 @@ int parsed_create(
   struct parsed_data *p;
 
   int res = -ENOMEM;
-  size_t element_size = sizeof(char);
-
-  // TODO - Be smarter about uint32 based on input / passthrough / output character types
-
-  if (char_types == MULTIBYTE) {
-    element_size = sizeof(uint32_t);
-  }
-
-  // Single alloc and just point to locations in the object.  The element size will
-  // automatically help align to right boundaries
-  p = calloc(1, sizeof(*p) + 2 * (buf_len + 1) * element_size);
+  p = calloc(1, sizeof(*p));
   if (p) {
-
-    p->trimmed_buf = (p + 1);
-    p->formatted_dest_buf = p->trimmed_buf + (buf_len + 1) * element_size;
-    p->element_size = element_size;
     p->char_types = char_types;
+    p->trimmed_buf = (uint8_t*)calloc(buf_len + 1, sizeof(uint8_t));
+    // Original string length in u32;
+    if (UINT32 == p->char_types) {
+      p->trimmed_buf = calloc(buf_len + 1, sizeof(uint32_t));
+    } else {
+    // Original string length but allow for all being 4 bytes long.
+      p->formatted_dest_buf = calloc(4 * (buf_len + 1), sizeof(uint8_t));
+    }
     if (p->trimmed_buf && p->formatted_dest_buf) {
       res = 0;
     } else {
@@ -548,13 +738,36 @@ int parse_data(
 {
   static const char * csu = "parse_data";
   int res = 0;
-  const void * src_char_set = NULL;
-  uint32_t dest_zeroth_char = 0;
-  // struct fpe_ffs_parsed * p;
 
   // TODO - be smarter about types based on the input / passthrough / output character sets
-  if (ffs->character_types == MULTIBYTE) {
+  if (ffs->character_types == UINT32) {
     debug(csu, "(uint32_t *)parsed->trimmed_buf");
+    uint32_t dest_zeroth_char;
+    uint32_t * src_char_set = NULL;
+
+    if (conversion_direction == PARSE_INPUT_TO_OUTPUT) {// input to output
+      src_char_set = ffs->u32_input_character_set;
+      dest_zeroth_char = ffs->u32_output_character_set[0];
+    } else if (conversion_direction == PARSE_OUTPUT_TO_INPUT) {
+      src_char_set = ffs->u32_output_character_set;
+      dest_zeroth_char = ffs->u32_input_character_set[0];
+    } else {
+      res = -EINVAL;
+    }
+
+    // trimmed will be utf8
+
+    // formatted_destination will be uint32;
+
+   if (!res) {
+      res = u32_parsing_decompose_string(
+        source_string, src_char_set, ffs->u32_passthrough_character_set,
+        dest_zeroth_char,
+        parsed->trimmed_buf, parsed->formatted_dest_buf);
+    }
+    debug(csu, (char *)parsed->trimmed_buf);
+    debug(csu, (char *)parsed->formatted_dest_buf);
+    // Standard acsii
 
   } else {
     char dest_zeroth_char;
@@ -708,7 +921,7 @@ create_and_add_ctx_cache(
   get_key_cache_string(ffs->name, key_number, &key_str);
 
   struct ff1_ctx * ctx = NULL;
-  if (ffs->character_types == MULTIBYTE) {
+  if (ffs->character_types == UINT32) {
     size_t radix_len = u32_strlen(ffs->u32_input_character_set);
     res = ff1_ctx_create(&ctx, key->buf, key->len, ffs->tweak.buf, ffs->tweak.len, ffs->tweak_min_len, ffs->tweak_max_len, radix_len);
   } else {
@@ -1040,6 +1253,7 @@ ubiq_platform_fpe_encrypt_data(
   char ** const ctbuf, size_t * const ctlen)
 {
   static const char * csu = "ubiq_platform_fpe_encrypt_data";
+  int debug_flag = 0;
   int res = 0;
   const struct ffs * ffs_definition = NULL;
   struct parsed_data * parsed = NULL;
@@ -1048,38 +1262,64 @@ ubiq_platform_fpe_encrypt_data(
   int key_number = -1;
   // Get FFS (cache or otherwise)
   res = ffs_get_def(enc, ffs_name, &ffs_definition);
+  debug_flag && printf("%s \n \t%s res(%i)\n",csu, "ffs_get_def", res);
 
   // Create an object to hold the parsed data, 
-  if (!res) { res = CAPTURE_ERROR(enc, parsed_create(&parsed, ffs_definition->character_types, ptlen),  NULL); }
+
+  ffs_character_types output_formatted_type = UINT8;
+
+  // Since this is encrypt, really just care if PASSTHROUGH or OUT is multibyte
+  if (!res && (ffs_definition->u32_passthrough_character_set || ffs_definition->u32_output_character_set)) {
+    output_formatted_type = UINT32;
+  }
+
+  if (!res) { res = CAPTURE_ERROR(enc, parsed_create(&parsed, output_formatted_type, ptlen),  NULL); }
+  debug_flag && printf("%s \n \t%s res(%i)\n",csu, "parsed_create", res);
+
+  // Parse out the trimmed data (UTF8) / Formatted Output - either u32 or ascii7
+
 
   if (!res) { res = CAPTURE_ERROR(enc, parse_data(ffs_definition, PARSE_INPUT_TO_OUTPUT, ptbuf, ptlen, parsed ), "Invalid input string character(s)");}
     // Get Encryption object (cache or otherwise - returns ff1_ctx object (ffs_name and current key_number)
-
   // Passing ffs_definition since it includes algorithm
+  debug_flag && printf("%s \n \t%s\n \t %s\n",csu, ffs_definition->input_character_set, ffs_definition->output_character_set);
+  debug_flag && printf("%s \n \tres(%i)\n",csu, res);
   if (!res) {res = get_ctx(enc, ffs_definition, &key_number , &ctx);}
     // For encrypt - get FFS and get encryption object could be same call
     // For decrypt - need to get FFS first so know how to decode key num
     //               Then get Decryption Object (ff1_ctx) (ffs_name and key number)
 
+  debug_flag && printf("%s \n \tres(%i)\n",csu, res);
     // ff1_encrypt
     if (!res ) {
       debug(csu, "before ct = malloc");
       // TODO Need check for input character set in ascii8
       ct = malloc(ptlen + 1);
       debug(csu, "before ff1_encrypt");
+
+      // Left in CT is in utf8
       res = ff1_encrypt(ctx, ct, parsed->trimmed_buf, tweak, tweaklen);
       debug(csu, "after ff1_encrypt");
       debug(csu, ct);
     }
     // change radix
-      debug(csu, "before radix");
+      // debug(csu, "before radix");
+      // printf("%s BEFORE CT(%s)\n", csu, ct);
+
+
+    // TODO - Need to address cases where input or output radix are utf8
+
+    // Convert to output radix - UTF8
+
     if (!res) { res = str_convert_radix(ct, ffs_definition->input_character_set, ffs_definition->output_character_set, ct);}
 
     debug(csu, "after radix");
     debug(csu, ct);
+      // printf("%s AFTER CT(%s)\n", csu, ct);
 
     // Encode ct
     if (!res) {
+      // Could change length of CT since number of bytes of first char could change.
       res = encode_keynum(ffs_definition, key_number, ct);
     }
 
@@ -1105,8 +1345,11 @@ ubiq_platform_fpe_encrypt_data(
         *ctlen = ptlen;
       }
     }
+    debug(csu, "Before Destroy parsed");
 
     parsed_destroy(parsed);
+        debug(csu, "Before Free CT");
+
     free(ct);
 
 

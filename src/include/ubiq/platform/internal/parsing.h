@@ -27,11 +27,11 @@ parsing_decompose_string(
 
 int
 u32_parsing_decompose_string(
-    const uint32_t * const input_string, // Null terminated
+    const uint8_t * const input_string, // Null terminated
     const uint32_t * const input_character_set, // Null terminated
     const uint32_t * const passthrough_character_set, // Null terminated
     const uint32_t zeroth_char,
-    uint32_t * trimmed_characters, // Preallocated and filled with char[0] from input characterset.  Should be same length as input string
+    uint8_t * trimmed_characters, // Preallocated and filled with char[0] from input characterset.  Should be same length as input string
     uint32_t * empty_formatted_output // Return should either have zeroth character or passthrough character
   );
 
