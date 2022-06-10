@@ -44,6 +44,8 @@ TEST_F(cpp_fpe_encrypt, simple)
   ASSERT_NO_THROW(
       ct2 = ubiq::platform::fpe::encrypt(_creds, "ALPHANUM_SSN", std::vector<std::uint8_t>(), pt));
 
+  std::cout << "pt(" << pt << ")  ct(" << ct << ")" << std::endl;
+
   EXPECT_EQ(ct, ct2);
 }
 

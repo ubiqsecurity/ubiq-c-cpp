@@ -81,6 +81,14 @@ struct fpe_key {
         unsigned int key_number;
 };
 
+// Buf could be char, uint8_t or int, uint32, etc.
+// len is the number of units, not including null terminator.
+// buf will always point to at least one longer than len in order to handle the
+// null terminator
+struct data {
+        void * buf;
+        size_t len;
+};
 
 /* Used if the FFS supports UTF8 characters */
 // struct u32_fpe_ffs_parsed
@@ -106,6 +114,12 @@ struct fpe_key {
 //   int element_size;
 //   ffs_character_types char_types;
 // };
+
+struct parsed_data_new
+{
+  struct data trimmed_buf;
+  struct data formatted_dest_buf;
+};
 
 struct parsed_data
 {
@@ -213,7 +227,11 @@ static int encode_keynum(
   char * const buf
 )
 {
+  static const char * const csu = "encode_keynum";
+  int debug_flag = 0;
   int res = -EINVAL;
+
+  debug_flag && printf("%s \n \t%s res(%i)\n",csu, "start", res);
 
   char * pos = strchr(ffs->output_character_set, (int)*buf);
 
@@ -221,6 +239,8 @@ static int encode_keynum(
   // it would be an error.
   if (pos != NULL && *pos != 0){
     size_t ct_value = pos - ffs->output_character_set;
+  debug_flag && printf("%s \n \tct_value(%d) res(%i)\n",csu, ct_value, res);
+  debug_flag && printf("%s \n \tkey_number%d) res(%i)\n",csu, key_number, res);
     ct_value += (key_number << ffs->msb_encoding_bits);
     *buf = ffs->output_character_set[ct_value];
     res = 0;
@@ -616,6 +636,7 @@ ffs_create(
 {
   static const char * const csu = "ffs_create";
   int res = 0;
+  int debug_flag = 0;
 
   // Going to allocate memory as a single block
   // First with the structure.  Then with the
@@ -675,8 +696,8 @@ ffs_create(
     free(s);
   }
 
-  printf("%s ffs->input_character_set(%s)\n", csu, e->input_character_set);
-  printf("%s ffs->u32_input_character_set(%S)\n", csu, e->u32_input_character_set);
+  debug_flag && printf("%s ffs->input_character_set(%s)\n", csu, e->input_character_set);
+  debug_flag && printf("%s ffs->u32_input_character_set(%S)\n", csu, e->u32_input_character_set);
 
 
   if (!res) {
@@ -711,6 +732,19 @@ parsed_destroy(
   free((void *)parsed);
 }
 
+static
+void
+parsed_destroy_new(
+  struct parsed_data_new * const parsed
+)
+{
+  static const char * csu = "parsed_destroy";
+ 
+  if (parsed) {free(parsed->trimmed_buf.buf);}
+  if (parsed) {free(parsed->formatted_dest_buf.buf);}
+  free((void *)parsed);
+}
+
 // static
 // int parsed_create(
 //   struct parsed_data ** const parsed,
@@ -720,6 +754,42 @@ parsed_destroy(
 // {
 //   return -EINVAL;
 // }
+
+static
+int parsed_create_new(
+  struct parsed_data_new ** const parsed,
+  const ffs_character_types char_types,
+  const size_t buf_len
+)
+{
+  static const char * const csu = "parsed_create_new";
+  struct parsed_data_new *p;
+
+  size_t element_size = sizeof(char);
+  if (char_types == UINT32) {
+    element_size = sizeof(uint32_t);
+  }
+
+  int res = -ENOMEM;
+  p = calloc(1, sizeof(*p));
+  if (p) {
+    p->trimmed_buf.buf = calloc(buf_len + 1, element_size);
+    p->trimmed_buf.len = buf_len;
+
+    p->formatted_dest_buf.buf = calloc(buf_len + 1, element_size);
+    p->formatted_dest_buf.len = buf_len;
+
+  
+    if (p->trimmed_buf.buf && p->formatted_dest_buf.buf) {
+      res = 0;
+    } else {
+      parsed_destroy_new(p);
+      p = NULL;
+    }
+  }
+  *parsed = p;
+  return res;
+}
 
 static
 int parsed_create(
@@ -755,6 +825,47 @@ int parsed_create(
 }
 
 static
+int char_parse_data(
+  const struct ffs * ffs,
+  const conversion_direction_type conversion_direction, // input to output, or output to input
+  const char * const source_string,
+  const size_t source_len,
+  struct parsed_data_new * const parsed
+)
+{
+  static const char * csu = "char_parse_data";
+  int res = 0;
+
+  // TODO - be smarter about types based on the input / passthrough / output character sets
+
+    char dest_zeroth_char;
+    char * src_char_set = NULL;
+    if (conversion_direction == PARSE_INPUT_TO_OUTPUT) {// input to output
+      src_char_set = ffs->input_character_set;
+      dest_zeroth_char = ffs->output_character_set[0];
+    } else if (conversion_direction == PARSE_OUTPUT_TO_INPUT) {
+      src_char_set = ffs->output_character_set;
+      dest_zeroth_char = ffs->input_character_set[0];
+    } else {
+      res = -EINVAL;
+    }
+
+    if (!res) {
+      res = char_parsing_decompose_string(
+        source_string, src_char_set, ffs->passthrough_character_set,
+        dest_zeroth_char,
+        (char *)parsed->trimmed_buf.buf, &parsed->trimmed_buf.len,
+        (char *) parsed->formatted_dest_buf.buf,  &parsed->formatted_dest_buf.len);
+    }
+    // debug(csu, (char *)parsed->trimmed_buf);
+    // debug(csu, (char *)parsed->formatted_dest_buf);
+    // Standard acsii
+
+  return res;
+} // parse_data
+
+
+static
 int parse_data(
   const struct ffs * ffs,
   const conversion_direction_type conversion_direction, // input to output, or output to input
@@ -765,6 +876,7 @@ int parse_data(
 {
   static const char * csu = "parse_data";
   int res = 0;
+  int debug_flag = 0;
 
   // TODO - be smarter about types based on the input / passthrough / output character sets
   if (ffs->character_types == UINT32) {
@@ -797,8 +909,8 @@ printf("%s %s res(%d)\n", csu, "u32_parsing_decompose_string", res);
     }
     debug(csu, (char *)parsed->trimmed_buf);
     debug(csu, (char *)parsed->formatted_dest_buf);
-      printf("%s parsed trimmed_buf(%s)\n",csu, parsed->trimmed_buf);
-      printf("%s parsed formatted_dest_buf(%S)\n",csu, parsed->formatted_dest_buf);
+      debug_flag && printf("%s parsed trimmed_buf(%s)\n",csu, parsed->trimmed_buf);
+     debug_flag && printf("%s parsed formatted_dest_buf(%S)\n",csu, parsed->formatted_dest_buf);
 
     // Standard acsii
 
@@ -945,7 +1057,8 @@ create_and_add_ctx_cache(
   struct fpe_key * key,
   struct ctx_cache_element ** element)
 {
-  static const char * csu = "create_and_add_ctx_cache";
+  static const char * const csu = "create_and_add_ctx_cache";
+  int debug_flag = 0;
   int res = 0;
        setlocale(LC_ALL, "C.UTF-8");
 
@@ -960,7 +1073,7 @@ create_and_add_ctx_cache(
   //   size_t radix_len = u32_strlen(ffs->u32_input_character_set);
 
   // FF1 will be smart about ascii7 / utf8-u32 for input character set.  Simply pass in the character set
-  printf("%s ffs->input_character_set(%s)\n", csu, ffs->input_character_set);
+  debug_flag && printf("%s ffs->input_character_set(%s)\n", csu, ffs->input_character_set);
     res = ff1_ctx_create_custom_radix(&ctx, key->buf, key->len, ffs->tweak.buf, ffs->tweak.len, ffs->tweak_min_len, ffs->tweak_max_len, ffs->input_character_set);
   // } else {
   //   res = ff1_ctx_create_custom_radix(&ctx, key->buf, key->len, ffs->tweak.buf, ffs->tweak.len, ffs->tweak_min_len, ffs->tweak_max_len, ffs->input_character_set);
@@ -1275,6 +1388,175 @@ ffs_get_def(
   return res;
 } // ffs_get_def
 
+static
+int u32_fpe_encrypt_data(
+  const struct ffs * const ffs_definition,
+  const struct ff1_ctx * const ctx,
+  const uint8_t * const tweak, const size_t tweaklen,
+  const char * const ptbuf, const size_t ptlen,
+  char ** const ctbuf, size_t * const ctlen) 
+{
+  static const char * csu = "u8_fpe_encrypt_data";
+  int debug_flag = 0;
+  int res = 0;
+  struct parsed_data * parsed = NULL;
+  char * ct = NULL;
+  uint32_t * u32_ct = NULL;
+  int key_number = -1;
+  // Get FFS (cache or otherwise)
+
+  return res;
+}
+
+static 
+int alloc(
+  const size_t nmemb,
+  const size_t size,
+  void ** data
+) 
+{
+  int res = -ENOMEM;
+
+  void * d = calloc(nmemb, size);
+  if (d) {
+    *data = d;
+    res = 0;
+  } 
+  return res;
+}
+
+static
+int finalize_output_string(
+  struct parsed_data_new * parsed,
+  const size_t original_data_len,
+  const char * const data,
+  const size_t data_len,
+  const char zero_char,
+  char ** finalized_data,
+  size_t * finalized_data_len
+)
+{
+  static const char * csu = "finalize_output_string";
+  int debug_flag = 0;
+  // To save a couple cycles - Use the parsed formatted destination buffer
+
+  debug_flag && printf("%s data(%s) data_len(%d) zero_char(%c)\n", csu, data, data_len, zero_char);
+  int res = 0;
+
+  size_t src_idx=0;
+  for (size_t i = 0; i < parsed->formatted_dest_buf.len; i++) {
+    if (((char *)parsed->formatted_dest_buf.buf)[i] == zero_char) {
+      ((char *)parsed->formatted_dest_buf.buf)[i] = data[src_idx++];
+    }
+  }
+  debug_flag && printf("%s parsed->formatted_dest_buf.buf(%s)\n", csu, parsed->formatted_dest_buf.buf);
+
+  if (!res) {
+    // Like a C++ move
+    *finalized_data = (char *)parsed->formatted_dest_buf.buf;
+    *finalized_data_len = parsed->formatted_dest_buf.len;
+    parsed->formatted_dest_buf.buf = NULL;
+    parsed->formatted_dest_buf.len = 0;
+  }
+
+  return res;
+}
+
+static
+int char_fpe_encrypt_data(
+  struct ubiq_platform_fpe_enc_dec_obj * const enc,
+  const struct ffs * const ffs_definition,
+  struct ff1_ctx * const ctx,
+  const int key_number,
+  const uint8_t * const tweak, const size_t tweaklen,
+  const char * const ptbuf, const size_t ptlen,
+  char ** const ctbuf, size_t * const ctlen)
+{
+  static const char * csu = "char_fpe_encrypt_data";
+  int debug_flag = 0;
+  int res = 0;
+  struct parsed_data_new * parsed = NULL;
+  char * ct = NULL;
+  uint32_t * u32_ct = NULL;
+
+  if (!res) { res = CAPTURE_ERROR(enc, parsed_create_new(&parsed, UINT8, ptlen),  "Memory Allocation Error"); }
+  debug_flag && printf("%s \n \t%s res(%i)\n",csu, "parsed_create_new", res);
+
+  if (!res) { res = CAPTURE_ERROR(enc, char_parse_data(ffs_definition, PARSE_INPUT_TO_OUTPUT, ptbuf, ptlen, parsed ), "Invalid input string character(s)");}
+  debug_flag && printf("%s \n \t%s res(%i)\n",csu, "char_parse_data", res);
+
+  if (!res ) { res = CAPTURE_ERROR(enc, alloc(ptlen + 1, sizeof(char), (void **)&ct), "Memory Allocation Error");}
+  debug_flag && printf("%s \n \t%s res(%i) buf(%s)\n",csu, "alloc", res, parsed->trimmed_buf.buf);
+
+  if (!res) { res = CAPTURE_ERROR(enc, ff1_encrypt(ctx, ct, parsed->trimmed_buf.buf, tweak, tweaklen), "Unable to encrypt data");}
+  debug_flag && printf("%s \n \t%s res(%i) ct(%s)\n",csu, "ff1_encrypt", res, ct);
+
+  if (!res) { res = CAPTURE_ERROR(enc, str_convert_radix(ct, ffs_definition->input_character_set, ffs_definition->output_character_set, ct), "Unable to convert to output character set");}
+  debug_flag && printf("%s \n \t%s res(%i) ct(%s)\n",csu, "str_convert_radix", res, ct);
+
+  if (!res) {res = CAPTURE_ERROR(enc, encode_keynum(ffs_definition, key_number, ct), "Unable to encode key number to cipher text");}
+  debug_flag && printf("%s \n \t%s res(%i)\n",csu, "encode_keynum", res);
+
+  if (!res) {res = CAPTURE_ERROR(enc, finalize_output_string(parsed, ptlen, ct, strlen(ct), ffs_definition->output_character_set[0], ctbuf, ctlen), "Unable to produce cipher text string");}
+  debug_flag && printf("%s \n \t%s res(%i)\n",csu, "finalize_output_string", res);
+
+  parsed_destroy_new(parsed);
+  free(ct);
+
+  return res;
+}
+
+
+static
+int char_fpe_decrypt_data(
+  struct ubiq_platform_fpe_enc_dec_obj * const enc,
+  const struct ffs * const ffs_definition,
+  const uint8_t * const tweak, const size_t tweaklen,
+  const char * const ctbuf, const size_t ctlen,
+  char ** const ptbuf, size_t * const ptlen)
+{
+  static const char * csu = "char_fpe_decrypt_data";
+  int debug_flag = 0;
+  int res = 0;
+  struct parsed_data_new * parsed = NULL;
+  struct ff1_ctx * ctx = NULL;
+  char * pt = NULL;
+  int key_number = -1;
+
+  if (!res) { res = CAPTURE_ERROR(enc, parsed_create_new(&parsed, UINT8, ctlen),  "Memory Allocation Error"); }
+  debug_flag && printf("%s \n \t%s res(%i)\n",csu, "parsed_create_new", res);
+
+  if (!res) { res = CAPTURE_ERROR(enc, char_parse_data(ffs_definition, PARSE_OUTPUT_TO_INPUT, ctbuf, ctlen, parsed ), "Invalid input string character(s)");}
+  debug_flag && printf("%s \n \t%s res(%i) trimmed(%s) formatted(%s)\n",csu, "char_parse_data", res, parsed->trimmed_buf.buf, parsed->formatted_dest_buf.buf);
+
+  if (!res ) { res = CAPTURE_ERROR(enc, alloc(ctlen + 1, sizeof(char), (void **)&pt), "Memory Allocation Error");}
+  debug_flag && printf("%s \n \t%s res(%i) buf(%s)\n",csu, "alloc", res, parsed->trimmed_buf.buf);
+
+  // decode keynum
+  if (!res) { res = CAPTURE_ERROR(enc, decode_keynum(ffs_definition, parsed->trimmed_buf.buf, &key_number ), "Unable to determine key number in cipher text");}
+  debug_flag && printf("%s \n \t%s res(%i) key(%d) buf(%s)\n",csu, "decode_keynum", res, key_number, parsed->trimmed_buf.buf);
+
+  // convert radix
+  if (!res) {res = CAPTURE_ERROR(enc, str_convert_radix( parsed->trimmed_buf.buf, ffs_definition->output_character_set, ffs_definition->input_character_set, parsed->trimmed_buf.buf), "Invalid input string");}
+  debug_flag && printf("%s \n \t%s res(%i) trimmed_buf.buf(%s)\n",csu, "str_convert_radix", res, parsed->trimmed_buf.buf);
+
+  // get ctx
+  if (!res) {res = get_ctx(enc, ffs_definition, &key_number , &ctx);}
+  debug_flag && printf("%s \n \t%s res(%i)\n",csu, "get_ctx", res);
+  
+  // decrypt
+  if (!res) { res = CAPTURE_ERROR(enc, ff1_decrypt(ctx, pt, parsed->trimmed_buf.buf, tweak, tweaklen), "Unable to decrypt data");}
+  debug_flag && printf("%s \n \t%s res(%i) (%s)\n",csu, "ff1_decrypt", res, pt);
+
+  // finalize_output_string
+  if (!res) {res = CAPTURE_ERROR(enc, finalize_output_string(parsed, ctlen, pt, strlen(pt), ffs_definition->input_character_set[0], ptbuf, ptlen), "Unable to produce plain text string");}
+  debug_flag && printf("%s \n \t%s res(%i) ptbuf(%s)\n",csu, "finalize_output_string", res, ptbuf);
+
+  parsed_destroy_new(parsed);
+  free(pt);
+
+  return res;
+}
 
 /**************************************************************************************
  *
@@ -1291,7 +1573,7 @@ ubiq_platform_fpe_encrypt_data(
   char ** const ctbuf, size_t * const ctlen)
 {
   static const char * csu = "ubiq_platform_fpe_encrypt_data";
-  int debug_flag = 1;
+  int debug_flag = 0;
   int res = 0;
   const struct ffs * ffs_definition = NULL;
   struct parsed_data * parsed = NULL;
@@ -1302,6 +1584,53 @@ ubiq_platform_fpe_encrypt_data(
   // Get FFS (cache or otherwise)
   res = ffs_get_def(enc, ffs_name, &ffs_definition);
   debug_flag && printf("%s \n \t%s res(%i)\n",csu, "ffs_get_def", res);
+
+  if (!res) {res = get_ctx(enc, ffs_definition, &key_number , &ctx);}
+  debug_flag && printf("%s \n \t%s res(%i)\n",csu, "get_ctx", res);
+
+  // If any of ICS, PCS, OCS are uint32
+
+  if (!res) {
+    if (ffs_definition->character_types == UINT8) {
+      res = char_fpe_encrypt_data(enc, ffs_definition, ctx, key_number, tweak, tweaklen, ptbuf, ptlen, ctbuf, ctlen);
+    } else {
+      // res = u32_fpe_encrypt_data(enc, ffs_definition, ctx, tweak, tweaklen, ptbuf, ptlen, ctbuf, ctlen);
+    }
+  }
+  return res;
+
+}
+int
+ubiq_platform_fpe_encrypt_data_old(
+  struct ubiq_platform_fpe_enc_dec_obj * const enc,
+  const char * const ffs_name,
+  const uint8_t * const tweak, const size_t tweaklen,
+  const char * const ptbuf, const size_t ptlen,
+  char ** const ctbuf, size_t * const ctlen)
+{
+  static const char * csu = "ubiq_platform_fpe_encrypt_data";
+  int debug_flag = 0;
+  int res = 0;
+  const struct ffs * ffs_definition = NULL;
+  struct parsed_data * parsed = NULL;
+  struct ff1_ctx * ctx = NULL;
+  char * ct = NULL;
+  uint32_t * u32_ct = NULL;
+  int key_number = -1;
+  // Get FFS (cache or otherwise)
+  res = ffs_get_def(enc, ffs_name, &ffs_definition);
+  debug_flag && printf("%s \n \t%s res(%i)\n",csu, "ffs_get_def", res);
+
+  // If ICS, PCS, OCS are MB, then everything is u32 // 
+
+  // If ICS.length <= 62, then does character mapping within fpe
+
+  // If 62 < ICS.length <= 255, then does mapping and keeps u8
+
+  // If 255 < ICS.length, then does mapping using u32
+
+
+
 
   // Create an object to hold the parsed data, 
 
@@ -1387,6 +1716,10 @@ ubiq_platform_fpe_encrypt_data(
       }
     }
 
+    // Logic has lots of conditionals in order to reduce checks by 
+    // having loop as small as possible and not rechecking for
+    // which strings are utf8 and not.
+    // TODO - Simplify / refactor
     if (!res) {
       if (parsed->char_types == UINT32) {
         uint32_t * tmp = u32_strdup(parsed->formatted_dest_buf);
@@ -1467,6 +1800,40 @@ ubiq_platform_fpe_decrypt_data(
   char ** const ptbuf, size_t * const ptlen)
 {
   static const char * csu = "ubiq_platform_fpe_decrypt_data";
+  int debug_flag = 0;
+  int res = 0;
+  const struct ffs * ffs_definition = NULL;
+  struct parsed_data * parsed = NULL;
+  struct ff1_ctx * ctx = NULL;
+  char * ct = NULL;
+  uint32_t * u32_ct = NULL;
+  int key_number = -1;
+  // Get FFS (cache or otherwise)
+  res = ffs_get_def(enc, ffs_name, &ffs_definition);
+  debug_flag && printf("%s \n \t%s res(%i)\n",csu, "ffs_get_def", res);
+
+  // If any of ICS, PCS, OCS are uint32
+
+  if (!res) {
+    if (ffs_definition->character_types == UINT8) {
+      res = char_fpe_decrypt_data(enc, ffs_definition, tweak, tweaklen, ctbuf, ctlen, ptbuf, ptlen);
+    } else {
+      // res = u32_fpe_encrypt_data(enc, ffs_definition, tweak, tweaklen, ptbuf, ptlen, ctbuf, ctlen);
+    }
+  }
+  return res;
+
+}
+
+int
+ubiq_platform_fpe_decrypt_data_old(
+  struct ubiq_platform_fpe_enc_dec_obj * const enc,
+  const char * const ffs_name,
+  const uint8_t * const tweak, const size_t tweaklen,
+  const char * const ctbuf, const size_t ctlen,
+  char ** const ptbuf, size_t * const ptlen)
+{
+  static const char * csu = "ubiq_platform_fpe_decrypt_data";
   int res = 0;
   const struct ffs * ffs_definition = NULL;
   struct parsed_data * parsed = NULL;
@@ -1477,8 +1844,38 @@ ubiq_platform_fpe_decrypt_data(
   // Get FFS (cache or otherwise)
   res = ffs_get_def(enc, ffs_name, &ffs_definition);
 
+
+  // ct is utf8
+
+  // Parse ct into trimmed and formatted PT
+
+  // extract key number from trimmed ct
+
+  // Update trimmed ct
+
+  // convert CT from output character set to input character set
+
+  // Decrypt CT (ICS)
+
+  // Merge PT with formatted input PT
+
+  // Convert PT to utf8 (if necessary)
+
+  // If output character set is utf8, then u8 -> u32 ct
+  // extract ke
+
+
+  ffs_character_types input_formatted_type = UINT8;
+
+  // Since this is encrypt, really just care if PASSTHROUGH or OUT is multibyte
+  if (!res && (ffs_definition->u32_passthrough_character_set || ffs_definition->u32_output_character_set)) {
+    input_formatted_type = UINT32;
+  }
+
+
+
   // Create an object to hold the parsed data and parse
-  if (!res) { res = CAPTURE_ERROR(enc, parsed_create(&parsed, ffs_definition->character_types, ctlen),  "Unable to allocate memory"); }
+  if (!res) { res = CAPTURE_ERROR(enc, parsed_create(&parsed, input_formatted_type, ctlen),  "Unable to allocate memory"); }
 
   if (!res) { res = CAPTURE_ERROR(enc, parse_data(ffs_definition, PARSE_OUTPUT_TO_INPUT, ctbuf, ctlen, parsed ), "Invalid input string character(s)");}
 
