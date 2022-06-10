@@ -1734,7 +1734,7 @@ int u32_fpe_decrypt_data(
   const char * const ctbuf, const size_t ctlen,
   char ** const ptbuf, size_t * const ptlen)
 {
-  static const char * csu = "char_fpe_decrypt_data";
+  static const char * csu = "u32_fpe_decrypt_data";
   int debug_flag = 1;
   int res = 0;
   struct parsed_data_new * parsed = NULL;
@@ -1760,18 +1760,18 @@ int u32_fpe_decrypt_data(
   len = u32_strlen(u32_ctbuf);
 
   if (!res) { res = CAPTURE_ERROR(enc, u32_parse_data(ffs_definition, PARSE_OUTPUT_TO_INPUT, u32_ctbuf, len, parsed ), "Invalid input string character(s)");}
-  debug_flag && printf("%s \n \t%s res(%i) trimmed(%S) formatted(%S)\n",csu, "char_parse_data", res, parsed->trimmed_buf.buf, parsed->formatted_dest_buf.buf);
+  debug_flag && printf("%s \n \t%s res(%i) trimmed(%S) formatted(%S)\n",csu, "u32_parse_data", res, parsed->trimmed_buf.buf, parsed->formatted_dest_buf.buf);
 
   // if (!res ) { res = CAPTURE_ERROR(enc, alloc(len + 1, sizeof(uin32_t), (void **)&u32_pt), "Memory Allocation Error");}
   // debug_flag && printf("%s \n \t%s res(%i)\n",csu, "alloc", res);
 
   // decode keynum
   if (!res) { res = CAPTURE_ERROR(enc, u32_decode_keynum(ffs_definition, parsed->trimmed_buf.buf, &key_number ), "Unable to determine key number in cipher text");}
-  debug_flag && printf("%s \n \t%s res(%i) key(%d) buf(%S)\n",csu, "decode_keynum", res, key_number, parsed->trimmed_buf.buf);
+  debug_flag && printf("%s \n \t%s res(%i) key(%d) buf(%S)\n",csu, "u32_decode_keynum", res, key_number, parsed->trimmed_buf.buf);
 
   // convert radix
   if (!res) {res = CAPTURE_ERROR(enc, u32_str_convert_u32_radix( parsed->trimmed_buf.buf, ffs_definition->u32_output_character_set, ffs_definition->u32_input_character_set, parsed->trimmed_buf.buf), "Invalid input string");}
-  debug_flag && printf("%s \n \t%s res(%i) trimmed_buf.buf(%S)\n",csu, "str_convert_radix", res, parsed->trimmed_buf.buf);
+  debug_flag && printf("%s \n \t%s res(%i) trimmed_buf.buf(%S)\n",csu, "u32_str_convert_u32_radix", res, parsed->trimmed_buf.buf);
 
   // Convert trimmed to UTF8
   if (!res) { res = CAPTURE_ERROR(enc, convert_utf32_to_utf8( parsed->trimmed_buf.buf, &u8_trimmed),  "Unable to convert UTF8 string"); }
@@ -1790,7 +1790,7 @@ int u32_fpe_decrypt_data(
 
   // decrypt
   if (!res) { res = CAPTURE_ERROR(enc, ff1_decrypt(ctx, u8_pt, u8_trimmed, tweak, tweaklen), "Unable to decrypt data");}
-  debug_flag && printf("%s \n \t%s res(%i) (%s)\n",csu, "ff1_decrypt", res, pt);
+  debug_flag && printf("%s \n \t%s res(%i) (%s)\n",csu, "ff1_decrypt", res, u8_pt);
 
   
   if (!res) { res = CAPTURE_ERROR(enc, convert_utf8_to_utf32(u8_pt, &u32_pt),  "Unable to convert UTF8 string"); }
@@ -1798,7 +1798,7 @@ int u32_fpe_decrypt_data(
 
   // finalize_output_string
   if (!res) {res = CAPTURE_ERROR(enc, u32_finalize_output_string(parsed, ctlen, u32_pt, u32_strlen(u32_pt), ffs_definition->u32_input_character_set[0], &u32_finalized, ptlen), "Unable to produce plain text string");}
-  debug_flag && printf("%s \n \t%s res(%i) ptbuf(%s)\n",csu, "finalize_output_string", res, ptbuf);
+  debug_flag && printf("%s \n \t%s res(%i) ptbuf(%S)\n",csu, "u32_finalize_output_string", res, u32_finalized);
 
   if (!res) { res = CAPTURE_ERROR(enc, convert_utf32_to_utf8( u32_finalized, (uint8_t **)ptbuf),  "Unable to convert UTF8 string"); }
   debug_flag && printf("%s \n \t %s res(%i) ptbuf(%s)\n",csu, "convert_utf32_to_utf8", res, *ptbuf);

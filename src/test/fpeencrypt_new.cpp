@@ -64,6 +64,29 @@ TEST_F(cpp_fpe_encrypt, ascii7_rt)
   EXPECT_EQ(rt, pt);
 }
 
+TEST_F(cpp_fpe_encrypt, ascii8_a_rt)
+{
+  std::string pt("123456789");
+  std::string ct;
+  std::string expected("00mMnoÊßi");
+  std::string rt;
+
+  ASSERT_NO_THROW(
+      ct = ubiq::platform::fpe::encrypt(_creds, "ascii8", pt));
+
+  std::cout << "      ct(" << ct << ")" << std::endl;
+  std::cout << "expected(" << expected << ")" << std::endl;
+
+  EXPECT_EQ(ct, expected);
+  // std::cout << "ct: " << ct << std::endl;
+
+  ASSERT_NO_THROW(
+      rt = ubiq::platform::fpe::decrypt(_creds, "ascii8", ct));
+
+  EXPECT_EQ(rt, pt);
+}
+
+
 TEST_F(cpp_fpe_encrypt, ascii8_rt)
 {
   std::string pt("0ÑÒ12-345Õ6789abcABCÊÒËÌÍÎ ÏðñÓòóôÔ");
@@ -78,10 +101,10 @@ TEST_F(cpp_fpe_encrypt, ascii8_rt)
   std::cout << "expected(" << expected << ")" << std::endl;
 
   EXPECT_EQ(ct, expected);
-  // std::cout << "ct: " << ct << std::endl;
+  std::cout << "ct: " << ct << std::endl;
 
-  // ASSERT_NO_THROW(
-  //     rt = ubiq::platform::fpe::decrypt(_creds, "ascii8", ct));
+  ASSERT_NO_THROW(
+      rt = ubiq::platform::fpe::decrypt(_creds, "ascii8", ct));
 
   EXPECT_EQ(rt, pt);
 }
@@ -95,6 +118,25 @@ TEST_F(cpp_fpe_encrypt, unicode_rt)
 
   ASSERT_NO_THROW(
       ct = ubiq::platform::fpe::encrypt(_creds, "unicode", pt));
+
+  ASSERT_NO_THROW(
+      rt = ubiq::platform::fpe::decrypt(_creds, "unicode", ct));
+
+  EXPECT_EQ(rt, pt);
+}
+
+TEST_F(cpp_fpe_encrypt, unicode_a_rt)
+{
+  
+  std::string pt("123456789");
+  std::string expected("01BΫjw9O1");
+  std::string ct;
+  std::string rt;
+
+  ASSERT_NO_THROW(
+      ct = ubiq::platform::fpe::encrypt(_creds, "unicode", pt));
+
+  EXPECT_EQ(ct, expected);
 
   ASSERT_NO_THROW(
       rt = ubiq::platform::fpe::decrypt(_creds, "unicode", ct));
