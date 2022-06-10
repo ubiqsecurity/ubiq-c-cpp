@@ -320,6 +320,7 @@ str_convert_u32_radix(
   const uint32_t * output_radix,
   uint32_t * out_str)
 {
+  int debug_flag = 0;
   static const char * csu = "str_convert_u32_radix";
   static size_t magic_number = 50; // Allow for null and extra space in get_string function
   int res = 0;
@@ -339,7 +340,7 @@ str_convert_u32_radix(
 
   if (!res) {
     res = __u32_bigint_get_str(out, len+magic_number, output_radix, &n);
-    (debug) && printf("__bigint_get_str res (%d), out %s\n", res, out);
+    (debug_flag) && printf("__bigint_get_str res (%d), out %s\n", res, out);
 
     size_t out_len = u32_strlen(out);
 
@@ -372,6 +373,7 @@ u32_str_convert_radix(
   char * out_str)
 {
   static const char * csu = "u32_str_convert_radix";
+  int debug_flag = 0;
   static size_t magic_number = 50; // Allow for null and extra space in get_string function
   int res = 0;
   bigint_t n;
@@ -390,7 +392,7 @@ u32_str_convert_radix(
 
   if (!res) {
     res = __bigint_get_str(out, len+magic_number, output_radix, &n);
-    (debug) && printf("__bigint_get_str res (%d), out %s\n", res, out);
+    (debug_flag) && printf("__bigint_get_str res (%d), out %s\n", res, out);
 
     size_t out_len = strlen(out);
 
@@ -422,7 +424,8 @@ u32_str_convert_u32_radix(
   const uint32_t * output_radix,
   uint32_t * out_str)
 {
-  static const char * csu = "u32_str_convert_u32_radix";
+  static const char * const csu = "u32_str_convert_u32_radix";
+  int debug_flag = 0;
   static size_t magic_number = 50; // Allow for null and extra space in get_string function
   int res = 0;
   bigint_t n;
@@ -441,7 +444,7 @@ u32_str_convert_u32_radix(
 
   if (!res) {
     res = __u32_bigint_get_str(out, len+magic_number, output_radix, &n);
-    (debug) && printf("__bigint_get_str res (%d), out %s\n", res, out);
+    (debug_flag) && printf("__bigint_get_str res (%d), out %s\n", res, out);
 
     size_t out_len = u32_strlen(out);
 
@@ -475,7 +478,7 @@ str_convert_radix(
   char * out_str
 )
 {
-  int debug = 0;
+  int debug_flag = 0;
   static const char * csu = "str_convert_radix";
   static size_t magic_number = 50; // Allow for null and extra space in get_string function
   int res = 0;
@@ -490,17 +493,17 @@ str_convert_radix(
     res = -ENOMEM;
   }
 
-  (debug) && printf("src_str %s\n", src_str);
+  (debug_flag) && printf("src_str %s\n", src_str);
   if (!res) {res = __bigint_set_str(&n, src_str, input_radix);}
 
-  (debug) && gmp_printf("INPUT num = %Zd\n", n);
+  (debug_flag) && gmp_printf("INPUT num = %Zd\n", n);
 
-  (debug) && printf("input ----%s----\n", input_radix);
-  (debug) && printf("output_radix ----%s----\n", output_radix);
+  (debug_flag) && printf("input ----%s----\n", input_radix);
+  (debug_flag) && printf("output_radix ----%s----\n", output_radix);
 
   if (!res) {
     res = __bigint_get_str(out, len+magic_number, output_radix, &n);
-    (debug) && printf("__bigint_get_str res (%d), out %s\n", res, out);
+    (debug_flag) && printf("__bigint_get_str res (%d), out %s\n", res, out);
 
     size_t out_len = strlen(out);
 
@@ -1118,7 +1121,7 @@ create_and_add_ctx_cache(
   struct ctx_cache_element ** element)
 {
   static const char * const csu = "create_and_add_ctx_cache";
-  int debug_flag = 1;
+  int debug_flag = 0;
   int res = 0;
 
   struct ctx_cache_element * ctx_element = NULL;
@@ -1612,7 +1615,7 @@ int u32_fpe_encrypt_data(
   char ** const ctbuf, size_t * const ctlen)
 {
   static const char * csu = "u32_fpe_encrypt_data";
-  int debug_flag = 1;
+  int debug_flag = 0;
   int res = 0;
   struct parsed_data_new * parsed = NULL;
   char * u8_ct = NULL;
@@ -1683,7 +1686,7 @@ int char_fpe_decrypt_data(
   char ** const ptbuf, size_t * const ptlen)
 {
   static const char * csu = "char_fpe_decrypt_data";
-  int debug_flag = 1;
+  int debug_flag = 0;
   int res = 0;
   struct parsed_data_new * parsed = NULL;
   struct ff1_ctx * ctx = NULL;
@@ -1735,7 +1738,7 @@ int u32_fpe_decrypt_data(
   char ** const ptbuf, size_t * const ptlen)
 {
   static const char * csu = "u32_fpe_decrypt_data";
-  int debug_flag = 1;
+  int debug_flag = 0;
   int res = 0;
   struct parsed_data_new * parsed = NULL;
   struct ff1_ctx * ctx = NULL;
@@ -1830,7 +1833,7 @@ ubiq_platform_fpe_encrypt_data(
   char ** const ctbuf, size_t * const ctlen)
 {
   static const char * csu = "ubiq_platform_fpe_encrypt_data";
-  int debug_flag = 1;
+  int debug_flag = 0;
   int res = 0;
   const struct ffs * ffs_definition = NULL;
   struct parsed_data * parsed = NULL;

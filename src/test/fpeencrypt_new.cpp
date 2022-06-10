@@ -568,6 +568,54 @@ TEST(c_fpe_encrypt, 1m)
 
 }
 
+TEST(c_fpe_encrypt, u32_1m)
+{
+  static const char * const ffs_name = "unicode";
+  static const char * const pt = "123 456-7890";
+
+    struct ubiq_platform_credentials * creds;
+    struct ubiq_platform_fpe_enc_dec_obj *enc;
+
+    char * ctbuf(nullptr);
+    size_t ctlen;
+
+    std::chrono::duration<double, std::nano> ubiq_times = std::chrono::steady_clock::duration::zero();
+    std::chrono::duration<double, std::nano> first_call = std::chrono::steady_clock::duration::zero();
+
+    int res;
+    res = ubiq_platform_credentials_create(&creds);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
+    ASSERT_EQ(res, 0);
+
+        auto start = std::chrono::steady_clock::now();
+    res = ubiq_platform_fpe_encrypt_data(enc,
+      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+      free(ctbuf);
+    auto end = std::chrono::steady_clock::now();
+    first_call = (end - start);
+
+    for (unsigned long i = 0; i < 1000000; i++) {
+        auto start = std::chrono::steady_clock::now();
+        res = ubiq_platform_fpe_encrypt_data(enc,
+          ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+          free(ctbuf);
+        auto end = std::chrono::steady_clock::now();
+
+        ubiq_times += (end - start);
+    }
+
+    ubiq_platform_fpe_enc_dec_destroy(enc);
+
+    ubiq_platform_credentials_destroy(creds);
+
+    std::cerr << "\t first: " << std::chrono::duration<double, std::milli>(first_call).count() << " ms " << std::endl;
+    std::cerr << "\t total: " << std::chrono::duration<double, std::milli>(ubiq_times).count() << " ms " << std::endl;
+
+}
+
+
 TEST(c_fpe_decrypt, 1m)
 {
   static const char * const ffs_name = "ALPHANUM_SSN";
