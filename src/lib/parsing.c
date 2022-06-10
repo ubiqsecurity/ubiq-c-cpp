@@ -100,6 +100,55 @@ char_parsing_decompose_string(
 }
 
 int
+u32_parsing_decompose_string(
+    const uint32_t * const input_string, // Null terminated
+    const uint32_t * const input_character_set, // Null terminated
+    const uint32_t * const passthrough_character_set, // Null terminated
+    const uint32_t zeroth_char,
+    uint32_t * trimmed_characters, // Preallocated and filled with char[0] from input characterset.  Should be same length as input string
+    size_t * trimmed_len,
+    uint32_t * empty_formatted_output, // Return should either have zeroth character or passthrough character
+    size_t * formatted_len
+  )
+{
+  int err;
+
+  const uint32_t * i = input_string;
+  uint32_t * f = empty_formatted_output;
+  uint32_t * t = trimmed_characters;
+
+  err = 0;
+
+  while (*i && (0 == err)) {
+    // Making assumption that input character is more likely to be in input character set, not
+    // passthrough, so check input character set first, even though check may take longer.
+    if (u32_strchr(input_character_set, *i))
+    {
+      *t++ = *i;
+      *f++ = zeroth_char;
+      // Trimmed may be shorter than input so make sure to include null terminator
+      // after last character
+      *t = 0;
+    }
+    // If the input string matches a passthrough character, copy
+    // to empty formatted output string
+    else if (passthrough_character_set && u32_strchr(passthrough_character_set, *i))
+    {
+      *f++ = *i;
+    }
+    // If the string is in the input characterset,
+    // copy to trimmed characters
+    else  {
+      err = -EINVAL;
+    }
+    i++;
+  }
+  *trimmed_len = t - trimmed_characters;
+  *formatted_len = f - empty_formatted_output;
+  return err;
+}
+
+int
 parsing_decompose_string(
     const char * const input_string, // Null terminated
     const char * const input_character_set, // Null terminated
@@ -144,74 +193,74 @@ parsing_decompose_string(
     return err;
   }
 
-int
-u32_parsing_decompose_string(
-    const uint8_t * const input_string, // Null terminated
-    const uint32_t * const input_character_set, // Null terminated
-    const uint32_t * const passthrough_character_set, // Null terminated
-    const uint32_t zeroth_char,
-    uint8_t * trimmed_characters, // Preallocated and filled with char[0] from input characterset.  Should be same length as input string
-    uint32_t * empty_formatted_output // Preallocated and filled with char[0] from OUTPUT characterset, Should be same length as input string
-  )
-{
-  static const char * csu = "u32_parsing_decompose_string";
-  int err;
-  err = 0;
+// int
+// u32_parsing_decompose_string(
+//     const uint8_t * const input_string, // Null terminated
+//     const uint32_t * const input_character_set, // Null terminated
+//     const uint32_t * const passthrough_character_set, // Null terminated
+//     const uint32_t zeroth_char,
+//     uint8_t * trimmed_characters, // Preallocated and filled with char[0] from input characterset.  Should be same length as input string
+//     uint32_t * empty_formatted_output // Preallocated and filled with char[0] from OUTPUT characterset, Should be same length as input string
+//   )
+// {
+//   static const char * csu = "u32_parsing_decompose_string";
+//   int err;
+//   err = 0;
 
-  uint32_t * u32_src = NULL;
-  uint32_t * f = empty_formatted_output;
-  uint32_t * u32_trimmed = (uint32_t *)calloc(strlen(input_string), sizeof(uint32_t));
-  uint32_t * t = u32_trimmed;
+//   uint32_t * u32_src = NULL;
+//   uint32_t * f = empty_formatted_output;
+//   uint32_t * u32_trimmed = (uint32_t *)calloc(strlen(input_string), sizeof(uint32_t));
+//   uint32_t * t = u32_trimmed;
 
-  err = convert_utf8_to_utf32(input_string, &u32_src);
+//   err = convert_utf8_to_utf32(input_string, &u32_src);
 
-  printf("%s input_string(%s)\n",csu, input_string);
-  printf("%s u32_src(%S)\n",csu, u32_src);
-  printf("%s passthrough_character_set(%S)\n",csu, passthrough_character_set);
+//   printf("%s input_string(%s)\n",csu, input_string);
+//   printf("%s u32_src(%S)\n",csu, u32_src);
+//   printf("%s passthrough_character_set(%S)\n",csu, passthrough_character_set);
 
-  if (!err && !u32_trimmed) {
-    err = -ENOMEM;
-  }
+//   if (!err && !u32_trimmed) {
+//     err = -ENOMEM;
+//   }
 
-  const uint32_t * i = u32_src;
+//   const uint32_t * i = u32_src;
 
-  while ((0 == err) && *i) {
-    // Making assumption that input character is more likely to be in input character set, not
-    // passthrough, so check input character set first, even though check may take longer.
-    if (u32_strchr(input_character_set, *i))
-    {
-      *t++ = *i;
-      *f++ = zeroth_char;
-      // Trimmed may be shorter than input so make sure to include null terminator
-      // after last character
-      *t = 0;
-        printf("%s i(%d) u32_trimmed(%S) empty_formatted_output(%S)\n",csu, i, u32_trimmed,empty_formatted_output);
+//   while ((0 == err) && *i) {
+//     // Making assumption that input character is more likely to be in input character set, not
+//     // passthrough, so check input character set first, even though check may take longer.
+//     if (u32_strchr(input_character_set, *i))
+//     {
+//       *t++ = *i;
+//       *f++ = zeroth_char;
+//       // Trimmed may be shorter than input so make sure to include null terminator
+//       // after last character
+//       *t = 0;
+//         printf("%s i(%d) u32_trimmed(%S) empty_formatted_output(%S)\n",csu, i, u32_trimmed,empty_formatted_output);
 
-    }
-    // If the input string matches a passthrough character, copy
-    // to empty formatted output string
-    else if (passthrough_character_set && u32_strchr(passthrough_character_set, *i))
-    {
-      *f++ = *i;
-        printf("%s i(%d) empty_formatted_output(%S)\n",csu, i, empty_formatted_output);
-    }
-    // If the string is in the input characterset,
-    // copy to trimmed characters
-    else  {
-      err = -EINVAL;
-    }
-    i++;
-  }
+//     }
+//     // If the input string matches a passthrough character, copy
+//     // to empty formatted output string
+//     else if (passthrough_character_set && u32_strchr(passthrough_character_set, *i))
+//     {
+//       *f++ = *i;
+//         printf("%s i(%d) empty_formatted_output(%S)\n",csu, i, empty_formatted_output);
+//     }
+//     // If the string is in the input characterset,
+//     // copy to trimmed characters
+//     else  {
+//       err = -EINVAL;
+//     }
+//     i++;
+//   }
 
-  if (!err) {
-    uint8_t * tmp = NULL;
-    err = convert_utf32_to_utf8(u32_trimmed, &tmp);
-    u8_strcpy(trimmed_characters, tmp);
-    free(tmp);
-  }
-        printf("%s err(%d) trimmed_characters(%s) empty_formatted_output(%S)\n",csu, err, trimmed_characters,empty_formatted_output);
-  return err;
-}
+//   if (!err) {
+//     uint8_t * tmp = NULL;
+//     err = convert_utf32_to_utf8(u32_trimmed, &tmp);
+//     u8_strcpy(trimmed_characters, tmp);
+//     free(tmp);
+//   }
+//         printf("%s err(%d) trimmed_characters(%s) empty_formatted_output(%S)\n",csu, err, trimmed_characters,empty_formatted_output);
+//   return err;
+// }
 
 
 

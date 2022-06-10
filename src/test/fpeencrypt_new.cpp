@@ -74,6 +74,9 @@ TEST_F(cpp_fpe_encrypt, ascii8_rt)
   ASSERT_NO_THROW(
       ct = ubiq::platform::fpe::encrypt(_creds, "ascii8", pt));
 
+  std::cout << "      ct(" << ct << ")" << std::endl;
+  std::cout << "expected(" << expected << ")" << std::endl;
+
   EXPECT_EQ(ct, expected);
   // std::cout << "ct: " << ct << std::endl;
 
