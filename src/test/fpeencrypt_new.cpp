@@ -884,7 +884,7 @@ TEST(c_fpe_encrypt, piecewise_search)
       // Decrypt each one and confirm results match PT
       res = ubiq_platform_fpe_decrypt_data(enc,
          ffs_name, NULL, 0, ctbuf[i], strlen(ctbuf[i]), &ptbuf, &ptlen);
-      EXPECT_EQ(res, 0);
+      EXPECT_EQ(res, 0) << "i (" << i << ")  ctbuf[i](" << ctbuf[i] << ")  ptbuf (" << ptbuf << ")" << std::endl;
 
       EXPECT_EQ(strcmp(pt, ptbuf),0);
       free(ptbuf);

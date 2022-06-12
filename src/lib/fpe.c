@@ -1398,7 +1398,7 @@ int char_fpe_encrypt_data(
   const char * const ptbuf, const size_t ptlen,
   char ** const ctbuf, size_t * const ctlen)
 {
-  static const char * csu = "char_fpe_encrypt_data";
+  static const char * const csu = "char_fpe_encrypt_data";
   int debug_flag = 0;
   int res = 0;
   struct parsed_data * parsed = NULL;
@@ -1663,10 +1663,10 @@ ubiq_platform_fpe_encrypt_data(
   int debug_flag = 0;
   int res = 0;
   const struct ffs * ffs_definition = NULL;
-  struct parsed_data * parsed = NULL;
+  // struct parsed_data * parsed = NULL;
   struct ff1_ctx * ctx = NULL;
-  char * ct = NULL;
-  uint32_t * u32_ct = NULL;
+  // char * ct = NULL;
+  // uint32_t * u32_ct = NULL;
   int key_number = -1;
   // Get FFS (cache or otherwise)
   res = ffs_get_def(enc, ffs_name, &ffs_definition);
@@ -1863,7 +1863,20 @@ ubiq_platform_fpe_encrypt_for_search(
     const char * const ptbuf, const size_t ptlen,
     char *** const ctbuf, size_t * const count)
 {
-  return -1;
+  struct ubiq_platform_fpe_enc_dec_obj * enc;
+  int res = 0;
+
+  enc = NULL;
+  res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
+
+   if (!res) {
+    res  = ubiq_platform_fpe_encrypt_data_for_search(enc, ffs_name, tweak, tweaklen, ptbuf, ptlen, ctbuf, count);
+    // TODO BILLING
+  }
+
+
+  ubiq_platform_fpe_enc_dec_destroy(enc);
+  return res;
 
 }
 
@@ -1876,6 +1889,53 @@ ubiq_platform_fpe_encrypt_data_for_search(
   char *** const ctbuf, size_t * const count
 )
 {
-  return -1;
+  static const char * const csu = "ubiq_platform_fpe_encrypt_data_for_search";
+
+  const struct ffs * ffs_definition = NULL;
+  struct ff1_ctx * ctx = NULL;
+  int key_number = -1;
+  int res = 0;
+  char ** ret_ct = NULL;
+
+    printf("%s %s res(%d)\n", csu, "start", res);
+
+  // Get the FFS Definition
+  if (!res) {res = ffs_get_def(enc, ffs_name, &ffs_definition);}
+    printf("%s %s res(%d)\n", csu, "ffs_get_def", res);
+
+  // Get the ctx and the key number for the current key
+  if (!res) {res = get_ctx(enc, ffs_definition, &key_number , &ctx);}
+  printf("%s %s res(%d) key_number(%d)\n", csu, "get_ctx", res, key_number);
+
+  // Loop over all keys up to the current key, and encrypt the data using each key
+  if (!res) {
+    *count = key_number + 1;
+    ret_ct = (char **)calloc(*count, sizeof(char *));
+    if (!ret_ct) {
+      res = -ENOMEM;
+    }
+  }
+  printf("%s %s res(%d) key_number(%d)\n", csu, "alloc", res, key_number);
+
+  for (int i = 0; !res && i <= key_number; i++) {
+    size_t len = 0;
+    int x = i;
+    if (!res) {res = get_ctx(enc, ffs_definition, &x , &ctx);}
+    printf("i(%d) x(%d) res(%d)\n", i, x, res);
+    if (!res) { res = char_fpe_encrypt_data(enc, ffs_definition, ctx, i, tweak, tweaklen, ptbuf, ptlen, &ret_ct[i], &len);}
+  printf("%s %s res(%d) ret_ct[i](%s)\n", csu, "char_fpe_encrypt_data", res, ret_ct[i]);
+  }
+
+  if (res) {
+    for (int i = 0; i <= key_number; i++) {
+      free(ret_ct[i]);
+      ret_ct = NULL;
+    }
+    *count = 0;
+  }
+  *ctbuf = ret_ct;
+
+
+  return res;
 
 }
