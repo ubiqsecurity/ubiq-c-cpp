@@ -727,7 +727,7 @@ TEST(c_fpe_encrypt, utf8)
       "ascii7", NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
     EXPECT_EQ(res, 0);
     EXPECT_EQ(strlen(pt), ctlen);
-    printf("PT %s ctbuf %s\n", pt, ctbuf);
+    //printf("PT %s ctbuf %s\n", pt, ctbuf);
 
     //  res = ubiq_platform_fpe_encrypt_data(enc,
     //   "ascii8", NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);

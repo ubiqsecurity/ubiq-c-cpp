@@ -287,7 +287,7 @@ static int u32_decode_keynum(
 //   uint32_t * out_str)
 // {
 //   int debug_flag = 0;
-//   static const char * csu = "str_convert_u32_radix";
+//   static const char * const csu = "str_convert_u32_radix";
 //   static size_t magic_number = 50; // Allow for null and extra space in get_string function
 //   int res = 0;
 //   bigint_t n;
@@ -393,7 +393,7 @@ str_convert_radix(
 )
 {
   int debug_flag = 0;
-  static const char * csu = "str_convert_radix";
+  static const char * const csu = "str_convert_radix";
   static size_t magic_number = 50; // Allow for null and extra space in get_string function
   int res = 0;
   bigint_t n;
@@ -652,7 +652,7 @@ parsed_destroy(
   struct parsed_data * const parsed
 )
 {
-  static const char * csu = "parsed_destroy";
+  static const char * const csu = "parsed_destroy";
  
   if (parsed) {free(parsed->trimmed_buf.buf);}
   if (parsed) {free(parsed->formatted_dest_buf.buf);}
@@ -706,7 +706,7 @@ int char_parse_data(
   struct parsed_data * const parsed
 )
 {
-  static const char * csu = "char_parse_data";
+  static const char * const csu = "char_parse_data";
   int res = 0;
 
   // TODO - be smarter about types based on the input / passthrough / output character sets
@@ -787,7 +787,7 @@ int u32_parse_data(
 //   struct parsed_data * const parsed
 // )
 // {
-//   static const char * csu = "parse_data";
+//   static const char * const csu = "parse_data";
 //   int res = 0;
 //   int debug_flag = 0;
 
@@ -1285,7 +1285,7 @@ ffs_get_def(
 //   const char * const ptbuf, const size_t ptlen,
 //   char ** const ctbuf, size_t * const ctlen) 
 // {
-//   static const char * csu = "u8_fpe_encrypt_data";
+//   static const char * const csu = "u8_fpe_encrypt_data";
 //   int debug_flag = 0;
 //   int res = 0;
 //   struct parsed_data * parsed = NULL;
@@ -1325,7 +1325,7 @@ int u32_finalize_output_string(
   size_t * finalized_data_len
 )
 {
-  static const char * csu = "finalize_output_string";
+  static const char * const csu = "finalize_output_string";
   int debug_flag = 0;
   // To save a couple cycles - Use the parsed formatted destination buffer
 
@@ -1362,7 +1362,7 @@ int finalize_output_string(
   size_t * finalized_data_len
 )
 {
-  static const char * csu = "finalize_output_string";
+  static const char * const csu = "finalize_output_string";
   int debug_flag = 0;
   // To save a couple cycles - Use the parsed formatted destination buffer
 
@@ -1441,7 +1441,7 @@ int u32_fpe_encrypt_data(
   const char * const ptbuf, const size_t ptlen,
   char ** const ctbuf, size_t * const ctlen)
 {
-  static const char * csu = "u32_fpe_encrypt_data";
+  static const char * const csu = "u32_fpe_encrypt_data";
   int debug_flag = 0;
   int res = 0;
   struct parsed_data * parsed = NULL;
@@ -1512,7 +1512,7 @@ int char_fpe_decrypt_data(
   const char * const ctbuf, const size_t ctlen,
   char ** const ptbuf, size_t * const ptlen)
 {
-  static const char * csu = "char_fpe_decrypt_data";
+  static const char * const csu = "char_fpe_decrypt_data";
   int debug_flag = 0;
   int res = 0;
   struct parsed_data * parsed = NULL;
@@ -1564,7 +1564,7 @@ int u32_fpe_decrypt_data(
   const char * const ctbuf, const size_t ctlen,
   char ** const ptbuf, size_t * const ptlen)
 {
-  static const char * csu = "u32_fpe_decrypt_data";
+  static const char * const csu = "u32_fpe_decrypt_data";
   int debug_flag = 0;
   int res = 0;
   struct parsed_data * parsed = NULL;
@@ -1659,7 +1659,7 @@ ubiq_platform_fpe_encrypt_data(
   const char * const ptbuf, const size_t ptlen,
   char ** const ctbuf, size_t * const ctlen)
 {
-  static const char * csu = "ubiq_platform_fpe_encrypt_data";
+  static const char * const csu = "ubiq_platform_fpe_encrypt_data";
   int debug_flag = 0;
   int res = 0;
   const struct ffs * ffs_definition = NULL;
@@ -1696,7 +1696,7 @@ ubiq_platform_fpe_decrypt_data(
   const char * const ctbuf, const size_t ctlen,
   char ** const ptbuf, size_t * const ptlen)
 {
-  static const char * csu = "ubiq_platform_fpe_decrypt_data";
+  static const char * const csu = "ubiq_platform_fpe_decrypt_data";
   int debug_flag = 0;
   int res = 0;
   const struct ffs * ffs_definition = NULL;
@@ -1751,7 +1751,7 @@ void
 ubiq_platform_fpe_enc_dec_destroy(
     struct ubiq_platform_fpe_enc_dec_obj * const e)
 {
-  const char * csu = "ubiq_platform_fpe_enc_dec_destroy";
+  const char * const csu = "ubiq_platform_fpe_enc_dec_destroy";
 
   if (e) {
     int i= 0;
@@ -1890,22 +1890,22 @@ ubiq_platform_fpe_encrypt_data_for_search(
 )
 {
   static const char * const csu = "ubiq_platform_fpe_encrypt_data_for_search";
-
+  int debug_flag = 0;
   const struct ffs * ffs_definition = NULL;
   struct ff1_ctx * ctx = NULL;
   int key_number = -1;
   int res = 0;
   char ** ret_ct = NULL;
 
-    printf("%s %s res(%d)\n", csu, "start", res);
+  debug_flag && printf("%s %s res(%d)\n", csu, "start", res);
 
   // Get the FFS Definition
   if (!res) {res = ffs_get_def(enc, ffs_name, &ffs_definition);}
-    printf("%s %s res(%d)\n", csu, "ffs_get_def", res);
+  debug_flag && printf("%s %s res(%d)\n", csu, "ffs_get_def", res);
 
   // Get the ctx and the key number for the current key
   if (!res) {res = get_ctx(enc, ffs_definition, &key_number , &ctx);}
-  printf("%s %s res(%d) key_number(%d)\n", csu, "get_ctx", res, key_number);
+  debug_flag && printf("%s %s res(%d) key_number(%d)\n", csu, "get_ctx", res, key_number);
 
   // Loop over all keys up to the current key, and encrypt the data using each key
   if (!res) {
@@ -1915,15 +1915,15 @@ ubiq_platform_fpe_encrypt_data_for_search(
       res = -ENOMEM;
     }
   }
-  printf("%s %s res(%d) key_number(%d)\n", csu, "alloc", res, key_number);
+  debug_flag && printf("%s %s res(%d) key_number(%d)\n", csu, "alloc", res, key_number);
 
   for (int i = 0; !res && i <= key_number; i++) {
     size_t len = 0;
     int x = i;
     if (!res) {res = get_ctx(enc, ffs_definition, &x , &ctx);}
-    printf("i(%d) x(%d) res(%d)\n", i, x, res);
+    debug_flag && printf("i(%d) x(%d) res(%d)\n", i, x, res);
     if (!res) { res = char_fpe_encrypt_data(enc, ffs_definition, ctx, i, tweak, tweaklen, ptbuf, ptlen, &ret_ct[i], &len);}
-  printf("%s %s res(%d) ret_ct[i](%s)\n", csu, "char_fpe_encrypt_data", res, ret_ct[i]);
+    debug_flag && printf("%s %s res(%d) ret_ct[i](%s)\n", csu, "char_fpe_encrypt_data", res, ret_ct[i]);
   }
 
   if (res) {
