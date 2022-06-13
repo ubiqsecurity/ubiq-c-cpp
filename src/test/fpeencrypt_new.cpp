@@ -44,8 +44,6 @@ TEST_F(cpp_fpe_encrypt, simple)
   ASSERT_NO_THROW(
       ct2 = ubiq::platform::fpe::encrypt(_creds, "ALPHANUM_SSN", std::vector<std::uint8_t>(), pt));
 
-  std::cout << "pt(" << pt << ")  ct(" << ct << ")" << std::endl;
-
   EXPECT_EQ(ct, ct2);
 }
 
@@ -575,7 +573,7 @@ TEST(c_fpe_encrypt, u32_1m)
     struct ubiq_platform_fpe_enc_dec_obj *enc;
 
     char * ctbuf(nullptr);
-    size_t ctlen;
+    size_t ctlen(0);
 
     std::chrono::duration<double, std::nano> ubiq_times = std::chrono::steady_clock::duration::zero();
     std::chrono::duration<double, std::nano> first_call = std::chrono::steady_clock::duration::zero();
@@ -619,28 +617,28 @@ TEST(c_fpe_decrypt, 1m)
   static const char * const ffs_name = "ALPHANUM_SSN";
   static const char * const ct = "!!= J*K-42c(";
 
-    struct ubiq_platform_credentials * creds;
-    struct ubiq_platform_fpe_enc_dec_obj *enc;
+  struct ubiq_platform_credentials * creds;
+  struct ubiq_platform_fpe_enc_dec_obj *enc;
 
-    char * ptbuf(nullptr);
-    size_t ptlen;
+  char * ptbuf(nullptr);
+  size_t ptlen(0);
 
-    std::chrono::duration<double, std::nano> ubiq_times = std::chrono::steady_clock::duration::zero();
-    std::chrono::duration<double, std::nano> first_call = std::chrono::steady_clock::duration::zero();
+  std::chrono::duration<double, std::nano> ubiq_times = std::chrono::steady_clock::duration::zero();
+  std::chrono::duration<double, std::nano> first_call = std::chrono::steady_clock::duration::zero();
 
-    int res;
-    res = ubiq_platform_credentials_create(&creds);
-    ASSERT_EQ(res, 0);
+  int res;
+  res = ubiq_platform_credentials_create(&creds);
+  ASSERT_EQ(res, 0);
 
-    res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
-    ASSERT_EQ(res, 0);
+  res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
+  ASSERT_EQ(res, 0);
 
-        auto start = std::chrono::steady_clock::now();
-    res = ubiq_platform_fpe_decrypt_data(enc,
-      ffs_name, NULL, 0, ct, strlen(ct), &ptbuf, &ptlen);
-      free(ptbuf);
-    auto end = std::chrono::steady_clock::now();
-    first_call = (end - start);
+      auto start = std::chrono::steady_clock::now();
+  res = ubiq_platform_fpe_decrypt_data(enc,
+    ffs_name, NULL, 0, ct, strlen(ct), &ptbuf, &ptlen);
+    free(ptbuf);
+  auto end = std::chrono::steady_clock::now();
+  first_call = (end - start);
 
     for (unsigned long i = 0; i < 1000000; i++) {
         auto start = std::chrono::steady_clock::now();
@@ -743,7 +741,6 @@ TEST(c_fpe_encrypt, utf8)
     free(ctbuf);
     free(ptbuf);
 }
-#ifdef NODEF
 TEST(c_fpe_encrypt, simple_search)
 {
     static const char * const pt = " 01121231231231231& 1 &2311200 ";
@@ -796,7 +793,7 @@ TEST(c_fpe_encrypt, simple_search)
     free(ctbuf);
     free(ptbuf);
 }
-#endif
+
 TEST(c_fpe_encrypt, piecewise2)
 {
     static const char * const pt = " 01121231231231231& 1 &2311200 ";
@@ -1595,25 +1592,25 @@ TEST_F(cpp_fpe_encrypt, 1m)
 {
   std::string ffs_name("ALPHANUM_SSN");
   std::string pt("ABCDEFGHI");
-  std::string ct, ct2;
-    std::chrono::duration<double, std::nano> ubiq_times;
+  std::string ct("");
+  std::chrono::duration<double, std::nano> ubiq_times = std::chrono::steady_clock::duration::zero();
 
   _enc = ubiq::platform::fpe::encryption(_creds);
 
 
-    ct = _enc.encrypt(ffs_name, pt);
+  ct = _enc.encrypt(ffs_name, pt);
 
-    for (unsigned long i = 0; i < 1000000; i++) {
-        auto start = std::chrono::steady_clock::now();
+  for (unsigned long i = 0; i < 1000000; i++) {
+      auto start = std::chrono::steady_clock::now();
 
-        ct = _enc.encrypt(ffs_name, pt);
-        auto end = std::chrono::steady_clock::now();
+      ct = _enc.encrypt(ffs_name, pt);
+      auto end = std::chrono::steady_clock::now();
 
-        ubiq_times += (end - start);
-    }
+      ubiq_times += (end - start);
+  }
 
 
-    std::cerr << "\tSelect total: " << std::chrono::duration<double, std::milli>(ubiq_times).count() << " ms " << std::endl;
+  std::cerr << "\tSelect total: " << std::chrono::duration<double, std::milli>(ubiq_times).count() << " ms " << std::endl;
 
 }
 

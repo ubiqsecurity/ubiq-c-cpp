@@ -176,8 +176,8 @@ TEST(c_fpe_decrypt, piecewise_too_short)
     static const char * const ffs_name = "ALPHANUM_SSN";
 
 
-    struct ubiq_platform_credentials * creds;
-    struct ubiq_platform_fpe_enc_dec_obj *enc;
+    struct ubiq_platform_credentials * creds(nullptr);
+    struct ubiq_platform_fpe_enc_dec_obj *enc(nullptr);
     char * ctbuf(nullptr);
     size_t ctlen;
     char * ptbuf(nullptr);
@@ -349,8 +349,6 @@ TEST(c_fpe_decrypt, piecewise_leading_passthrough)
     } else {
         EXPECT_EQ(strlen(pt), ctlen);
     }
-
-    printf("ctbuf %s\n", ctbuf);
 
     res = ubiq_platform_fpe_decrypt_data(enc,
       ffs_name, NULL, 0,ctbuf, ctlen, &ptbuf, &ptlen);
