@@ -16,16 +16,6 @@ ubiq_platform_efpe_parsing_parse_input(
   );
 
 int
-parsing_decompose_string(
-    const char * const input_string, // Null terminated
-    const char * const input_character_set, // Null terminated
-    const char * const passthrough_character_set, // Null terminated
-    const char zeroth_char,
-    char * trimmed_characters, // Preallocated and filled with char[0] from input characterset.  Should be same length as input string
-    char * empty_formatted_output // Return should either have zeroth character or passthrough character
-  );
-
-int
 char_parsing_decompose_string(
     const char * const input_string, // Null terminated
     const char * const input_character_set, // Null terminated

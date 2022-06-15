@@ -297,8 +297,7 @@ TEST_F(cpp_fpe_encrypt_2, invalid_keynum)
       pt = _dec.decrypt(ffs_name, ct));
 }
 
-#ifdef NODEF
-TEST(c_fpe_encrypt, simple)
+TEST(c_fpe_encrypt_2, simple)
 {
     static const char * const pt = " 01121231231231231& 1 &2311200 ";
 //    static const char * const pt = "00001234567890";//234567890";
@@ -330,7 +329,7 @@ TEST(c_fpe_encrypt, simple)
     free(ptbuf);
 }
 
-TEST(c_fpe_encrypt, simple_search)
+TEST(c_fpe_encrypt_2, simple_search)
 {
     static const char * const pt = " 01121231231231231& 1 &2311200 ";
 //    static const char * const pt = "00001234567890";//234567890";
@@ -383,7 +382,7 @@ TEST(c_fpe_encrypt, simple_search)
     free(ptbuf);
 }
 
-TEST(c_fpe_encrypt, piecewise)
+TEST(c_fpe_encrypt_2, piecewise)
 {
     static const char * const pt = " 01121231231231231& 1 &2311200 ";
 //    static const char * const pt = "00001234567890";//234567890";
@@ -439,7 +438,7 @@ TEST(c_fpe_encrypt, piecewise)
     free(ptbuf2);
 }
 
-TEST(c_fpe_encrypt, piecewise_search)
+TEST(c_fpe_encrypt_2, piecewise_search)
 {
     static const char * const pt = " 01121231231231231& 1 &2311200 ";
 //    static const char * const pt = "00001234567890";//234567890";
@@ -487,7 +486,7 @@ TEST(c_fpe_encrypt, piecewise_search)
     free(ctbuf);
 }
 
-TEST(c_fpe_encrypt, mixed_forward)
+TEST(c_fpe_encrypt_2, mixed_forward)
 {
     static const char * const pt = " 01121231231231231& 1 &2311200 ";
 //    static const char * const pt = "00001234567890";//234567890";
@@ -527,7 +526,7 @@ TEST(c_fpe_encrypt, mixed_forward)
     free(ptbuf);
 }
 
-TEST(c_fpe_encrypt, mixed_backwards)
+TEST(c_fpe_encrypt_2, mixed_backwards)
 {
     static const char * const pt = " 01121231231231231& 1 &2311200 ";
 //    static const char * const pt = "00001234567890";//234567890";
@@ -568,7 +567,7 @@ TEST(c_fpe_encrypt, mixed_backwards)
     free(ptbuf);
 }
 
-TEST(c_fpe_encrypt, 10_cycles)
+TEST(c_fpe_encrypt_2, 10_cycles)
 {
     static const char * const pt = " 01121231231231231& 1 &2311200 ";
 //    static const char * const pt = "00001234567890";//234567890";
@@ -611,7 +610,7 @@ TEST(c_fpe_encrypt, 10_cycles)
 }
 
 
-TEST(c_fpe_encrypt, generic)
+TEST(c_fpe_encrypt_2, generic)
 {
     static const char * const pt = " 1234567890ABCDEFGHIJKLMNOP";
 //    static const char * const pt = "00001234567890";//234567890";
@@ -643,7 +642,7 @@ TEST(c_fpe_encrypt, generic)
     free(ptbuf);
 }
 
-TEST(c_fpe_encrypt, error_handling_null_object)
+TEST(c_fpe_encrypt_2, error_handling_null_object)
 {
   int err_num;
   char * err_msg = NULL;
@@ -654,7 +653,7 @@ TEST(c_fpe_encrypt, error_handling_null_object)
 
 }
 
-TEST(c_fpe_encrypt, error_handling_notnull_object)
+TEST(c_fpe_encrypt_2, error_handling_notnull_object)
 {
   int err_num;
   char * err_msg = NULL;
@@ -680,7 +679,7 @@ TEST(c_fpe_encrypt, error_handling_notnull_object)
 
 }
 
-TEST(c_fpe_encrypt, error_handling_invalid_ffs)
+TEST(c_fpe_encrypt_2, error_handling_invalid_ffs)
 {
 
   static const char * const pt = " 01121231231231231& 1 &2311200 ";
@@ -725,7 +724,7 @@ TEST(c_fpe_encrypt, error_handling_invalid_ffs)
 
 }
 
-TEST(c_fpe_encrypt, error_handling_invalid_creds)
+TEST(c_fpe_encrypt_2, error_handling_invalid_creds)
 {
 
   static const char * const pt = " 01121231231231231& 1 &2311200 ";
@@ -777,7 +776,7 @@ TEST(c_fpe_encrypt, error_handling_invalid_creds)
   free(ctbuf);
 }
 
-TEST(c_fpe_encrypt, error_handling_invalid_PT_CT)
+TEST(c_fpe_encrypt_2, error_handling_invalid_PT_CT)
 {
 
   static const char * const pt = " 123456789$";
@@ -825,7 +824,7 @@ TEST(c_fpe_encrypt, error_handling_invalid_PT_CT)
   free(ctbuf);
 }
 
-TEST(c_fpe_encrypt, error_handling_invalid_LEN)
+TEST(c_fpe_encrypt_2, error_handling_invalid_LEN)
 {
   static const char * const short_pt = " 123";
   static const char * const long_pt = " 1234567890123123123123";
@@ -889,7 +888,7 @@ TEST(c_fpe_encrypt, error_handling_invalid_LEN)
 }
 
 
-TEST(c_fpe_encrypt, error_handling_invalid_papi)
+TEST(c_fpe_encrypt_2, error_handling_invalid_papi)
 {
     static const char * const pt = " 01121231231231231& 1 &2311200 ";
     static const char * const ffs_name = "ALPHANUM_SSN";
@@ -947,7 +946,7 @@ TEST(c_fpe_encrypt, error_handling_invalid_papi)
     ubiq_platform_credentials_destroy(creds_orig);
 }
 
-TEST(c_fpe_encrypt, error_handling_invalid_sapi)
+TEST(c_fpe_encrypt_2, error_handling_invalid_sapi)
 {
     static const char * const pt = " 01121231231231231& 1 &2311200 ";
     static const char * const ffs_name = "ALPHANUM_SSN";
@@ -1006,7 +1005,7 @@ TEST(c_fpe_encrypt, error_handling_invalid_sapi)
     ubiq_platform_credentials_destroy(creds_orig);
 }
 
-TEST(c_fpe_encrypt, error_handling_invalid_rsa)
+TEST(c_fpe_encrypt_2, error_handling_invalid_rsa)
 {
     static const char * const pt = " 01121231231231231& 1 &2311200 ";
     static const char * const ffs_name = "ALPHANUM_SSN";
@@ -1064,7 +1063,7 @@ TEST(c_fpe_encrypt, error_handling_invalid_rsa)
     ubiq_platform_credentials_destroy(creds_orig);
 }
 
-TEST(c_fpe_encrypt, error_handling_invalid_host)
+TEST(c_fpe_encrypt_2, error_handling_invalid_host)
 {
     static const char * const pt = " 01121231231231231& 1 &2311200 ";
     static const char * const ffs_name = "ALPHANUM_SSN";
@@ -1123,7 +1122,7 @@ TEST(c_fpe_encrypt, error_handling_invalid_host)
 }
 
 
-TEST(c_fpe_encrypt, error_handling_invalid_keynum)
+TEST(c_fpe_encrypt_2, error_handling_invalid_keynum)
 {
 
   static const char * const pt = " 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -1199,7 +1198,7 @@ TEST_F(cpp_fpe_encrypt_2, 1m)
 
 }
 
-TEST(c_fpe_encrypt, new)
+TEST(c_fpe_encrypt_2, new)
 {
     static const char * const pt = " 01121231231231231& 1 &2311200 ";
 //    static const char * const pt = "00001234567890";//234567890";
@@ -1255,4 +1254,3 @@ TEST(c_fpe_encrypt, new)
     free(ptbuf2);
 }
 
-#endif

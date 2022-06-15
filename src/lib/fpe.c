@@ -36,6 +36,13 @@
  * Defines
  *
 **************************************************************************************/
+// #define UBIQ_DEBUG_ON // UNCOMMENT to Enable UBIQ_DEBUG macro
+
+#ifdef UBIQ_DEBUG_ON
+#define UBIQ_DEBUG(x,y) {x && y;}
+#else
+#define UBIQ_DEBUG(x,y)
+#endif
 
 // Need to capture value of res, not test value
 // since it may be a function and don't want it to get executed
@@ -158,9 +165,6 @@ struct ctx_cache_element {
  *
 **************************************************************************************/
 
-static void debug(const char * const csu, const char * const msg) {
-  return; //printf("DEBUG %s: %s\n", csu, msg);
-}
 
 static int encode_keynum(
   const struct ffs * ffs,
@@ -172,7 +176,7 @@ static int encode_keynum(
   int debug_flag = 0;
   int res = -EINVAL;
 
-  debug_flag && printf("%s \n \t%s res(%i)\n",csu, "start", res);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i)\n",csu, "start", res));
 
   char * pos = strchr(ffs->output_character_set, (int)*buf);
 
@@ -180,8 +184,8 @@ static int encode_keynum(
   // it would be an error.
   if (pos != NULL && *pos != 0){
     size_t ct_value = pos - ffs->output_character_set;
-  debug_flag && printf("%s \n \tct_value(%d) res(%i)\n",csu, ct_value, res);
-  debug_flag && printf("%s \n \tkey_number%d) res(%i)\n",csu, key_number, res);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \tct_value(%d) res(%i)\n",csu, ct_value, res));
+  UBIQ_DEBUG(debug_flag, printf("%s \n \tkey_number%d) res(%i)\n",csu, key_number, res));
     ct_value += (key_number << ffs->msb_encoding_bits);
     *buf = ffs->output_character_set[ct_value];
     res = 0;
@@ -279,7 +283,7 @@ u32_str_convert_u32_radix(
 
   if (!res) {
     res = __u32_bigint_get_str(out, len+magic_number, output_radix, &n);
-    (debug_flag) && printf("__bigint_get_str res (%d), out %s\n", res, out);
+    UBIQ_DEBUG(debug_flag,printf("__bigint_get_str res (%d), out %s\n", res, out));
 
     size_t out_len = u32_strlen(out);
 
@@ -328,17 +332,17 @@ str_convert_radix(
     res = -ENOMEM;
   }
 
-  (debug_flag) && printf("src_str %s\n", src_str);
+  UBIQ_DEBUG(debug_flag,printf("src_str %s\n", src_str));
   if (!res) {res = __bigint_set_str(&n, src_str, input_radix);}
 
-  (debug_flag) && gmp_printf("INPUT num = %Zd\n", n);
+  UBIQ_DEBUG(debug_flag,gmp_printf("INPUT num = %Zd\n", n));
 
-  (debug_flag) && printf("input ----%s----\n", input_radix);
-  (debug_flag) && printf("output_radix ----%s----\n", output_radix);
+  UBIQ_DEBUG(debug_flag,printf("input ----%s----\n", input_radix));
+  UBIQ_DEBUG(debug_flag,printf("output_radix ----%s----\n", output_radix));
 
   if (!res) {
     res = __bigint_get_str(out, len+magic_number, output_radix, &n);
-    (debug_flag) && printf("__bigint_get_str res (%d), out %s\n", res, out);
+    UBIQ_DEBUG(debug_flag,printf("__bigint_get_str res (%d), out %s\n", res, out));
 
     size_t out_len = strlen(out);
 
@@ -521,7 +525,7 @@ ffs_create(
   if (!res && (strlen(e->input_character_set) != u8_mbsnlen(e->input_character_set, strlen(e->input_character_set))) ||
       (strlen(e->output_character_set) != u8_mbsnlen(e->output_character_set, strlen(e->output_character_set))) ||
       (strlen(e->passthrough_character_set) != u8_mbsnlen(e->passthrough_character_set, strlen(e->passthrough_character_set)))) {
-      debug(csu, "Multibyte UTF8 found");
+      UBIQ_DEBUG(debug_flag, printf("%s %s\n",csu, "Multibyte UTF8 found"));
         res = convert_utf8_to_utf32(e->input_character_set, &e->u32_input_character_set);
         if (!res) {res = convert_utf8_to_utf32(e->output_character_set, &e->u32_output_character_set);}
         if (!res) {res = convert_utf8_to_utf32(e->passthrough_character_set, &e->u32_passthrough_character_set);}
@@ -534,7 +538,7 @@ ffs_create(
         e->passthrough_character_set = NULL;
         e->character_types = UINT32;
   } else {
-          debug(csu, "No Multibyte UTF8 found");
+        UBIQ_DEBUG(debug_flag, printf("%s %s\n",csu, "No Multibyte UTF8 found"));
         e->character_types = UINT8;
   }
 
@@ -554,8 +558,8 @@ ffs_create(
     free(s);
   }
 
-  debug_flag && printf("%s ffs->input_character_set(%s)\n", csu, e->input_character_set);
-  debug_flag && printf("%s ffs->u32_input_character_set(%S)\n", csu, e->u32_input_character_set);
+  UBIQ_DEBUG(debug_flag, printf("%s ffs->input_character_set(%s)\n", csu, e->input_character_set));
+  UBIQ_DEBUG(debug_flag, printf("%s ffs->u32_input_character_set(%S)\n", csu, e->u32_input_character_set));
 
 
   if (!res) {
@@ -817,7 +821,7 @@ create_and_add_ctx_cache(
   get_key_cache_string(ffs->name, key_number, &key_str);
 
   struct ff1_ctx * ctx = NULL;
-  debug_flag && printf("%s ffs->input_character_set(%s)\n", csu, ffs->input_character_set );
+  UBIQ_DEBUG(debug_flag, printf("%s ffs->input_character_set(%s)\n", csu, ffs->input_character_set ));
 
   // ff1_ctx will recognize utf8 and handle accordingly.  That is why we need to keep 
   // input_character_set, even when utf8
@@ -931,11 +935,11 @@ get_ctx(
   ctx_element = (struct ctx_cache_element *)ubiq_platform_cache_find_element(e->key_cache, key_str);
  
   if (ctx_element != NULL) {
-    debug(csu, "key found in Cache");
+    UBIQ_DEBUG(debug_flag, printf("%s %s\n",csu, "key found in Cache"));
   } else {
     if (!res) {
-        debug(csu, "key NOT found in Cache");
-        debug(csu, key_str);
+        UBIQ_DEBUG(debug_flag, printf("%s %s\n",csu, "key NOT found in Cache"));
+        UBIQ_DEBUG(debug_flag, printf("%s %s\n",csu, key_str));
         static const char * const fmt_encrypt_key = "%s/fpe/key?ffs_name=%s&papi=%s";
         static const char * const fmt_decrypt_key = "%s/fpe/key?ffs_name=%s&papi=%s&key_number=%d";
 
@@ -965,7 +969,7 @@ get_ctx(
         free(encoded_name);
 
         if (!res) {
-          debug ("url", url);
+          UBIQ_DEBUG(debug_flag, printf("url %s\n", url));
           res = ubiq_platform_rest_request(
             e->rest,
             HTTP_RM_GET, url, "application/json", NULL , 0);
@@ -1058,10 +1062,10 @@ ffs_get_def(
 
   ffs = (const struct ffs *)ubiq_platform_cache_find_element(e->ffs_cache, ffs_name);
   if (ffs != NULL) {
-    debug(csu, "Found in Cache");
+    UBIQ_DEBUG(debug_flag, printf("%s %s\n",csu, "Found in Cache"));
     *ffs_definition = ffs;
   } else {
-    debug(csu, "Fetching from server");
+    UBIQ_DEBUG(debug_flag, printf("%s %s\n",csu, "Fetching from server"));
     char * encoded_name = NULL;
     res = ubiq_platform_rest_uri_escape(e->rest, ffs_name, &encoded_name);
 
@@ -1140,7 +1144,7 @@ int u32_finalize_output_string(
   int debug_flag = 0;
   // To save a couple cycles - Use the parsed formatted destination buffer
 
-  debug_flag && printf("%s data(%s) data_len(%d) zero_char(%c)\n", csu, data, data_len, zero_char);
+  UBIQ_DEBUG(debug_flag, printf("%s data(%s) data_len(%d) zero_char(%c)\n", csu, data, data_len, zero_char));
   int res = 0;
 
   size_t src_idx=0;
@@ -1149,7 +1153,7 @@ int u32_finalize_output_string(
       ((uint32_t *)parsed->formatted_dest_buf.buf)[i] = data[src_idx++];
     }
   }
-  debug_flag && printf("%s parsed->formatted_dest_buf.buf(%s)\n", csu, parsed->formatted_dest_buf.buf);
+  UBIQ_DEBUG(debug_flag, printf("%s parsed->formatted_dest_buf.buf(%s)\n", csu, parsed->formatted_dest_buf.buf));
 
   if (!res) {
     // Like a C++ move
@@ -1177,7 +1181,7 @@ int char_finalize_output_string(
   int debug_flag = 0;
   // To save a couple cycles - Use the parsed formatted destination buffer
 
-  debug_flag && printf("%s data(%s) data_len(%d) zero_char(%c)\n", csu, data, data_len, zero_char);
+  UBIQ_DEBUG(debug_flag, printf("%s data(%s) data_len(%d) zero_char(%c)\n", csu, data, data_len, zero_char));
   int res = 0;
 
   size_t src_idx=0;
@@ -1186,7 +1190,7 @@ int char_finalize_output_string(
       ((char *)parsed->formatted_dest_buf.buf)[i] = data[src_idx++];
     }
   }
-  debug_flag && printf("%s parsed->formatted_dest_buf.buf(%s)\n", csu, parsed->formatted_dest_buf.buf);
+  UBIQ_DEBUG(debug_flag, printf("%s parsed->formatted_dest_buf.buf(%s)\n", csu, parsed->formatted_dest_buf.buf));
 
   if (!res) {
     // Like a C++ move
@@ -1216,25 +1220,25 @@ int char_fpe_encrypt_data(
   char * ct = NULL;
 
   if (!res) { res = CAPTURE_ERROR(enc, parsed_create(&parsed, UINT8, ptlen),  "Memory Allocation Error"); }
-  debug_flag && printf("%s \n \t%s res(%i)\n",csu, "parsed_create", res);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i)\n",csu, "parsed_create", res));
 
   if (!res) { res = CAPTURE_ERROR(enc, char_parse_data(ffs_definition, PARSE_INPUT_TO_OUTPUT, ptbuf, ptlen, parsed ), "Invalid input string character(s)");}
-  debug_flag && printf("%s \n \t%s res(%i)\n",csu, "char_parse_data", res);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i)\n",csu, "char_parse_data", res));
 
   if (!res ) { res = CAPTURE_ERROR(enc, alloc(ptlen + 1, sizeof(char), (void **)&ct), "Memory Allocation Error");}
-  debug_flag && printf("%s \n \t%s res(%i) buf(%s)\n",csu, "alloc", res, parsed->trimmed_buf.buf);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) buf(%s)\n",csu, "alloc", res, parsed->trimmed_buf.buf));
 
   if (!res) { res = CAPTURE_ERROR(enc, ff1_encrypt(ctx, ct, parsed->trimmed_buf.buf, tweak, tweaklen), "Unable to encrypt data");}
-  debug_flag && printf("%s \n \t%s res(%i) ct(%s)\n",csu, "ff1_encrypt", res, ct);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) ct(%s)\n",csu, "ff1_encrypt", res, ct));
 
   if (!res) { res = CAPTURE_ERROR(enc, str_convert_radix(ct, ffs_definition->input_character_set, ffs_definition->output_character_set, ct), "Unable to convert to output character set");}
-  debug_flag && printf("%s \n \t%s res(%i) ct(%s)\n",csu, "str_convert_radix", res, ct);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) ct(%s)\n",csu, "str_convert_radix", res, ct));
 
   if (!res) {res = CAPTURE_ERROR(enc, encode_keynum(ffs_definition, key_number, ct), "Unable to encode key number to cipher text");}
-  debug_flag && printf("%s \n \t%s res(%i)\n",csu, "encode_keynum", res);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i)\n",csu, "encode_keynum", res));
 
   if (!res) {res = CAPTURE_ERROR(enc, char_finalize_output_string(parsed, ptlen, ct, strlen(ct), ffs_definition->output_character_set[0], ctbuf, ctlen), "Unable to produce cipher text string");}
-  debug_flag && printf("%s \n \t%s res(%i)\n",csu, "char_finalize_output_string", res);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i)\n",csu, "char_finalize_output_string", res));
 
   parsed_destroy(parsed);
   free(ct);
@@ -1267,43 +1271,43 @@ int u32_fpe_encrypt_data(
   setlocale(LC_ALL, "C.UTF-8");
 
   if (!res) { res = CAPTURE_ERROR(enc, convert_utf8_to_utf32(ptbuf, &u32_ptbuf),  "Unable to convert UTF8 string"); }
-  debug_flag && printf("%s \n \t%s ptbuf(%s) u32_pt(%S) res(%i)\n",csu, "convert_utf8_to_utf32", ptbuf, u32_ptbuf, res);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s ptbuf(%s) u32_pt(%S) res(%i)\n",csu, "convert_utf8_to_utf32", ptbuf, u32_ptbuf, res));
 
   if (!res) { res = CAPTURE_ERROR(enc, parsed_create(&parsed, UINT32, ptlen),  "Memory Allocation Error"); }
-  debug_flag && printf("%s \n \t%s res(%i)\n",csu, "parsed_create", res);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i)\n",csu, "parsed_create", res));
 
   len = u32_strlen(u32_ptbuf);
 
   if (!res) { res = CAPTURE_ERROR(enc, u32_parse_data(ffs_definition, PARSE_INPUT_TO_OUTPUT, u32_ptbuf, len, parsed ), "Invalid input string character(s)");}
-  debug_flag && printf("%s \n \t%s res(%i)\n",csu, "char_parse_data", res);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i)\n",csu, "char_parse_data", res));
 
   // if (!res ) { res = CAPTURE_ERROR(enc, alloc(len + 1, sizeof(uint32_t), (void **)&u32_ct), "Memory Allocation Error");}
-  // debug_flag && printf("%s \n \t%s res(%i) buf(%S)\n",csu, "alloc", res, parsed->trimmed_buf.buf);
+  // UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) buf(%S)\n",csu, "alloc", res, parsed->trimmed_buf.buf));
 
   if (!res) { res = CAPTURE_ERROR(enc, convert_utf32_to_utf8( parsed->trimmed_buf.buf, &u8_trimmed),  "Unable to convert UTF8 string"); }
-  debug_flag && printf("%s \n \t %s u32_trimmed(%S) u8_trimmed(%s) res(%i)\n",csu, "convert_utf8_to_utf32", parsed->trimmed_buf.buf, u8_trimmed, res);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t %s u32_trimmed(%S) u8_trimmed(%s) res(%i)\n",csu, "convert_utf8_to_utf32", parsed->trimmed_buf.buf, u8_trimmed, res));
   
   if (!res ) { res = CAPTURE_ERROR(enc, alloc(4 * (len + 1), sizeof(char), (void **)&u8_ct), "Memory Allocation Error");}
-  debug_flag && printf("%s \n \t%s res(%i) \n",csu, "alloc", res);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) \n",csu, "alloc", res));
 
   if (!res) { res = CAPTURE_ERROR(enc, ff1_encrypt(ctx, u8_ct, u8_trimmed, tweak, tweaklen), "Unable to encrypt data");}
-  debug_flag && printf("%s \n \t%s res(%i) ct(%s)\n",csu, "ff1_encrypt", res, u8_ct);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) ct(%s)\n",csu, "ff1_encrypt", res, u8_ct));
 
     if (!res) { res = CAPTURE_ERROR(enc, convert_utf8_to_utf32(u8_ct, &u32_ct),  "Unable to convert UTF8 string"); }
-  debug_flag && printf("%s \n \t %s u8_ct(%s) u32_ct(%S) res(%i)\n",csu, "convert_utf8_to_utf32", u8_ct, u32_ct, res);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t %s u8_ct(%s) u32_ct(%S) res(%i)\n",csu, "convert_utf8_to_utf32", u8_ct, u32_ct, res));
 
 
   if (!res) { res = CAPTURE_ERROR(enc, u32_str_convert_u32_radix(u32_ct, ffs_definition->u32_input_character_set, ffs_definition->u32_output_character_set, u32_ct), "Unable to convert to output character set");}
-  debug_flag && printf("%s \n \t %s res(%i) u32_ct(%S)\n",csu, "u32_str_convert_u32_radix", res, u32_ct);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t %s res(%i) u32_ct(%S)\n",csu, "u32_str_convert_u32_radix", res, u32_ct));
 
   if (!res) {res = CAPTURE_ERROR(enc, u32_encode_keynum(ffs_definition, key_number, u32_ct), "Unable to encode key number to cipher text");}
-  debug_flag && printf("%s \n \t %s res(%i) u32_ct(%S)\n",csu, "u32_encode_keynum", res, u32_ct);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t %s res(%i) u32_ct(%S)\n",csu, "u32_encode_keynum", res, u32_ct));
 
   if (!res) {res = CAPTURE_ERROR(enc, u32_finalize_output_string(parsed, ptlen, u32_ct, u32_strlen(u32_ct), ffs_definition->u32_output_character_set[0], & u32_finalized, ctlen), "Unable to produce cipher text string");}
-  debug_flag && printf("%s \n \t%s res(%i)\n",csu, "char_finalize_output_string", res);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i)\n",csu, "char_finalize_output_string", res));
 
   if (!res) { res = CAPTURE_ERROR(enc, convert_utf32_to_utf8( u32_finalized, (uint8_t **)ctbuf),  "Unable to convert UTF8 string"); }
-  debug_flag && printf("%s \n \t %s res(%i) ctbuf(%s)\n",csu, "convert_utf32_to_utf8", res, *ctbuf);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t %s res(%i) ctbuf(%s)\n",csu, "convert_utf32_to_utf8", res, *ctbuf));
   *ctlen = u8_strlen(*ctbuf);
   parsed_destroy(parsed);
   free(u8_ct);
@@ -1332,33 +1336,33 @@ int char_fpe_decrypt_data(
   int key_number = -1;
 
   if (!res) { res = CAPTURE_ERROR(enc, parsed_create(&parsed, UINT8, ctlen),  "Memory Allocation Error"); }
-  debug_flag && printf("%s \n \t%s res(%i)\n",csu, "parsed_create", res);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i)\n",csu, "parsed_create", res));
 
   if (!res) { res = CAPTURE_ERROR(enc, char_parse_data(ffs_definition, PARSE_OUTPUT_TO_INPUT, ctbuf, ctlen, parsed ), "Invalid input string character(s)");}
-  debug_flag && printf("%s \n \t%s res(%i) trimmed(%s) formatted(%s)\n",csu, "char_parse_data", res, parsed->trimmed_buf.buf, parsed->formatted_dest_buf.buf);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) trimmed(%s) formatted(%s)\n",csu, "char_parse_data", res, parsed->trimmed_buf.buf, parsed->formatted_dest_buf.buf));
 
   if (!res ) { res = CAPTURE_ERROR(enc, alloc(ctlen + 1, sizeof(char), (void **)&pt), "Memory Allocation Error");}
-  debug_flag && printf("%s \n \t%s res(%i) buf(%s)\n",csu, "alloc", res, parsed->trimmed_buf.buf);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) buf(%s)\n",csu, "alloc", res, parsed->trimmed_buf.buf));
 
   // decode keynum
   if (!res) { res = CAPTURE_ERROR(enc, decode_keynum(ffs_definition, parsed->trimmed_buf.buf, &key_number ), "Unable to determine key number in cipher text");}
-  debug_flag && printf("%s \n \t%s res(%i) key(%d) buf(%s)\n",csu, "decode_keynum", res, key_number, parsed->trimmed_buf.buf);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) key(%d) buf(%s)\n",csu, "decode_keynum", res, key_number, parsed->trimmed_buf.buf));
 
   // convert radix
   if (!res) {res = CAPTURE_ERROR(enc, str_convert_radix( parsed->trimmed_buf.buf, ffs_definition->output_character_set, ffs_definition->input_character_set, parsed->trimmed_buf.buf), "Invalid input string");}
-  debug_flag && printf("%s \n \t%s res(%i) trimmed_buf.buf(%s)\n",csu, "str_convert_radix", res, parsed->trimmed_buf.buf);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) trimmed_buf.buf(%s)\n",csu, "str_convert_radix", res, parsed->trimmed_buf.buf));
 
   // get ctx
   if (!res) {res = get_ctx(enc, ffs_definition, &key_number , &ctx);}
-  debug_flag && printf("%s \n \t%s res(%i)\n",csu, "get_ctx", res);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i)\n",csu, "get_ctx", res));
   
   // decrypt
   if (!res) { res = CAPTURE_ERROR(enc, ff1_decrypt(ctx, pt, parsed->trimmed_buf.buf, tweak, tweaklen), "Unable to decrypt data");}
-  debug_flag && printf("%s \n \t%s res(%i) (%s)\n",csu, "ff1_decrypt", res, pt);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) (%s)\n",csu, "ff1_decrypt", res, pt));
 
   // // // char_finalize_output_string
   if (!res) {res = CAPTURE_ERROR(enc, char_finalize_output_string(parsed, ctlen, pt, strlen(pt), ffs_definition->input_character_set[0], ptbuf, ptlen), "Unable to produce plain text string");}
-  debug_flag && printf("%s \n \t%s res(%i) ptbuf(%s)\n",csu, "char_finalize_output_string", res, ptbuf);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) ptbuf(%s)\n",csu, "char_finalize_output_string", res, ptbuf));
 
   parsed_destroy(parsed);
   free(pt);
@@ -1393,56 +1397,56 @@ int u32_fpe_decrypt_data(
   setlocale(LC_ALL, "C.UTF-8");
 
   if (!res) { res = CAPTURE_ERROR(enc, convert_utf8_to_utf32(ctbuf, &u32_ctbuf),  "Unable to convert UTF8 string"); }
-  debug_flag && printf("%s \n \t%s ctbuf(%s) u32_ctbuf(%S) res(%i)\n",csu, "convert_utf8_to_utf32", ctbuf, u32_ctbuf, res);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s ctbuf(%s) u32_ctbuf(%S) res(%i)\n",csu, "convert_utf8_to_utf32", ctbuf, u32_ctbuf, res));
 
   if (!res) { res = CAPTURE_ERROR(enc, parsed_create(&parsed, UINT32, ctlen),  "Memory Allocation Error"); }
-  debug_flag && printf("%s \n \t%s res(%i)\n",csu, "parsed_create", res);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i)\n",csu, "parsed_create", res));
 
   len = u32_strlen(u32_ctbuf);
 
   if (!res) { res = CAPTURE_ERROR(enc, u32_parse_data(ffs_definition, PARSE_OUTPUT_TO_INPUT, u32_ctbuf, len, parsed ), "Invalid input string character(s)");}
-  debug_flag && printf("%s \n \t%s res(%i) trimmed(%S) formatted(%S)\n",csu, "u32_parse_data", res, parsed->trimmed_buf.buf, parsed->formatted_dest_buf.buf);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) trimmed(%S) formatted(%S)\n",csu, "u32_parse_data", res, parsed->trimmed_buf.buf, parsed->formatted_dest_buf.buf));
 
   // if (!res ) { res = CAPTURE_ERROR(enc, alloc(len + 1, sizeof(uin32_t), (void **)&u32_pt), "Memory Allocation Error");}
-  // debug_flag && printf("%s \n \t%s res(%i)\n",csu, "alloc", res);
+  // UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i)\n",csu, "alloc", res));
 
   // decode keynum
   if (!res) { res = CAPTURE_ERROR(enc, u32_decode_keynum(ffs_definition, parsed->trimmed_buf.buf, &key_number ), "Unable to determine key number in cipher text");}
-  debug_flag && printf("%s \n \t%s res(%i) key(%d) buf(%S)\n",csu, "u32_decode_keynum", res, key_number, parsed->trimmed_buf.buf);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) key(%d) buf(%S)\n",csu, "u32_decode_keynum", res, key_number, parsed->trimmed_buf.buf));
 
   // convert radix
   if (!res) {res = CAPTURE_ERROR(enc, u32_str_convert_u32_radix( parsed->trimmed_buf.buf, ffs_definition->u32_output_character_set, ffs_definition->u32_input_character_set, parsed->trimmed_buf.buf), "Invalid input string");}
-  debug_flag && printf("%s \n \t%s res(%i) trimmed_buf.buf(%S)\n",csu, "u32_str_convert_u32_radix", res, parsed->trimmed_buf.buf);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) trimmed_buf.buf(%S)\n",csu, "u32_str_convert_u32_radix", res, parsed->trimmed_buf.buf));
 
   // Convert trimmed to UTF8
   if (!res) { res = CAPTURE_ERROR(enc, convert_utf32_to_utf8( parsed->trimmed_buf.buf, &u8_trimmed),  "Unable to convert UTF8 string"); }
-  debug_flag && printf("%s \n \t %s u32_trimmed(%S) u8_trimmed(%s) res(%i)\n",csu, "convert_utf8_to_utf32", parsed->trimmed_buf.buf, u8_trimmed, res);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t %s u32_trimmed(%S) u8_trimmed(%s) res(%i)\n",csu, "convert_utf8_to_utf32", parsed->trimmed_buf.buf, u8_trimmed, res));
 
   // get ctx
   if (!res) {res = get_ctx(enc, ffs_definition, &key_number , &ctx);}
-  debug_flag && printf("%s \n \t%s res(%i)\n",csu, "get_ctx", res);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i)\n",csu, "get_ctx", res));
   
   // if (!res) { res = CAPTURE_ERROR(enc, convert_utf32_to_utf8( u32_finalized, (uint8_t **)ctbuf),  "Unable to convert UTF8 string"); }
-  // debug_flag && printf("%s \n \t %s res(%i) ctbuf(%s)\n",csu, "convert_utf32_to_utf8", res, *ctbuf);
+  // UBIQ_DEBUG(debug_flag, printf("%s \n \t %s res(%i) ctbuf(%s)\n",csu, "convert_utf32_to_utf8", res, *ctbuf));
 
   // allocate u8_pt
   if (!res ) { res = CAPTURE_ERROR(enc, alloc(4 * (len + 1), sizeof(char), (void **)&u8_pt), "Memory Allocation Error");}
-  debug_flag && printf("%s \n \t%s res(%i) \n",csu, "alloc", res);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) \n",csu, "alloc", res));
 
   // decrypt
   if (!res) { res = CAPTURE_ERROR(enc, ff1_decrypt(ctx, u8_pt, u8_trimmed, tweak, tweaklen), "Unable to decrypt data");}
-  debug_flag && printf("%s \n \t%s res(%i) (%s)\n",csu, "ff1_decrypt", res, u8_pt);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) (%s)\n",csu, "ff1_decrypt", res, u8_pt));
 
   
   if (!res) { res = CAPTURE_ERROR(enc, convert_utf8_to_utf32(u8_pt, &u32_pt),  "Unable to convert UTF8 string"); }
-  debug_flag && printf("%s \n \t %s u8_pt(%s) u32_pt(%S) res(%i)\n",csu, "convert_utf8_to_utf32", u8_pt, u32_pt, res);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t %s u8_pt(%s) u32_pt(%S) res(%i)\n",csu, "convert_utf8_to_utf32", u8_pt, u32_pt, res));
 
   // char_finalize_output_string
   if (!res) {res = CAPTURE_ERROR(enc, u32_finalize_output_string(parsed, ctlen, u32_pt, u32_strlen(u32_pt), ffs_definition->u32_input_character_set[0], &u32_finalized, ptlen), "Unable to produce plain text string");}
-  debug_flag && printf("%s \n \t%s res(%i) ptbuf(%S)\n",csu, "u32_finalize_output_string", res, u32_finalized);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) ptbuf(%S)\n",csu, "u32_finalize_output_string", res, u32_finalized));
 
   if (!res) { res = CAPTURE_ERROR(enc, convert_utf32_to_utf8( u32_finalized, (uint8_t **)ptbuf),  "Unable to convert UTF8 string"); }
-  debug_flag && printf("%s \n \t %s res(%i) ptbuf(%s)\n",csu, "convert_utf32_to_utf8", res, *ptbuf);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t %s res(%i) ptbuf(%s)\n",csu, "convert_utf32_to_utf8", res, *ptbuf));
   *ptlen = u8_strlen(*ptbuf);
 
 
@@ -1479,10 +1483,10 @@ ubiq_platform_fpe_encrypt_data(
 
   // Get FFS (cache or otherwise)
   res = ffs_get_def(enc, ffs_name, &ffs_definition);
-  debug_flag && printf("%s \n \t%s res(%i)\n",csu, "ffs_get_def", res);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i)\n",csu, "ffs_get_def", res));
 
   if (!res) {res = get_ctx(enc, ffs_definition, &key_number , &ctx);}
-  debug_flag && printf("%s \n \t%s res(%i)\n",csu, "get_ctx", res);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i)\n",csu, "get_ctx", res));
 
   // If any of ICS, PCS, OCS are uint32
 
@@ -1512,7 +1516,7 @@ ubiq_platform_fpe_decrypt_data(
 
   // Get FFS (cache or otherwise)
   res = ffs_get_def(enc, ffs_name, &ffs_definition);
-  debug_flag && printf("%s \n \t%s res(%i)\n",csu, "ffs_get_def", res);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i)\n",csu, "ffs_get_def", res));
 
   // If any of ICS, PCS, OCS are uint32
 
@@ -1703,15 +1707,15 @@ ubiq_platform_fpe_encrypt_data_for_search(
   int res = 0;
   char ** ret_ct = NULL;
 
-  debug_flag && printf("%s %s res(%d)\n", csu, "start", res);
+  UBIQ_DEBUG(debug_flag, printf("%s %s res(%d)\n", csu, "start", res));
 
   // Get the FFS Definition
   if (!res) {res = ffs_get_def(enc, ffs_name, &ffs_definition);}
-  debug_flag && printf("%s %s res(%d)\n", csu, "ffs_get_def", res);
+  UBIQ_DEBUG(debug_flag, printf("%s %s res(%d)\n", csu, "ffs_get_def", res));
 
   // Get the ctx and the key number for the current key
   if (!res) {res = get_ctx(enc, ffs_definition, &key_number , &ctx);}
-  debug_flag && printf("%s %s res(%d) key_number(%d)\n", csu, "get_ctx", res, key_number);
+  UBIQ_DEBUG(debug_flag, printf("%s %s res(%d) key_number(%d)\n", csu, "get_ctx", res, key_number));
 
   // Loop over all keys up to the current key, and encrypt the data using each key
   if (!res) {
@@ -1721,15 +1725,15 @@ ubiq_platform_fpe_encrypt_data_for_search(
       res = -ENOMEM;
     }
   }
-  debug_flag && printf("%s %s res(%d) key_number(%d)\n", csu, "alloc", res, key_number);
+  UBIQ_DEBUG(debug_flag, printf("%s %s res(%d) key_number(%d)\n", csu, "alloc", res, key_number));
 
   for (int i = 0; !res && i <= key_number; i++) {
     size_t len = 0;
     int x = i;
     if (!res) {res = get_ctx(enc, ffs_definition, &x , &ctx);}
-    debug_flag && printf("i(%d) x(%d) res(%d)\n", i, x, res);
+    UBIQ_DEBUG(debug_flag, printf("i(%d) x(%d) res(%d)\n", i, x, res));
     if (!res) { res = char_fpe_encrypt_data(enc, ffs_definition, ctx, i, tweak, tweaklen, ptbuf, ptlen, &ret_ct[i], &len);}
-    debug_flag && printf("%s %s res(%d) ret_ct[i](%s)\n", csu, "char_fpe_encrypt_data", res, ret_ct[i]);
+    UBIQ_DEBUG(debug_flag, printf("%s %s res(%d) ret_ct[i](%s)\n", csu, "char_fpe_encrypt_data", res, ret_ct[i]));
   }
 
   if (res) {

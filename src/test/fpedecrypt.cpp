@@ -116,12 +116,8 @@ TEST_F(cpp_fpe_decrypt, bulk_generic_string)
 
 TEST(c_fpe_decrypt, piecewise_bad_char)
 {
-// 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ
-// !"#$%'()*+./0123456789:<=>ABCDEFGHIJKLMNOPQRSTUVWXYZ[]_`abcdefghijklmnopqrstuvwxyz{}~
-// &- ;@^|\
 
     char pt [] = "!!= J*K-42c(";
-//    static const char * const pt = "00001234567890";//234567890";
     static const char * const ffs_name = "ALPHANUM_SSN";
 
     pt[1] = 124;
@@ -167,12 +163,8 @@ TEST(c_fpe_decrypt, piecewise_bad_char)
 
 TEST(c_fpe_decrypt, piecewise_too_short)
 {
-// 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ
-// !"#$%'()*+./0123456789:<=>ABCDEFGHIJKLMNOPQRSTUVWXYZ[]_`abcdefghijklmnopqrstuvwxyz{}~
-// &- ;@^|\
 
     char pt [] = "!!!";
-//    static const char * const pt = "00001234567890";//234567890";
     static const char * const ffs_name = "ALPHANUM_SSN";
 
 
@@ -217,12 +209,8 @@ TEST(c_fpe_decrypt, piecewise_too_short)
 
 TEST(c_fpe_decrypt, piecewise_all_zeroth)
 {
-// 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ
-// !"#$%'()*+./0123456789:<=>ABCDEFGHIJKLMNOPQRSTUVWXYZ[]_`abcdefghijklmnopqrstuvwxyz{}~
-// &- ;@^|\
 
     char pt [] = "!!!!!!!!!!!!!!";
-//    static const char * const pt = "00001234567890";//234567890";
     static const char * const ffs_name = "ALPHANUM_SSN";
 
     struct ubiq_platform_credentials * creds;
@@ -265,12 +253,8 @@ TEST(c_fpe_decrypt, piecewise_all_zeroth)
 
 TEST(c_fpe_decrypt, piecewise_all_passthrough)
 {
-// 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ
-// !"#$%'()*+./0123456789:<=>ABCDEFGHIJKLMNOPQRSTUVWXYZ[]_`abcdefghijklmnopqrstuvwxyz{}~
-// &- ;@^|\
 
     char pt [] = "--------------------";
-//    static const char * const pt = "00001234567890";//234567890";
     static const char * const ffs_name = "ALPHANUM_SSN";
 
     struct ubiq_platform_credentials * creds;
@@ -313,13 +297,8 @@ TEST(c_fpe_decrypt, piecewise_all_passthrough)
 
 TEST(c_fpe_decrypt, piecewise_leading_passthrough)
 {
-// 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ
-// !"#$%'()*+./0123456789:<=>ABCDEFGHIJKLMNOPQRSTUVWXYZ[]_`abcdefghijklmnopqrstuvwxyz{}~
-// &- ;@^|\
 
     char pt [] = "- - - ---------12-45-6789---------------";
-//               "-|-------------!%-Bp-23WP---------------"
-//    static const char * const pt = "00001234567890";//234567890";
     static const char * const ffs_name = "ALPHANUM_SSN";
 
     struct ubiq_platform_credentials * creds;
