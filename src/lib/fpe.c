@@ -500,11 +500,6 @@ ffs_create(
   int res = 0;
   int debug_flag = 0;
 
-  // Going to allocate memory as a single block
-  // First with the structure.  Then with the
-  // length of strings.  This will allow simple copy and
-  // avoid fragmented memory
-
   struct ffs * e = NULL;
   e = calloc(1, sizeof(*e));
   if (!e) {
@@ -608,7 +603,6 @@ int parsed_create(
 
     p->formatted_dest_buf.buf = calloc(buf_len + 1, element_size);
     p->formatted_dest_buf.len = buf_len;
-
   
     if (p->trimmed_buf.buf && p->formatted_dest_buf.buf) {
       res = 0;
@@ -634,25 +628,25 @@ int char_parse_data(
   static const char * const csu = "char_parse_data";
   int res = 0;
 
-    char dest_zeroth_char;
-    char * src_char_set = NULL;
-    if (conversion_direction == PARSE_INPUT_TO_OUTPUT) {// input to output
-      src_char_set = ffs->input_character_set;
-      dest_zeroth_char = ffs->output_character_set[0];
-    } else if (conversion_direction == PARSE_OUTPUT_TO_INPUT) {
-      src_char_set = ffs->output_character_set;
-      dest_zeroth_char = ffs->input_character_set[0];
-    } else {
-      res = -EINVAL;
-    }
+  char dest_zeroth_char;
+  char * src_char_set = NULL;
+  if (conversion_direction == PARSE_INPUT_TO_OUTPUT) {// input to output
+    src_char_set = ffs->input_character_set;
+    dest_zeroth_char = ffs->output_character_set[0];
+  } else if (conversion_direction == PARSE_OUTPUT_TO_INPUT) {
+    src_char_set = ffs->output_character_set;
+    dest_zeroth_char = ffs->input_character_set[0];
+  } else {
+    res = -EINVAL;
+  }
 
-    if (!res) {
-      res = char_parsing_decompose_string(
-        source_string, src_char_set, ffs->passthrough_character_set,
-        dest_zeroth_char,
-        (char *)parsed->trimmed_buf.buf, &parsed->trimmed_buf.len,
-        (char *) parsed->formatted_dest_buf.buf,  &parsed->formatted_dest_buf.len);
-    }
+  if (!res) {
+    res = char_parsing_decompose_string(
+      source_string, src_char_set, ffs->passthrough_character_set,
+      dest_zeroth_char,
+      (char *)parsed->trimmed_buf.buf, &parsed->trimmed_buf.len,
+      (char *) parsed->formatted_dest_buf.buf,  &parsed->formatted_dest_buf.len);
+  }
 
   return res;
 } // char_parse_data
@@ -669,25 +663,25 @@ int u32_parse_data(
   static const char * const csu = "u32_parse_data";
   int res = 0;
 
-    uint32_t dest_zeroth_char;
-    uint32_t * src_char_set = NULL;
-    if (conversion_direction == PARSE_INPUT_TO_OUTPUT) {// input to output
-      src_char_set = ffs->u32_input_character_set;
-      dest_zeroth_char = ffs->u32_output_character_set[0];
-    } else if (conversion_direction == PARSE_OUTPUT_TO_INPUT) {
-      src_char_set = ffs->u32_output_character_set;
-      dest_zeroth_char = ffs->u32_input_character_set[0];
-    } else {
-      res = -EINVAL;
-    }
+  uint32_t dest_zeroth_char;
+  uint32_t * src_char_set = NULL;
+  if (conversion_direction == PARSE_INPUT_TO_OUTPUT) {// input to output
+    src_char_set = ffs->u32_input_character_set;
+    dest_zeroth_char = ffs->u32_output_character_set[0];
+  } else if (conversion_direction == PARSE_OUTPUT_TO_INPUT) {
+    src_char_set = ffs->u32_output_character_set;
+    dest_zeroth_char = ffs->u32_input_character_set[0];
+  } else {
+    res = -EINVAL;
+  }
 
-    if (!res) {
-      res = u32_parsing_decompose_string(
-        source_string, src_char_set, ffs->u32_passthrough_character_set,
-        dest_zeroth_char,
-        parsed->trimmed_buf.buf, &parsed->trimmed_buf.len,
-        parsed->formatted_dest_buf.buf,  &parsed->formatted_dest_buf.len);
-    }
+  if (!res) {
+    res = u32_parsing_decompose_string(
+      source_string, src_char_set, ffs->u32_passthrough_character_set,
+      dest_zeroth_char,
+      parsed->trimmed_buf.buf, &parsed->trimmed_buf.len,
+      parsed->formatted_dest_buf.buf,  &parsed->formatted_dest_buf.len);
+  }
 
   return res;
 } // u32_parse_data
@@ -1281,9 +1275,6 @@ int u32_fpe_encrypt_data(
   if (!res) { res = CAPTURE_ERROR(enc, u32_parse_data(ffs_definition, PARSE_INPUT_TO_OUTPUT, u32_ptbuf, len, parsed ), "Invalid input string character(s)");}
   UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i)\n",csu, "char_parse_data", res));
 
-  // if (!res ) { res = CAPTURE_ERROR(enc, alloc(len + 1, sizeof(uint32_t), (void **)&u32_ct), "Memory Allocation Error");}
-  // UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) buf(%S)\n",csu, "alloc", res, parsed->trimmed_buf.buf));
-
   if (!res) { res = CAPTURE_ERROR(enc, convert_utf32_to_utf8( parsed->trimmed_buf.buf, &u8_trimmed),  "Unable to convert UTF8 string"); }
   UBIQ_DEBUG(debug_flag, printf("%s \n \t %s u32_trimmed(%S) u8_trimmed(%s) res(%i)\n",csu, "convert_utf8_to_utf32", parsed->trimmed_buf.buf, u8_trimmed, res));
   
@@ -1360,7 +1351,7 @@ int char_fpe_decrypt_data(
   if (!res) { res = CAPTURE_ERROR(enc, ff1_decrypt(ctx, pt, parsed->trimmed_buf.buf, tweak, tweaklen), "Unable to decrypt data");}
   UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) (%s)\n",csu, "ff1_decrypt", res, pt));
 
-  // // // char_finalize_output_string
+  // char_finalize_output_string
   if (!res) {res = CAPTURE_ERROR(enc, char_finalize_output_string(parsed, ctlen, pt, strlen(pt), ffs_definition->input_character_set[0], ptbuf, ptlen), "Unable to produce plain text string");}
   UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) ptbuf(%s)\n",csu, "char_finalize_output_string", res, ptbuf));
 
@@ -1407,9 +1398,6 @@ int u32_fpe_decrypt_data(
   if (!res) { res = CAPTURE_ERROR(enc, u32_parse_data(ffs_definition, PARSE_OUTPUT_TO_INPUT, u32_ctbuf, len, parsed ), "Invalid input string character(s)");}
   UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) trimmed(%S) formatted(%S)\n",csu, "u32_parse_data", res, parsed->trimmed_buf.buf, parsed->formatted_dest_buf.buf));
 
-  // if (!res ) { res = CAPTURE_ERROR(enc, alloc(len + 1, sizeof(uin32_t), (void **)&u32_pt), "Memory Allocation Error");}
-  // UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i)\n",csu, "alloc", res));
-
   // decode keynum
   if (!res) { res = CAPTURE_ERROR(enc, u32_decode_keynum(ffs_definition, parsed->trimmed_buf.buf, &key_number ), "Unable to determine key number in cipher text");}
   UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) key(%d) buf(%S)\n",csu, "u32_decode_keynum", res, key_number, parsed->trimmed_buf.buf));
@@ -1426,9 +1414,6 @@ int u32_fpe_decrypt_data(
   if (!res) {res = get_ctx(enc, ffs_definition, &key_number , &ctx);}
   UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i)\n",csu, "get_ctx", res));
   
-  // if (!res) { res = CAPTURE_ERROR(enc, convert_utf32_to_utf8( u32_finalized, (uint8_t **)ctbuf),  "Unable to convert UTF8 string"); }
-  // UBIQ_DEBUG(debug_flag, printf("%s \n \t %s res(%i) ctbuf(%s)\n",csu, "convert_utf32_to_utf8", res, *ctbuf));
-
   // allocate u8_pt
   if (!res ) { res = CAPTURE_ERROR(enc, alloc(4 * (len + 1), sizeof(char), (void **)&u8_pt), "Memory Allocation Error");}
   UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) \n",csu, "alloc", res));
@@ -1437,11 +1422,11 @@ int u32_fpe_decrypt_data(
   if (!res) { res = CAPTURE_ERROR(enc, ff1_decrypt(ctx, u8_pt, u8_trimmed, tweak, tweaklen), "Unable to decrypt data");}
   UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) (%s)\n",csu, "ff1_decrypt", res, u8_pt));
 
-  
+  // Convert PT u8 to u32  in order to finalize PT
   if (!res) { res = CAPTURE_ERROR(enc, convert_utf8_to_utf32(u8_pt, &u32_pt),  "Unable to convert UTF8 string"); }
   UBIQ_DEBUG(debug_flag, printf("%s \n \t %s u8_pt(%s) u32_pt(%S) res(%i)\n",csu, "convert_utf8_to_utf32", u8_pt, u32_pt, res));
 
-  // char_finalize_output_string
+  // u32_finalize_output_string
   if (!res) {res = CAPTURE_ERROR(enc, u32_finalize_output_string(parsed, ctlen, u32_pt, u32_strlen(u32_pt), ffs_definition->u32_input_character_set[0], &u32_finalized, ptlen), "Unable to produce plain text string");}
   UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) ptbuf(%S)\n",csu, "u32_finalize_output_string", res, u32_finalized));
 

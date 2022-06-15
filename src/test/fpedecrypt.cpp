@@ -126,8 +126,6 @@ TEST(c_fpe_decrypt, piecewise_bad_char)
     struct ubiq_platform_fpe_enc_dec_obj *enc;
     char * ctbuf(nullptr);
     size_t ctlen;
-    char * ptbuf(nullptr);
-    size_t ptlen;
     int res;
 
     res = ubiq_platform_credentials_create(&creds);
@@ -146,18 +144,13 @@ TEST(c_fpe_decrypt, piecewise_bad_char)
       res = ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
       printf("error: %s\n", err_msg);
       free(err_msg);
-    } else {
-        EXPECT_EQ(strlen(pt), ctlen);
     }
-
-    // EXPECT_EQ(strcmp(pt, ptbuf),0);
 
     ubiq_platform_fpe_enc_dec_destroy(enc);
 
     ubiq_platform_credentials_destroy(creds);
 
     free(ctbuf);
-    free(ptbuf);
 }
 
 
@@ -172,8 +165,6 @@ TEST(c_fpe_decrypt, piecewise_too_short)
     struct ubiq_platform_fpe_enc_dec_obj *enc(nullptr);
     char * ctbuf(nullptr);
     size_t ctlen;
-    char * ptbuf(nullptr);
-    size_t ptlen;
     int res;
 
     res = ubiq_platform_credentials_create(&creds);
@@ -192,18 +183,13 @@ TEST(c_fpe_decrypt, piecewise_too_short)
       res = ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
       printf("error: %s\n", err_msg);
       free(err_msg);
-    } else {
-        EXPECT_EQ(strlen(pt), ctlen);
     }
-
-    // EXPECT_EQ(strcmp(pt, ptbuf),0);
 
     ubiq_platform_fpe_enc_dec_destroy(enc);
 
     ubiq_platform_credentials_destroy(creds);
 
     free(ctbuf);
-    free(ptbuf);
 }
 
 
@@ -217,8 +203,6 @@ TEST(c_fpe_decrypt, piecewise_all_zeroth)
     struct ubiq_platform_fpe_enc_dec_obj *enc;
     char * ctbuf(nullptr);
     size_t ctlen;
-    char * ptbuf(nullptr);
-    size_t ptlen;
     int res;
 
     res = ubiq_platform_credentials_create(&creds);
@@ -230,25 +214,13 @@ TEST(c_fpe_decrypt, piecewise_all_zeroth)
     res = ubiq_platform_fpe_decrypt_data(enc,
       ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
     EXPECT_EQ(res, 0);
-    if (res) {
-      int err_num;
-      char * err_msg = NULL;
-
-      res = ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
-      printf("error: %s\n", err_msg);
-      free(err_msg);
-    } else {
-        EXPECT_EQ(strlen(pt), ctlen);
-    }
-
-    // EXPECT_EQ(strcmp(pt, ptbuf),0);
+    EXPECT_EQ(strlen(pt), ctlen);
 
     ubiq_platform_fpe_enc_dec_destroy(enc);
 
     ubiq_platform_credentials_destroy(creds);
 
     free(ctbuf);
-    free(ptbuf);
 }
 
 TEST(c_fpe_decrypt, piecewise_all_passthrough)
@@ -261,8 +233,6 @@ TEST(c_fpe_decrypt, piecewise_all_passthrough)
     struct ubiq_platform_fpe_enc_dec_obj *enc;
     char * ctbuf(nullptr);
     size_t ctlen;
-    char * ptbuf(nullptr);
-    size_t ptlen;
     int res;
 
     res = ubiq_platform_credentials_create(&creds);
@@ -281,18 +251,13 @@ TEST(c_fpe_decrypt, piecewise_all_passthrough)
       res = ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
       printf("error: %s\n", err_msg);
       free(err_msg);
-    } else {
-        EXPECT_EQ(strlen(pt), ctlen);
     }
-
-    // EXPECT_EQ(strcmp(pt, ptbuf),0);
 
     ubiq_platform_fpe_enc_dec_destroy(enc);
 
     ubiq_platform_credentials_destroy(creds);
 
     free(ctbuf);
-    free(ptbuf);
 }
 
 TEST(c_fpe_decrypt, piecewise_leading_passthrough)

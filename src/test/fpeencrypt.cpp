@@ -1177,14 +1177,14 @@ TEST_F(cpp_fpe_encrypt_2, 1m)
   std::string ffs_name("ALPHANUM_SSN");
   std::string pt("ABCDEFGHI");
   std::string ct, ct2;
-    std::chrono::duration<double, std::nano> ubiq_times;
+  std::chrono::duration<double, std::nano> ubiq_times = std::chrono::steady_clock::duration::zero();
 
   _enc = ubiq::platform::fpe::encryption(_creds);
 
 
     ct = _enc.encrypt(ffs_name, pt);
 
-    for (unsigned long i = 0; i < 1000; i++) {
+    for (unsigned long i = 0; i < 10; i++) {
         auto start = std::chrono::steady_clock::now();
 
         ct = _enc.encrypt(ffs_name, pt);
@@ -1201,7 +1201,6 @@ TEST_F(cpp_fpe_encrypt_2, 1m)
 TEST(c_fpe_encrypt_2, new)
 {
     static const char * const pt = " 01121231231231231& 1 &2311200 ";
-//    static const char * const pt = "00001234567890";//234567890";
     static const char * const ffs_name = "ALPHANUM_SSN";
 
     struct ubiq_platform_credentials * creds;
@@ -1222,27 +1221,27 @@ TEST(c_fpe_encrypt_2, new)
     res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
     ASSERT_EQ(res, 0);
 
-    // res = ubiq_platform_fpe_encrypt_data(enc,
-    //   ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
-    // EXPECT_EQ(res, 0);
-    // EXPECT_EQ(strlen(pt), ctlen);
+    res = ubiq_platform_fpe_encrypt_data(enc,
+      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+    EXPECT_EQ(res, 0);
+    EXPECT_EQ(strlen(pt), ctlen);
 
-    // res = ubiq_platform_fpe_encrypt_data(enc,
-    //   ffs_name, NULL, 0, pt, strlen(pt), &ctbuf2, &ctlen2);
-    // EXPECT_EQ(res, 0);
+    res = ubiq_platform_fpe_encrypt_data(enc,
+      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf2, &ctlen2);
+    EXPECT_EQ(res, 0);
 
-    // res = ubiq_platform_fpe_decrypt_data(enc,
-    //    ffs_name, NULL, 0, (char *)ctbuf, ctlen, &ptbuf, &ptlen);
-    // EXPECT_EQ(res, 0);
+    res = ubiq_platform_fpe_decrypt_data(enc,
+       ffs_name, NULL, 0, (char *)ctbuf, ctlen, &ptbuf, &ptlen);
+    EXPECT_EQ(res, 0);
 
-    // res = ubiq_platform_fpe_decrypt_data(enc,
-    //    ffs_name, NULL, 0, (char *)ctbuf2, ctlen2, &ptbuf2, &ptlen2);
-    // EXPECT_EQ(res, 0);
-    // //
-    // EXPECT_EQ(strcmp(pt, ptbuf),0);
-    // EXPECT_EQ(strcmp(pt, ptbuf2),0);
+    res = ubiq_platform_fpe_decrypt_data(enc,
+       ffs_name, NULL, 0, (char *)ctbuf2, ctlen2, &ptbuf2, &ptlen2);
+    EXPECT_EQ(res, 0);
+    //
+    EXPECT_EQ(strcmp(pt, ptbuf),0);
+    EXPECT_EQ(strcmp(pt, ptbuf2),0);
 
-    // EXPECT_EQ(ptlen, ctlen);
+    EXPECT_EQ(ptlen, ctlen);
 
     ubiq_platform_fpe_enc_dec_destroy(enc);
 
