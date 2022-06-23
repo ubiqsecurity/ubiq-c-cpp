@@ -36,7 +36,7 @@
  * Defines
  *
 **************************************************************************************/
-// #define UBIQ_DEBUG_ON // UNCOMMENT to Enable UBIQ_DEBUG macro
+#define UBIQ_DEBUG_ON // UNCOMMENT to Enable UBIQ_DEBUG macro
 
 #ifdef UBIQ_DEBUG_ON
 #define UBIQ_DEBUG(x,y) {x && y;}
@@ -704,8 +704,8 @@ ubiq_platform_process_billing(
   static const char * const fmt = "%s/fpe/billing/%s";
   time_t now;
 
-  cJSON * json;
-  char * url;
+  cJSON * json = NULL;
+  char * url = NULL;
   size_t len;
   int res = 0;
 
@@ -718,7 +718,6 @@ ubiq_platform_process_billing(
   uint16_t guid[8];
 
   char * str = cJSON_Print(*json_array);
-
 
   unsigned int array_size = cJSON_GetArraySize(*json_array);
 
@@ -771,8 +770,6 @@ ubiq_platform_process_billing(
         res = ubiq_platform_http_error(rc);
       }
     }
-
-//    const char * content = ubiq_platform_rest_response_content(e->rest, &len);
   }
   free(str);
   free(url);
@@ -846,7 +843,7 @@ ubiq_platform_fpe_encryption(
     static const char * const csu = "ubiq_platform_fpe_encryption";
     static const char * const api_path = "api/v0";
 
-    struct ubiq_platform_fpe_enc_dec_obj * e;
+    struct ubiq_platform_fpe_enc_dec_obj * e = NULL;
     size_t len;
     int res;
     res = -ENOMEM;
@@ -918,10 +915,9 @@ get_ctx(
 ) 
 {
   const char * const csu = "get_ctx";
-
+  int debug_flag = 0;
   int res = 0;
   struct ctx_cache_element * ctx_element = NULL;
-  // struct ff1_ctx * ctx = NULL;
   char * key_str = NULL;
 
   get_key_cache_string(ffs->name, *key_number, &key_str);
@@ -1043,11 +1039,12 @@ ffs_get_def(
   const char * const csu = "ffs_get_def";
   const char * const fmt = "%s/ffs?ffs_name=%s&papi=%s";
 
-  cJSON * json;
-  char * url;
+  int debug_flag = 0;
+  cJSON * json = NULL;
+  char * url = NULL;
   size_t len;
   int res = 0;
-  const void * rsp;
+  const void * rsp = NULL;
   const struct ffs * ffs = NULL;
 
   // The ubiq_platform_fpe_enc_dec_obj was created using specific credentials,
@@ -1219,6 +1216,10 @@ int char_fpe_encrypt_data(
   if (!res) { res = CAPTURE_ERROR(enc, char_parse_data(ffs_definition, PARSE_INPUT_TO_OUTPUT, ptbuf, ptlen, parsed ), "Invalid input string character(s)");}
   UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i)\n",csu, "char_parse_data", res));
 
+  if (!res && (parsed->trimmed_buf.len < ffs_definition->min_input_length || parsed->trimmed_buf.len > ffs_definition->max_input_length)) {
+      res = CAPTURE_ERROR(enc, -EINVAL, "Input length does not match FFS parameters");
+  }
+
   if (!res ) { res = CAPTURE_ERROR(enc, alloc(ptlen + 1, sizeof(char), (void **)&ct), "Memory Allocation Error");}
   UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) buf(%s)\n",csu, "alloc", res, parsed->trimmed_buf.buf));
 
@@ -1275,6 +1276,10 @@ int u32_fpe_encrypt_data(
   if (!res) { res = CAPTURE_ERROR(enc, u32_parse_data(ffs_definition, PARSE_INPUT_TO_OUTPUT, u32_ptbuf, len, parsed ), "Invalid input string character(s)");}
   UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i)\n",csu, "char_parse_data", res));
 
+  if (!res && (parsed->trimmed_buf.len < ffs_definition->min_input_length || parsed->trimmed_buf.len > ffs_definition->max_input_length)) {
+      res = CAPTURE_ERROR(enc, -EINVAL, "Input length does not match FFS parameters");
+  }
+
   if (!res) { res = CAPTURE_ERROR(enc, convert_utf32_to_utf8( parsed->trimmed_buf.buf, &u8_trimmed),  "Unable to convert UTF8 string"); }
   UBIQ_DEBUG(debug_flag, printf("%s \n \t %s u32_trimmed(%S) u8_trimmed(%s) res(%i)\n",csu, "convert_utf8_to_utf32", parsed->trimmed_buf.buf, u8_trimmed, res));
   
@@ -1284,9 +1289,8 @@ int u32_fpe_encrypt_data(
   if (!res) { res = CAPTURE_ERROR(enc, ff1_encrypt(ctx, u8_ct, u8_trimmed, tweak, tweaklen), "Unable to encrypt data");}
   UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) ct(%s)\n",csu, "ff1_encrypt", res, u8_ct));
 
-    if (!res) { res = CAPTURE_ERROR(enc, convert_utf8_to_utf32(u8_ct, &u32_ct),  "Unable to convert UTF8 string"); }
+  if (!res) { res = CAPTURE_ERROR(enc, convert_utf8_to_utf32(u8_ct, &u32_ct),  "Unable to convert UTF8 string"); }
   UBIQ_DEBUG(debug_flag, printf("%s \n \t %s u8_ct(%s) u32_ct(%S) res(%i)\n",csu, "convert_utf8_to_utf32", u8_ct, u32_ct, res));
-
 
   if (!res) { res = CAPTURE_ERROR(enc, u32_str_convert_u32_radix(u32_ct, ffs_definition->u32_input_character_set, ffs_definition->u32_output_character_set, u32_ct), "Unable to convert to output character set");}
   UBIQ_DEBUG(debug_flag, printf("%s \n \t %s res(%i) u32_ct(%S)\n",csu, "u32_str_convert_u32_radix", res, u32_ct));
@@ -1299,7 +1303,10 @@ int u32_fpe_encrypt_data(
 
   if (!res) { res = CAPTURE_ERROR(enc, convert_utf32_to_utf8( u32_finalized, (uint8_t **)ctbuf),  "Unable to convert UTF8 string"); }
   UBIQ_DEBUG(debug_flag, printf("%s \n \t %s res(%i) ctbuf(%s)\n",csu, "convert_utf32_to_utf8", res, *ctbuf));
-  *ctlen = u8_strlen(*ctbuf);
+
+  if (!res) {
+    *ctlen = u8_strlen(*ctbuf);
+  }
   parsed_destroy(parsed);
   free(u8_ct);
   free(u32_ct);
@@ -1331,6 +1338,10 @@ int char_fpe_decrypt_data(
 
   if (!res) { res = CAPTURE_ERROR(enc, char_parse_data(ffs_definition, PARSE_OUTPUT_TO_INPUT, ctbuf, ctlen, parsed ), "Invalid input string character(s)");}
   UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) trimmed(%s) formatted(%s)\n",csu, "char_parse_data", res, parsed->trimmed_buf.buf, parsed->formatted_dest_buf.buf));
+
+  if (!res && (parsed->trimmed_buf.len < ffs_definition->min_input_length || parsed->trimmed_buf.len > ffs_definition->max_input_length)) {
+      res = CAPTURE_ERROR(enc, -EINVAL, "Input length does not match FFS parameters");
+  }
 
   if (!res ) { res = CAPTURE_ERROR(enc, alloc(ctlen + 1, sizeof(char), (void **)&pt), "Memory Allocation Error");}
   UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) buf(%s)\n",csu, "alloc", res, parsed->trimmed_buf.buf));
@@ -1398,6 +1409,10 @@ int u32_fpe_decrypt_data(
   if (!res) { res = CAPTURE_ERROR(enc, u32_parse_data(ffs_definition, PARSE_OUTPUT_TO_INPUT, u32_ctbuf, len, parsed ), "Invalid input string character(s)");}
   UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) trimmed(%S) formatted(%S)\n",csu, "u32_parse_data", res, parsed->trimmed_buf.buf, parsed->formatted_dest_buf.buf));
 
+  if (!res && (parsed->trimmed_buf.len < ffs_definition->min_input_length || parsed->trimmed_buf.len > ffs_definition->max_input_length)) {
+      res = CAPTURE_ERROR(enc, -EINVAL, "Input length does not match FFS parameters");
+  }
+
   // decode keynum
   if (!res) { res = CAPTURE_ERROR(enc, u32_decode_keynum(ffs_definition, parsed->trimmed_buf.buf, &key_number ), "Unable to determine key number in cipher text");}
   UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) key(%d) buf(%S)\n",csu, "u32_decode_keynum", res, key_number, parsed->trimmed_buf.buf));
@@ -1432,8 +1447,9 @@ int u32_fpe_decrypt_data(
 
   if (!res) { res = CAPTURE_ERROR(enc, convert_utf32_to_utf8( u32_finalized, (uint8_t **)ptbuf),  "Unable to convert UTF8 string"); }
   UBIQ_DEBUG(debug_flag, printf("%s \n \t %s res(%i) ptbuf(%s)\n",csu, "convert_utf32_to_utf8", res, *ptbuf));
-  *ptlen = u8_strlen(*ptbuf);
-
+  if (!res) {
+    *ptlen = u8_strlen(*ptbuf);
+  }
 
   parsed_destroy(parsed);
   free(u32_ctbuf);

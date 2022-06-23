@@ -64,10 +64,10 @@ TEST_F(cpp_fpe_encrypt, ascii7_rt)
 
 TEST_F(cpp_fpe_encrypt, ascii8_a_rt)
 {
-  std::string pt("123456789");
+  std::string pt("1234567890");
   std::string ct;
   //                    123456789
-  std::string expected("10FÏOjHÍÌ");
+  std::string expected("40ËÏOóH7o7");
   std::string rt;
 
   ASSERT_NO_THROW(
@@ -85,8 +85,8 @@ TEST_F(cpp_fpe_encrypt, ascii8_a_rt)
 TEST_F(cpp_fpe_encrypt, ascii8_b_rt)
 {
    
-  std::string       pt("-1Ó23Ò45Ñ678Ô9Õ");
-  std::string expected("-1Ó0FÒÏOÑjHÍÔÌÕ");
+  std::string       pt("-1Ó23Ò45Ñ678Ô9Õ0");
+  std::string expected("-4Ó0ËÒÏOÑóH7ÔoÕ7");
   std::string ct;
   std::string rt;
 
@@ -106,7 +106,7 @@ TEST_F(cpp_fpe_encrypt, unicode_rt)
 {
   
   std::string pt("Õ0123ʓ4Ò56789-abcAʒBʕCÊËÌÍʐÎÏðñòʔóôÑĵĶķĸ-ĹϺϻʑϼϽÓϾϿÔ");
-  std::string expected("Õ1000ʓ0Ò001Ê4-jϺQhʒmʕdðIÊvʐm1qΫRʔÍĹÑqÏei-6MϾʑOkÓñvÔ");
+  std::string expected("Õ4000ʓ0Ò004yx-έggϾʒòʕέnJϺAʐhTKGÜʔ3ÏÑI0ĸc-RwķʑñKÓRZÔ");
   std::string ct;
   std::string rt;
 
@@ -124,8 +124,8 @@ TEST_F(cpp_fpe_encrypt, unicode_rt)
 TEST_F(cpp_fpe_encrypt, unicode_a_rt)
 {
   
-  std::string pt("123456789");
-  std::string expected("10jlĶyßÌs");
+  std::string pt("1234567890");
+  std::string expected("409vgWsxÊn");
   std::string ct;
   std::string rt;
 
@@ -1025,7 +1025,7 @@ TEST(c_fpe_encrypt, 10_cycles)
 TEST(c_fpe_encrypt, generic)
 {
     static const char * const pt = " 1234567890ABCDEFGHIJKLMNOP";
-    static const char * const ct = "#!*1sw#jOTd9Au[$iq5DvZK9H)h";
+    static const char * const ct = ")!k6i,uH2A8DFUS>vHi[nmQO|D=";
 //    static const char * const pt = "00001234567890";//234567890";
     static const char * const ffs_name = "GENERIC_STRING";
 
