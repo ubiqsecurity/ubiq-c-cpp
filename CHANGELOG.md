@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.4.5.0 - 2022-06-23
+* Improved FPE Algorithm
+
 ## 0.4.4.0 - 2022-05-03
 * Add encrypt_for_search capabilities
 
