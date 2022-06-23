@@ -11,6 +11,7 @@ add_executable(
   encrypt.cpp
   fpedecrypt.cpp
   fpeencrypt.cpp
+  fpeencrypt_new.cpp
   global.cpp
   parsing.cpp
   request.cpp)

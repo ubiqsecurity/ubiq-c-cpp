@@ -55,6 +55,12 @@ else()
 
     curl.c
     openssl.c)
+
+  target_compile_options(
+    c_objects
+    PUBLIC
+    -O2)
+   
 endif()
 
 target_include_directories(
@@ -90,6 +96,12 @@ if(WIN32)
     cxx_objects
     PRIVATE
     DLL_EXPORT)
+else()
+  target_compile_options(
+    cxx_objects
+    PUBLIC
+    -O2)
+    
 endif()
 target_include_directories(
   cxx_objects

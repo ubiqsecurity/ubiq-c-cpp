@@ -50,6 +50,106 @@ ubiq_platform_efpe_parsing_parse_input(
     return err;
   }
 
+int
+char_parsing_decompose_string(
+    const char * const input_string, // Null terminated
+    const char * const input_character_set, // Null terminated
+    const char * const passthrough_character_set, // Null terminated
+    const char zeroth_char,
+    char * trimmed_characters, // Preallocated and filled with char[0] from input characterset.  Should be same length as input string
+    size_t * trimmed_len,
+    char * empty_formatted_output, // Return should either have zeroth character or passthrough character
+    size_t * formatted_len
+  )
+{
+  int err;
+
+  const char * i = input_string;
+  char * f = empty_formatted_output;
+  char * t = trimmed_characters;
+
+  err = 0;
+
+  while (*i && (0 == err)) {
+    // Making assumption that input character is more likely to be in input character set, not
+    // passthrough, so check input character set first, even though check may take longer.
+    if (strchr(input_character_set, *i))
+    {
+      *t++ = *i;
+      *f++ = zeroth_char;
+      // Trimmed may be shorter than input so make sure to include null terminator
+      // after last character
+      *t = 0;
+    }
+    // If the input string matches a passthrough character, copy
+    // to empty formatted output string
+    else if (passthrough_character_set && strchr(passthrough_character_set, *i))
+    {
+      *f++ = *i;
+    }
+    // If the string is in the input characterset,
+    // copy to trimmed characters
+    else  {
+      err = -EINVAL;
+    }
+    i++;
+  }
+  *trimmed_len = t - trimmed_characters;
+  *formatted_len = f - empty_formatted_output;
+  return err;
+}
+
+int
+u32_parsing_decompose_string(
+    const uint32_t * const input_string, // Null terminated
+    const uint32_t * const input_character_set, // Null terminated
+    const uint32_t * const passthrough_character_set, // Null terminated
+    const uint32_t zeroth_char,
+    uint32_t * trimmed_characters, // Preallocated and filled with char[0] from input characterset.  Should be same length as input string
+    size_t * trimmed_len,
+    uint32_t * empty_formatted_output, // Return should either have zeroth character or passthrough character
+    size_t * formatted_len
+  )
+{
+  int err;
+
+  const uint32_t * i = input_string;
+  uint32_t * f = empty_formatted_output;
+  uint32_t * t = trimmed_characters;
+
+  err = 0;
+
+  while (*i && (0 == err)) {
+    // Making assumption that input character is more likely to be in input character set, not
+    // passthrough, so check input character set first, even though check may take longer.
+    if (u32_strchr(input_character_set, *i))
+    {
+      *t++ = *i;
+      *f++ = zeroth_char;
+      // Trimmed may be shorter than input so make sure to include null terminator
+      // after last character
+      *t = 0;
+    }
+    // If the input string matches a passthrough character, copy
+    // to empty formatted output string
+    else if (passthrough_character_set && u32_strchr(passthrough_character_set, *i))
+    {
+      *f++ = *i;
+    }
+    // If the string is in the input characterset,
+    // copy to trimmed characters
+    else  {
+      err = -EINVAL;
+    }
+    i++;
+  }
+  *trimmed_len = t - trimmed_characters;
+  *formatted_len = f - empty_formatted_output;
+  return err;
+}
+
+
+
 // Null terminated
 int
 convert_utf8_to_utf32(
