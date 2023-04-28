@@ -18,8 +18,25 @@
 #include <time.h>
 #include <search.h>
 
+
+/**************************************************************************************
+ *
+ * Defines
+ *
+**************************************************************************************/
+// #define UBIQ_DEBUG_ON // UNCOMMENT to Enable UBIQ_DEBUG macro
+
+#ifdef UBIQ_DEBUG_ON
+#define UBIQ_DEBUG(x,y) {x && y;}
+#else
+#define UBIQ_DEBUG(x,y)
+#endif
+
+
 struct ubiq_platform_cache {
   void * root;
+  unsigned int count;
+  // TODO - Add something to prevent aged elements from being removed - such as billing elements.  Not critical since should flush every 10 seconds or so so ageing out shouldn't happen
 };
 
 // The element records the expiration time.
@@ -154,7 +171,8 @@ ubiq_platform_cache_add_element(
   void (*free_ptr)(void *)
 )
 {
-  const char * csu = "add_element";
+  const char * csu = "ubiq_platform_cache_add_element";
+  int debug_flag = 0;
 
   // add needs to be careful if the record already exists or not.  If
   // it already exists, the new record might not match the find record
@@ -166,16 +184,20 @@ ubiq_platform_cache_add_element(
   struct cache_element * inserted_element = NULL;
 
   res = create_element(&find_element, key, duration, data, free_ptr);
+  UBIQ_DEBUG(debug_flag, printf("%s \n \tcreate_element res(%d) \n",csu, res));
   if (!res) {
     inserted_element = tsearch(find_element,&((struct ubiq_platform_cache *)ubiq_cache)->root, element_compare);
     if (inserted_element == NULL) {
       res = -ENOMEM;
+      UBIQ_DEBUG(debug_flag, printf("%s \n \ttsearch res(%d) \n",csu, res));
     } else {
+      ((struct ubiq_platform_cache *)ubiq_cache)->count++;
       /*  We must know if the allocated pointed
           to space was saved in the tree or not. */
       struct cache_element *re = 0;
       re = *(struct cache_element **)inserted_element;
       if (re != find_element) {
+      UBIQ_DEBUG(debug_flag, printf("Record already exists %s \n",csu));
         // Record already existed.
         struct timespec ts;
         res = get_time(&ts);
@@ -220,6 +242,7 @@ ubiq_platform_cache_create(
   tmp_cache = calloc(1, sizeof(* tmp_cache));
   if (tmp_cache != NULL) {
     tmp_cache->root = NULL;
+    tmp_cache->count = 0; 
     *ubiq_cache = tmp_cache;
 
     res = 0;
@@ -238,4 +261,87 @@ ubiq_platform_cache_destroy(
   }
   free(ubiq_cache );
 
+}
+
+
+int
+ubiq_platform_cache_get_element_count(
+  struct ubiq_platform_cache * ubiq_cache,
+  unsigned int * count
+)
+{
+  int res = -EINVAL;
+  if (ubiq_cache != NULL && count != NULL) {
+    *count = ubiq_cache->count;
+    res = 0;
+  }
+
+  return res;
+}
+
+typedef struct callback_data {
+    void (* action) (const void *__nodep, VISIT __value, void *__closure);
+    void * data;
+  } callback_data_t;
+
+
+void
+walk_r_action(const void *nodep, VISIT which, void *__closure)
+{
+  int debug_flag = 0;
+  static const char * const csu = "walk_r_action";
+
+  // UBIQ_DEBUG(debug_flag, printf("%s \n \t%p  %d \n",csu, ubiq_cache->root, ubiq_cache->count));
+
+  struct cache_element * e = NULL;
+
+  e = *(struct cache_element **) nodep;
+
+  UBIQ_DEBUG(debug_flag, printf("%s key (%s): \n", csu, e->key));
+  // printf("%s data (%s): \n", csu, e->data);
+
+  struct callback_data * cb;
+  cb = (struct callback_data *)__closure;
+
+  UBIQ_DEBUG(debug_flag, printf("%s \n \tcb.action(%p)  cb.data(%p) \n",csu, cb->action, cb->data));
+
+
+  (cb->action)(&e->data, which, cb->data);
+
+
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t END \n",csu));
+}
+
+
+void
+ubiq_platform_cache_walk_r(
+  struct ubiq_platform_cache * ubiq_cache,
+  void (* action) (const void *__nodep, VISIT __value,
+			       void *__closure) ,
+  void *__closure)
+{
+  int debug_flag = 0;
+  static const char * const csu = "ubiq_platform_cache_walk_r";
+
+  callback_data_t * cb;
+
+  cb = malloc(sizeof(struct callback_data));
+
+  cb->action = action;
+  cb->data = __closure;
+
+  UBIQ_DEBUG(debug_flag, printf("%s \n \tcb.action(%p)  cb.data(%p) \n",csu, cb->action, cb->data));
+
+
+  UBIQ_DEBUG(debug_flag, printf("%s \n \taction(%p)  data(%p) \n",csu, action, __closure));
+
+
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%p  %p \n",csu, ubiq_cache->root, ubiq_cache->count));
+
+
+  if (ubiq_cache != NULL) {
+    twalk_r(ubiq_cache->root, walk_r_action, cb);
+  }
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t END \n",csu));
+  free(cb);
 }

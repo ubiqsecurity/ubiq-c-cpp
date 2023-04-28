@@ -118,3 +118,70 @@ TEST(c_decrypt, simple)
 
     ubiq_platform_credentials_destroy(creds);
 }
+
+
+// TEST(c_billing, simple)
+// {
+
+//   int before;
+//   struct fpe_billing_element * element;
+//   struct fpe_billing_element * element2;
+//   int after;
+
+
+//   int res = billing_element_create(
+//     &element,
+//     "api key",
+//     "dataset name",
+//     "dataset group name",
+//     123,
+//     456789,
+//     ENCRYPTION
+//   );
+  
+//    res = billing_element_create(
+//     &element2,
+//     "api key",
+//     "OTHER dataset name",
+//     "OTHER dataset group name",
+//     321,
+//     987654,
+//     ENCRYPTION
+//   );
+ 
+//   EXPECT_EQ(0, res);
+//   before = res + 123;
+//   after = res + 567;
+
+//   billing_element_destroy(element);
+// element = NULL;
+//   res = billing_element_create(
+//     &element,
+//     "api key",
+//     NULL,
+//     "dataset group name",
+//     123,
+//     456789,
+//     ENCRYPTION
+//   );
+
+//   EXPECT_EQ(0, res);
+//  billing_element_destroy(element);
+
+//   res = billing_element_create(
+//     &element,
+//     "api key",
+//     "dataset name",
+//     NULL,
+//     123,
+//     456789,
+//     ENCRYPTION
+//   );
+
+//   EXPECT_EQ(0, res);
+//  billing_element_destroy(element);
+//  billing_element_destroy(element2);
+
+//   std::cout << "before: " << before << "  after: " << after << std::endl;
+
+// }

@@ -65,20 +65,22 @@ ubiq_fpe_bulk_encrypt(
   res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
 
   if (!res) {
-    res = ubiq_platform_fpe_encrypt_data(enc,
-      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
-
-    if (!res) {
-      printf("eFPE Encrypted Data Results => '%.*s'\n", ctlen, ctbuf);
-    } else {
-      int err_num;
-      char * err_msg = NULL;
-      res = ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
-      fprintf(stderr, "Encryption Error Code: %d  %s\n\n", err_num, err_msg);
-      free(err_msg);
+    for (int i = 0; i < 5;i++) {
+      res = ubiq_platform_fpe_encrypt_data(enc,
+        ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+      if (!res) {
+        printf("eFPE Encrypted Data Results => '%.*s'\n", ctlen, ctbuf);
+      } else {
+        int err_num;
+        char * err_msg = NULL;
+        res = ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
+        fprintf(stderr, "Encryption Error Code: %d  %s\n\n", err_num, err_msg);
+        free(err_msg);
+      }
+      free(ctbuf);
+      sleep(1);
     }
   }
-  free(ctbuf);
   ubiq_platform_fpe_enc_dec_destroy(enc);
   return res;
 }

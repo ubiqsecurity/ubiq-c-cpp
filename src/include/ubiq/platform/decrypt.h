@@ -4,6 +4,7 @@
 #include <stddef.h>
 
 #include <ubiq/platform/credentials.h>
+#include <ubiq/platform/configuration.h>
 
 __BEGIN_DECLS
 
@@ -56,6 +57,24 @@ UBIQ_PLATFORM_API
 int
 ubiq_platform_decryption_create(
     const struct ubiq_platform_credentials * const creds,
+    struct ubiq_platform_decryption ** const dec);
+
+/*
+ * Create a decryption object that can be used to decrypt any number
+ * of separate cipher texts.  The configuration object adjusts the 
+ * frequency of the billing processing.
+ *
+ * This function returns 0 on success or a negative error number on failure.
+ * In the case of success, the decryption object is returned in *dec, and
+ * must be destroyed by ubiq_platform_decryption_destroy() to avoid leaking
+ * resources.
+ */
+
+UBIQ_PLATFORM_API
+int
+ubiq_platform_decryption_create_with_config(
+    const struct ubiq_platform_credentials * const creds,
+    const struct ubiq_platform_configuration * const cfg,
     struct ubiq_platform_decryption ** const dec);
 
 /*

@@ -11,6 +11,8 @@ void ubiq::platform::init(void)
      */
     if (!ubiq_support_user_agent) {
         ubiq_support_user_agent = UBIQ_PLATFORM_USER_AGENT;
+        ubiq_support_product = UBIQ_PRODUCT;
+        ubiq_support_version = UBIQ_VERSION;
     }
 
     if (ubiq_platform_init() != 0) {

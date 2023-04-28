@@ -35,7 +35,7 @@ TEST_F(cpp_fpe_encrypt_2, none)
 
 TEST_F(cpp_fpe_encrypt_2, simple)
 {
-  std::string pt("ABCDEFGHI");
+  std::string pt("0123456789");
   std::string ct, ct2;
 
   ASSERT_NO_THROW(
@@ -49,7 +49,7 @@ TEST_F(cpp_fpe_encrypt_2, simple)
 
 TEST_F(cpp_fpe_encrypt_2, simple_search)
 {
-  std::string pt("ABCDEFGHI");
+  std::string pt("0123456789");
   std::vector<std::string> ct, ct2;
 
   ASSERT_NO_THROW(
@@ -70,7 +70,7 @@ TEST_F(cpp_fpe_encrypt_2, simple_search)
 TEST_F(cpp_fpe_encrypt_2, bulk)
 {
   std::string ffs_name("ALPHANUM_SSN");
-  std::string pt("ABCDEFGHI");
+  std::string pt("0123456789");
   std::string ct, ct2;
 
   _enc = ubiq::platform::fpe::encryption(_creds);
@@ -86,7 +86,7 @@ TEST_F(cpp_fpe_encrypt_2, bulk)
 TEST_F(cpp_fpe_encrypt_2, bulk_search)
 {
   std::string ffs_name("ALPHANUM_SSN");
-  std::string pt("ABCDEFGHI");
+  std::string pt("0123456789");
   std::vector<std::string> ct, ct2;
 
   _enc = ubiq::platform::fpe::encryption(_creds);
@@ -178,7 +178,7 @@ TEST_F(cpp_fpe_encrypt_2, invalid_LEN)
 TEST_F(cpp_fpe_encrypt_2, invalid_specific_creds)
 {
   std::string ffs_name("ALPHANUM_SSN");
-  std::string pt(" 123456789");
+  std::string pt("123456789");
   std::string ct;
 
   ubiq::platform::credentials creds
@@ -283,7 +283,7 @@ TEST_F(cpp_fpe_encrypt_2, invalid_specific_creds)
 TEST_F(cpp_fpe_encrypt_2, invalid_keynum)
 {
   std::string ffs_name("SO_ALPHANUM_PIN");
-  std::string pt(" 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ");
+  std::string pt("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ");
   std::string ct;
 
 
@@ -612,7 +612,7 @@ TEST(c_fpe_encrypt_2, 10_cycles)
 
 TEST(c_fpe_encrypt_2, generic)
 {
-    static const char * const pt = " 1234567890ABCDEFGHIJKLMNOP";
+    static const char * const pt = "1234567890ABCDEFGHIJKLMNOP";
 //    static const char * const pt = "00001234567890";//234567890";
     static const char * const ffs_name = "GENERIC_STRING";
 
@@ -1125,7 +1125,7 @@ TEST(c_fpe_encrypt_2, error_handling_invalid_host)
 TEST(c_fpe_encrypt_2, error_handling_invalid_keynum)
 {
 
-  static const char * const pt = " 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  static const char * const pt = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   static const char * const ffs_name = "SO_ALPHANUM_PIN";
 
   struct ubiq_platform_credentials * creds;
@@ -1175,7 +1175,7 @@ TEST(c_fpe_encrypt_2, error_handling_invalid_keynum)
 TEST_F(cpp_fpe_encrypt_2, 1m)
 {
   std::string ffs_name("ALPHANUM_SSN");
-  std::string pt("ABCDEFGHI");
+  std::string pt("0123456789");
   std::string ct, ct2;
   std::chrono::duration<double, std::nano> ubiq_times = std::chrono::steady_clock::duration::zero();
 

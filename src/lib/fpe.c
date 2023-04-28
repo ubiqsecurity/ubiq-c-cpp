@@ -6,6 +6,7 @@
 #include "ubiq/platform/internal/common.h"
 #include "ubiq/platform/internal/support.h"
 #include "ubiq/platform/internal/parsing.h"
+#include "ubiq/platform/internal/billing.h"
 #include "ubiq/platform/internal/cache.h"
 #include <ubiq/fpe/ff1.h>
 #include <ubiq/fpe/internal/ffx.h>
@@ -36,7 +37,7 @@
  * Defines
  *
 **************************************************************************************/
-#define UBIQ_DEBUG_ON // UNCOMMENT to Enable UBIQ_DEBUG macro
+// #define UBIQ_DEBUG_ON // UNCOMMENT to Enable UBIQ_DEBUG macro
 
 #ifdef UBIQ_DEBUG_ON
 #define UBIQ_DEBUG(x,y) {x && y;}
@@ -110,14 +111,12 @@ struct ubiq_platform_fpe_enc_dec_obj
 {
     /* http[s]://host/api/v0 */
     char * restapi;
+    char * papi;
     char * encoded_papi;
     char * srsa;
     struct ubiq_platform_rest_handle * rest;
 
-    cJSON * billing_elements;
-    pthread_mutex_t billing_lock;
-    pthread_t process_billing_thread;
-    pthread_cond_t process_billing_cond;
+    struct ubiq_billing_ctx * billing_ctx;
 
     struct ubiq_platform_cache * ffs_cache; // URL / ffs
     struct ubiq_platform_cache * key_cache; // ffs_name:key_number => void * (either ff1_ctx or ff3_ctx)
@@ -157,7 +156,6 @@ struct ctx_cache_element {
   void * fpe_ctx;
   unsigned int key_number;
 };
-
 
 /**************************************************************************************
  *
@@ -469,6 +467,7 @@ ctx_cache_element_create(
   return res;
 }
 
+
 static
 void
 ffs_destroy(
@@ -687,96 +686,6 @@ int u32_parse_data(
 } // u32_parse_data
 
 
-
-static
-void *
-process_billing(void * data) {
-    // TODO
-}
-
-// TODO
-static
-int
-ubiq_platform_process_billing(
-  struct ubiq_platform_fpe_enc_dec_obj * const e,
-  cJSON ** json_array)
-{
-  static const char * const fmt = "%s/fpe/billing/%s";
-  time_t now;
-
-  cJSON * json = NULL;
-  char * url = NULL;
-  size_t len;
-  int res = 0;
-
-
-  len = snprintf(NULL, 0, fmt, e->restapi, e->encoded_papi);
-  url = malloc(len + 1);
-  snprintf(url, len + 1, fmt, e->restapi, e->encoded_papi);
-
-  char guid_hex[37]; // 8 - 4 - 4 - 4 - 12
-  uint16_t guid[8];
-
-  char * str = cJSON_Print(*json_array);
-
-  unsigned int array_size = cJSON_GetArraySize(*json_array);
-
-  if (array_size > 0) {
-
-    res = ubiq_platform_rest_request(
-        e->rest,
-        HTTP_RM_POST, url, "application/json", str, strlen(str));
-
-    // If Success, simply proceed
-    if (res == 0) {
-      const http_response_code_t rc =
-          ubiq_platform_rest_response_code(e->rest);
-
-      if (rc == HTTP_RC_BAD_REQUEST) {
-          const void * rsp;
-          size_t len;
-          cJSON * json;
-
-          rsp = ubiq_platform_rest_response_content(e->rest, &len);
-          res = (json = cJSON_ParseWithLength(rsp, len)) ? 0 : INT_MIN;
-
-          if (res == 0) {
-            cJSON * last_valid = cJSON_GetObjectItemCaseSensitive(json, "last_valid");
-            if (cJSON_IsObject(last_valid)) {
-              cJSON * id = cJSON_GetObjectItemCaseSensitive(last_valid, "id");
-              if (cJSON_IsString(id) && id->valuestring != NULL) {
-
-                int match = 0;
-                while (array_size > 0 && !match){
-                  cJSON * item = cJSON_DetachItemFromArray(*json_array, 0);
-                  if (cJSON_IsObject(item)) {
-                    cJSON * element_id = cJSON_GetObjectItemCaseSensitive(item, "id");
-                    if (cJSON_IsString(element_id) && element_id->valuestring != NULL) {
-                      match = (strcmp(id->valuestring, element_id->valuestring) == 0);
-                    }
-                  }
-                  cJSON_Delete(item);
-                  array_size--;
-                }
-              }
-            }
-          }
-          cJSON_Delete(json);
-      } else if (rc == HTTP_RC_CREATED) {
-          cJSON_Delete(*json_array);
-          *json_array = cJSON_CreateArray();
-          res = 0;
-      } else {
-        res = ubiq_platform_http_error(rc);
-      }
-    }
-  }
-  free(str);
-  free(url);
-  return res;
-
-}
-
 static
 int
 get_key_cache_string(const char * const ffs_name,
@@ -838,6 +747,7 @@ ubiq_platform_fpe_encryption(
     const char * const host,
     const char * const papi, const char * const sapi,
     const char * const srsa,
+    const struct ubiq_platform_configuration * const cfg,
     struct ubiq_platform_fpe_enc_dec_obj ** const enc)
 {
     static const char * const csu = "ubiq_platform_fpe_encryption";
@@ -850,7 +760,7 @@ ubiq_platform_fpe_encryption(
     e = calloc(1, sizeof(*e));
     if (e) {
       // Just a way to determine if it has been created correctly later
-      e->process_billing_thread = pthread_self();
+      // e->process_billing_thread = pthread_self();
 
       len = ubiq_platform_snprintf_api_url(NULL, 0, host, api_path);
       if (((int)len) <= 0) { // error of some sort
@@ -871,28 +781,19 @@ ubiq_platform_fpe_encryption(
         }
       }
       if (!res) {
+        e->papi = strdup(papi);
+        if (e->papi == NULL) {
+          res = -ENOMEM;
+        }
+      }
+      if (!res) {
         res = ubiq_platform_cache_create(&e->ffs_cache);
       }
       if (!res) {
         res = ubiq_platform_cache_create(&e->key_cache);
       }
       if (!res) {
-        e->billing_elements = cJSON_CreateArray();
-      }
-      if (!res) {
-        if ((res = pthread_mutex_init(&e->billing_lock, NULL)) != 0) {
-          res = -errno;
-        }
-      }
-      if (!res) {
-        if ((res = pthread_cond_init(&e->process_billing_cond, NULL)) != 0) {
-          res = -res;
-        }
-      }
-      if (!res) {
-        if ((res = pthread_create(&e->process_billing_thread, NULL, &process_billing, e)) != 0) {
-          res = -res;
-        }
+        res = ubiq_billing_ctx_create(&e->billing_ctx, host, e->rest, cfg);
       }
     }
 
@@ -1323,7 +1224,8 @@ int char_fpe_decrypt_data(
   const struct ffs * const ffs_definition,
   const uint8_t * const tweak, const size_t tweaklen,
   const char * const ctbuf, const size_t ctlen,
-  char ** const ptbuf, size_t * const ptlen)
+  char ** const ptbuf, size_t * const ptlen,
+  int * key_number)
 {
   static const char * const csu = "char_fpe_decrypt_data";
   int debug_flag = 0;
@@ -1331,7 +1233,6 @@ int char_fpe_decrypt_data(
   struct parsed_data * parsed = NULL;
   struct ff1_ctx * ctx = NULL;
   char * pt = NULL;
-  int key_number = -1;
 
   if (!res) { res = CAPTURE_ERROR(enc, parsed_create(&parsed, UINT8, ctlen),  "Memory Allocation Error"); }
   UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i)\n",csu, "parsed_create", res));
@@ -1347,15 +1248,15 @@ int char_fpe_decrypt_data(
   UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) buf(%s)\n",csu, "alloc", res, parsed->trimmed_buf.buf));
 
   // decode keynum
-  if (!res) { res = CAPTURE_ERROR(enc, decode_keynum(ffs_definition, parsed->trimmed_buf.buf, &key_number ), "Unable to determine key number in cipher text");}
-  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) key(%d) buf(%s)\n",csu, "decode_keynum", res, key_number, parsed->trimmed_buf.buf));
+  if (!res) { res = CAPTURE_ERROR(enc, decode_keynum(ffs_definition, parsed->trimmed_buf.buf, key_number ), "Unable to determine key number in cipher text");}
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) key(%d) buf(%s)\n",csu, "decode_keynum", res, *key_number, parsed->trimmed_buf.buf));
 
   // convert radix
   if (!res) {res = CAPTURE_ERROR(enc, str_convert_radix( parsed->trimmed_buf.buf, ffs_definition->output_character_set, ffs_definition->input_character_set, parsed->trimmed_buf.buf), "Invalid input string");}
   UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) trimmed_buf.buf(%s)\n",csu, "str_convert_radix", res, parsed->trimmed_buf.buf));
 
   // get ctx
-  if (!res) {res = get_ctx(enc, ffs_definition, &key_number , &ctx);}
+  if (!res) {res = get_ctx(enc, ffs_definition, key_number , &ctx);}
   UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i)\n",csu, "get_ctx", res));
   
   // decrypt
@@ -1379,7 +1280,8 @@ int u32_fpe_decrypt_data(
   const struct ffs * const ffs_definition,
   const uint8_t * const tweak, const size_t tweaklen,
   const char * const ctbuf, const size_t ctlen,
-  char ** const ptbuf, size_t * const ptlen)
+  char ** const ptbuf, size_t * const ptlen,
+  int * key_number)
 {
   static const char * const csu = "u32_fpe_decrypt_data";
   int debug_flag = 0;
@@ -1387,7 +1289,6 @@ int u32_fpe_decrypt_data(
   struct parsed_data * parsed = NULL;
   struct ff1_ctx * ctx = NULL;
   char * pt = NULL;
-  int key_number = -1;
 
   uint32_t * u32_ctbuf = NULL;
   uint32_t * u32_pt = NULL;
@@ -1414,8 +1315,8 @@ int u32_fpe_decrypt_data(
   }
 
   // decode keynum
-  if (!res) { res = CAPTURE_ERROR(enc, u32_decode_keynum(ffs_definition, parsed->trimmed_buf.buf, &key_number ), "Unable to determine key number in cipher text");}
-  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) key(%d) buf(%S)\n",csu, "u32_decode_keynum", res, key_number, parsed->trimmed_buf.buf));
+  if (!res) { res = CAPTURE_ERROR(enc, u32_decode_keynum(ffs_definition, parsed->trimmed_buf.buf, key_number ), "Unable to determine key number in cipher text");}
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) key(%d) buf(%S)\n",csu, "u32_decode_keynum", res, *key_number, parsed->trimmed_buf.buf));
 
   // convert radix
   if (!res) {res = CAPTURE_ERROR(enc, u32_str_convert_u32_radix( parsed->trimmed_buf.buf, ffs_definition->u32_output_character_set, ffs_definition->u32_input_character_set, parsed->trimmed_buf.buf), "Invalid input string");}
@@ -1426,7 +1327,7 @@ int u32_fpe_decrypt_data(
   UBIQ_DEBUG(debug_flag, printf("%s \n \t %s u32_trimmed(%S) u8_trimmed(%s) res(%i)\n",csu, "convert_utf8_to_utf32", parsed->trimmed_buf.buf, u8_trimmed, res));
 
   // get ctx
-  if (!res) {res = get_ctx(enc, ffs_definition, &key_number , &ctx);}
+  if (!res) {res = get_ctx(enc, ffs_definition, key_number , &ctx);}
   UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i)\n",csu, "get_ctx", res));
   
   // allocate u8_pt
@@ -1482,6 +1383,8 @@ ubiq_platform_fpe_encrypt_data(
   struct ff1_ctx * ctx = NULL;
   int key_number = -1;
 
+  char * dataset_groups_name = NULL; // TODO - change to parameter in the future for FQN
+
   // Get FFS (cache or otherwise)
   res = ffs_get_def(enc, ffs_name, &ffs_definition);
   UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i)\n",csu, "ffs_get_def", res));
@@ -1498,6 +1401,18 @@ ubiq_platform_fpe_encrypt_data(
       res = u32_fpe_encrypt_data(enc, ffs_definition, ctx, key_number, tweak, tweaklen, ptbuf, ptlen, ctbuf, ctlen);
     }
   }
+
+  if (!res) {
+
+    res = ubiq_billing_add_billing_event(
+      enc->billing_ctx,
+      enc->papi,
+      ffs_name, dataset_groups_name,
+      ENCRYPTION,
+      1, key_number );
+  }
+
+
   return res;
 
 }
@@ -1515,6 +1430,8 @@ ubiq_platform_fpe_decrypt_data(
   int res = 0;
   const struct ffs * ffs_definition = NULL;
 
+  char * dataset_groups_name = NULL; // TODO - change to parameter in the future for FQN
+  int key_number = -1;
   // Get FFS (cache or otherwise)
   res = ffs_get_def(enc, ffs_name, &ffs_definition);
   UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i)\n",csu, "ffs_get_def", res));
@@ -1523,19 +1440,45 @@ ubiq_platform_fpe_decrypt_data(
 
   if (!res) {
     if (ffs_definition->character_types == UINT8) {
-      res = char_fpe_decrypt_data(enc, ffs_definition, tweak, tweaklen, ctbuf, ctlen, ptbuf, ptlen);
+      res = char_fpe_decrypt_data(enc, ffs_definition, tweak, tweaklen, ctbuf, ctlen, ptbuf, ptlen, &key_number);
     } else {
-      res = u32_fpe_decrypt_data(enc, ffs_definition, tweak, tweaklen, ctbuf, ctlen, ptbuf, ptlen);
+      res = u32_fpe_decrypt_data(enc, ffs_definition, tweak, tweaklen, ctbuf, ctlen, ptbuf, ptlen, &key_number);
     }
   }
+
+  if (!res) {
+
+    res = ubiq_billing_add_billing_event(
+      enc->billing_ctx,
+      enc->papi,
+      ffs_name, dataset_groups_name,
+      DECRYPTION,
+      1, key_number );
+  }
+
+
   return res;
+
+}
+
+int
+ubiq_platform_fpe_enc_dec_create(
+    const struct ubiq_platform_credentials * const creds,
+    struct ubiq_platform_fpe_enc_dec_obj ** const enc) {
+
+  struct ubiq_platform_configuration * cfg = NULL;
+
+  ubiq_platform_configuration_load_configuration(NULL, &cfg);
+
+  return ubiq_platform_fpe_enc_dec_create_with_config(creds, cfg, enc);
 
 }
 
 // Piecewise functions
 int
-ubiq_platform_fpe_enc_dec_create(
+ubiq_platform_fpe_enc_dec_create_with_config(
     const struct ubiq_platform_credentials * const creds,
+    const struct ubiq_platform_configuration * const cfg,
     struct ubiq_platform_fpe_enc_dec_obj ** const enc) {
       
     struct ubiq_platform_fpe_enc_dec_obj * e;
@@ -1547,7 +1490,7 @@ ubiq_platform_fpe_enc_dec_create(
     const char * const srsa = ubiq_platform_credentials_get_srsa(creds);
 
     // This function will actually create and initialize the object
-    res = ubiq_platform_fpe_encryption(host, papi, sapi, srsa, &e);
+    res = ubiq_platform_fpe_encryption(host, papi, sapi, srsa, cfg, &e);
 
     if (res == 0) {
         *enc = e;
@@ -1561,6 +1504,7 @@ ubiq_platform_fpe_enc_dec_create(
 
 
 
+
 void
 ubiq_platform_fpe_enc_dec_destroy(
     struct ubiq_platform_fpe_enc_dec_obj * const e)
@@ -1569,22 +1513,12 @@ ubiq_platform_fpe_enc_dec_destroy(
 
   if (e) {
     int i= 0;
-    pthread_mutex_lock(&e->billing_lock);
-    cJSON * json_array = e->billing_elements;
-    e->billing_elements = NULL;
-    pthread_mutex_unlock(&e->billing_lock);
-    pthread_cond_signal(&e->process_billing_cond);
-    // If the billing thread is this, thread than we know there
-    // was a problem during setup so no need to join.
-    if (!pthread_equal(e->process_billing_thread,pthread_self())) {
-      pthread_join(e->process_billing_thread, NULL);
-    }
-    ubiq_platform_process_billing(e, &json_array);
-    pthread_cond_destroy(&e->process_billing_cond);
-    pthread_mutex_destroy(&e->billing_lock);
-    cJSON_Delete(json_array);
+    // Need to make sure billing ctx is destroyed before other objects
+    ubiq_billing_ctx_destroy(e->billing_ctx);
+
     ubiq_platform_rest_handle_destroy(e->rest);
     free(e->restapi);
+    free(e->papi);
     free(e->encoded_papi);
     free(e->srsa);
     ubiq_platform_cache_destroy(e->ffs_cache);
@@ -1638,7 +1572,6 @@ ubiq_platform_fpe_encrypt(
   if (!res) {
      res = ubiq_platform_fpe_encrypt_data(enc, ffs_name,
        tweak, tweaklen, ptbuf, ptlen, ctbuf, ctlen);
-    // TODO BILLING
   }
   ubiq_platform_fpe_enc_dec_destroy(enc);
 
@@ -1661,7 +1594,6 @@ ubiq_platform_fpe_decrypt(
 
   if (!res) {
     res  = ubiq_platform_fpe_decrypt_data(enc, ffs_name, tweak, tweaklen, ctbuf, ctlen, ptbuf, ptlen);
-    // TODO BILLING
   }
     ubiq_platform_fpe_enc_dec_destroy(enc);
   return res;
@@ -1683,7 +1615,6 @@ ubiq_platform_fpe_encrypt_for_search(
 
    if (!res) {
     res  = ubiq_platform_fpe_encrypt_data_for_search(enc, ffs_name, tweak, tweaklen, ptbuf, ptlen, ctbuf, count);
-    // TODO BILLING
   }
 
   ubiq_platform_fpe_enc_dec_destroy(enc);
@@ -1707,6 +1638,7 @@ ubiq_platform_fpe_encrypt_data_for_search(
   int key_number = -1;
   int res = 0;
   char ** ret_ct = NULL;
+  char * dataset_groups_name = NULL; // TODO - change to parameter in the future for FQN
 
   UBIQ_DEBUG(debug_flag, printf("%s %s res(%d)\n", csu, "start", res));
 
@@ -1735,6 +1667,18 @@ ubiq_platform_fpe_encrypt_data_for_search(
     UBIQ_DEBUG(debug_flag, printf("i(%d) x(%d) res(%d)\n", i, x, res));
     if (!res) { res = char_fpe_encrypt_data(enc, ffs_definition, ctx, i, tweak, tweaklen, ptbuf, ptlen, &ret_ct[i], &len);}
     UBIQ_DEBUG(debug_flag, printf("%s %s res(%d) ret_ct[i](%s)\n", csu, "char_fpe_encrypt_data", res, ret_ct[i]));
+
+    // char_fpe_encrypt_data does not add billing event - ubiq_platform_fpe_enc_dec_obj adds billing but does not accept key number.
+    // Therefore, need to add billing records here
+
+    if (!res) {
+      res = ubiq_billing_add_billing_event(
+        enc->billing_ctx,
+        enc->papi,
+        ffs_name, dataset_groups_name,
+        ENCRYPTION,
+        1, i );
+    }
   }
 
   if (res) {

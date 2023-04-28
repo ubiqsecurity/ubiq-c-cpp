@@ -196,7 +196,7 @@ TEST(c_fpe_decrypt, piecewise_too_short)
 TEST(c_fpe_decrypt, piecewise_all_zeroth)
 {
 
-    char pt [] = "!!!!!!!!!!!!!!";
+    char pt [] = "000000000000000";
     static const char * const ffs_name = "ALPHANUM_SSN";
 
     struct ubiq_platform_credentials * creds;

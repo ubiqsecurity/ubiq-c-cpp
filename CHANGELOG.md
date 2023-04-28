@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.0.0.0 - 2023-04-19
+* FPE and usage reporting optimizations
+
 ## 0.4.5.0 - 2022-06-23
 * Improved FPE Algorithm
 

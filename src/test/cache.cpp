@@ -152,3 +152,87 @@ TEST_F(cpp_ffs_cache, add_many)
     free(keys[i]);
   }
 }
+
+
+static
+void
+action(const void *nodep, VISIT which, void *__closure)
+{
+  int debug_flag = 1;
+  static const char * const csu = "cache.cpp::action";
+
+
+  // struct cache_element * e = NULL;
+
+  char * e = NULL;
+
+   switch (which) {
+  case leaf:
+    e = *(char **) nodep;
+
+    // printf("leaf key (%p): \n", e->key);
+    // printf("leaf data (%s): \n", e->data;
+
+    // printf("%s leaf nodep (%p): \n", csu, (char *)nodep);
+    // printf("%s leaf e (%p): \n", csu, e);
+    // printf("%s leaf e (%s): \n", csu, e);
+
+    // printf("leaf data (%s): \n", e);
+    // printf("leaf data (%s): \n", *e);
+
+    // printf("leaf data: (%s}\n", data);
+    (*(int *)__closure)++;
+    break;
+
+  case preorder:
+    // printf("preorder: \n");
+    break;
+  case postorder:
+    e = *(char **) nodep;
+    // printf("postorder nodep (%p): \n", (char *)nodep);
+    // printf("postorder *nodep (%p): \n", *(char *)nodep);
+    // printf("postorder *(char **)nodep (%p): \n", (char **)nodep);
+    // printf("postorder **(char ***)nodep (%p): \n", **(char ***)nodep);
+    (*(int *)__closure)++;
+    break;
+  case endorder:
+    // printf("endorder: \n");
+    break;
+
+
+  default:
+    // printf("not leaf: \n");
+    break;
+  }
+
+}
+
+
+TEST_F(cpp_ffs_cache, walk_r)
+{
+  char * keys[10];
+  for (int i = 0; i < 10; i++) {
+    char * const data = (char *)calloc(25, sizeof(char));
+    // printf("data %p\n", data);
+    snprintf(data, 25, "test %d data", i);
+    keys[i] = (char *) calloc(25, sizeof(char));
+    snprintf(keys[i], 25, "key %d data", i);
+
+    // printf("key: '%s'  data: %p '%s'\n", keys[i], data, data);
+
+
+
+    ASSERT_EQ(ubiq_platform_cache_add_element(_ffs_tree, keys[i], 0, data, &free),0);
+  }
+
+  int count = 0;
+
+   ubiq_platform_cache_walk_r(_ffs_tree, action, (void *)&count);
+
+  // printf("after ubiq_platform_cache_walk_r %d\n", count);
+
+  // // Random search for first and last and make sure data not the same
+  for (int i = 0; i < 10; i++) {
+    free(keys[i]);
+  }
+}

@@ -155,7 +155,7 @@ int
 ubiq_platform_common_parse_new_key(
     const cJSON * const json,
     const char * const srsa,
-    char ** const session, char ** const fingerprint,
+    // char ** const session, char ** const fingerprint,
     void ** const keybuf, size_t * const keylen)
 {
     const cJSON * j;
@@ -166,26 +166,26 @@ ubiq_platform_common_parse_new_key(
         /*
          * save the session id
          */
-        j = cJSON_GetObjectItemCaseSensitive(
-            json, "encryption_session");
-        if (cJSON_IsString(j) && j->valuestring != NULL) {
-            *session = strdup(j->valuestring);
-        } else {
-            res = -EBADMSG;
-        }
+        // j = cJSON_GetObjectItemCaseSensitive(
+        //     json, "encryption_session");
+        // if (cJSON_IsString(j) && j->valuestring != NULL) {
+        //     *session = strdup(j->valuestring);
+        // } else {
+        //     res = -EBADMSG;
+        // }
     }
 
     if (res == 0) {
         /*
          * save the key fingerprint
          */
-        j = cJSON_GetObjectItemCaseSensitive(
-            json, "key_fingerprint");
-        if (cJSON_IsString(j) && j->valuestring != NULL) {
-            *fingerprint = strdup(j->valuestring);
-        } else {
-            res = -EBADMSG;
-        }
+        // j = cJSON_GetObjectItemCaseSensitive(
+        //     json, "key_fingerprint");
+        // if (cJSON_IsString(j) && j->valuestring != NULL) {
+        //     *fingerprint = strdup(j->valuestring);
+        // } else {
+        //     res = -EBADMSG;
+        // }
     }
 
     if (res == 0) {

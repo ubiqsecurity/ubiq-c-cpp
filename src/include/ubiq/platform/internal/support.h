@@ -104,6 +104,8 @@ int ubiq_support_asymmetric_decrypt(
     void ** const, size_t * const /* output */);
 
 extern const char * ubiq_support_user_agent;
+extern const char * ubiq_support_product;
+extern const char * ubiq_support_version;
 int ubiq_support_http_init(void);
 void ubiq_support_http_exit();
 
