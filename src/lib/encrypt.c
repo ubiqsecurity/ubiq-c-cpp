@@ -5,6 +5,7 @@
 #include "ubiq/platform/internal/credentials.h"
 #include "ubiq/platform/internal/common.h"
 #include "ubiq/platform/internal/support.h"
+#include "ubiq/platform/internal/billing.h"
 
 #include <errno.h>
 #include <limits.h>
@@ -15,13 +16,17 @@
 
 #include "cJSON/cJSON.h"
 
+
 struct ubiq_platform_encryption
 {
     /* http[s]://host/api/v0 */
+    // Order of fields is important since single alloc is performed.
     const char * restapi;
+    char * papi;
     struct ubiq_platform_rest_handle * rest;
+    struct ubiq_billing_ctx * billing_ctx;
 
-    char * session;
+    // char * session;
     int fragment;
 
     struct {
@@ -30,7 +35,7 @@ struct ubiq_platform_encryption
             size_t len;
         } raw, enc;
 
-        char * fingerprint;
+        // char * fingerprint;
 
         struct {
             unsigned int max, cur;
@@ -39,6 +44,7 @@ struct ubiq_platform_encryption
 
     const struct ubiq_platform_algorithm * algo;
     struct ubiq_support_cipher_context * ctx;
+    const struct ubiq_platform_configuration * cfg;
 };
 
 void
@@ -51,59 +57,24 @@ ubiq_platform_encryption_destroy(
      * then update the server with the actual number
      * of uses
      */
-    if (e->session && e->key.fingerprint &&
-        e->key.uses.cur < e->key.uses.max) {
-        const char * const fmt = "%s/encryption/key/%s/%s";
 
-        cJSON * json;
-        char * url, * str;
-        int len, res;
+    ubiq_billing_ctx_destroy(e->billing_ctx);
 
-        /* create the request url using the fingerprint and session */
-
-        len = snprintf(
-            NULL, 0, fmt, e->restapi, e->key.fingerprint, e->session);
-        url = malloc(len + 1);
-        snprintf(
-            url, len + 1, fmt, e->restapi, e->key.fingerprint, e->session);
-
-        /* the json object to send */
-
-        json = cJSON_CreateObject();
-        cJSON_AddItemToObject(
-            json, "requested", cJSON_CreateNumber(e->key.uses.max));
-        cJSON_AddItemToObject(
-            json, "actual", cJSON_CreateNumber(e->key.uses.cur));
-        str = cJSON_Print(json);
-        cJSON_Delete(json);
-
-        /* and send the request */
-
-        res = ubiq_platform_rest_request(
-            e->rest,
-            HTTP_RM_PATCH, url, "application/json", str, strlen(str));
-
-        free(str);
-        free(url);
-
-        if (res != 0 ||
-            ubiq_platform_rest_response_code(e->rest) != HTTP_RC_NO_CONTENT) {
-            /*
-             * TODO: there's not much to do if the http request fails
-             * since the encryption object itself is being destroyed,
-             * and the function doesn't return a value. this failure
-             * should probably be logged somewhere.
-             */
-        }
+    if (e->key.raw.len) {
+      memset(e->key.raw.buf, 0, e->key.raw.len);
     }
+    if (e->key.enc.len) {
+      memset(e->key.enc.buf, 0, e->key.enc.len);
+    }
+
 
     ubiq_platform_rest_handle_destroy(e->rest);
 
-    free(e->key.fingerprint);
+    // free(e->key.fingerprint);
     free(e->key.enc.buf);
     free(e->key.raw.buf);
 
-    free(e->session);
+    // free(e->session);
 
     if (e->ctx) {
         ubiq_support_cipher_destroy(e->ctx);
@@ -117,6 +88,7 @@ int
 ubiq_platform_encryption_new(
     const char * const host,
     const char * const papi, const char * const sapi,
+    const struct ubiq_platform_configuration * const cfg,
     struct ubiq_platform_encryption ** const enc)
 {
     static const char * const api_path = "api/v0";
@@ -126,17 +98,31 @@ ubiq_platform_encryption_new(
     int res;
 
     res = -ENOMEM;
-    len = ubiq_platform_snprintf_api_url(NULL, 0, host, api_path) + 1;
-    e = calloc(1, sizeof(*e) + len);
-    if (e) {
+    len = ubiq_platform_snprintf_api_url(NULL, 0, host, api_path);
+
+    if (((int)len) <= 0) { // error of some sort
+      res = len;
+    } else {
+      len++;
+
+      e = calloc(1, sizeof(*e) + len + strlen(papi) + 1);
+      if (e) {
         ubiq_platform_snprintf_api_url((char *)(e + 1), len, host, api_path);
         e->restapi = (char *)(e + 1);
+        e->papi = (void *)e + sizeof(*e) + len;
+        strcpy(e->papi, papi);
 
         res = ubiq_platform_rest_handle_create(papi, sapi, &e->rest);
-        if (res != 0) {
-            free(e);
-            e = NULL;
+
+        if (!res) {
+          res = ubiq_billing_ctx_create(&e->billing_ctx, host, e->rest, cfg);
         }
+      }
+    }
+
+    if (res != 0) {
+        free(e);
+        e = NULL;
     }
 
     *enc = e;
@@ -154,7 +140,7 @@ ubiq_platform_encryption_parse_new_key(
 
     res = ubiq_platform_common_parse_new_key(
         json, srsa,
-        &e->session, &e->key.fingerprint,
+        // &e->session, &e->key.fingerprint,
         &e->key.raw.buf, &e->key.raw.len);
 
     if (res == 0) {
@@ -222,6 +208,20 @@ ubiq_platform_encryption_parse_new_key(
 int ubiq_platform_encryption_create(
     const struct ubiq_platform_credentials * const creds,
     const unsigned int uses,
+    struct ubiq_platform_encryption ** const enc) 
+{
+  struct ubiq_platform_configuration * cfg = NULL;
+
+  ubiq_platform_configuration_load_configuration(NULL, &cfg);
+
+  return ubiq_platform_encryption_create_with_config(creds, cfg, uses, enc);
+}
+
+
+int ubiq_platform_encryption_create_with_config(
+    const struct ubiq_platform_credentials * const creds,
+    const struct ubiq_platform_configuration * const cfg,
+    const unsigned int uses,
     struct ubiq_platform_encryption ** const enc)
 {
     struct ubiq_platform_encryption * e;
@@ -232,8 +232,10 @@ int ubiq_platform_encryption_create(
     const char * const sapi = ubiq_platform_credentials_get_sapi(creds);
     const char * const srsa = ubiq_platform_credentials_get_srsa(creds);
 
-    res = ubiq_platform_encryption_new(host, papi, sapi, &e);
+    // Creates e->rest
+    res = ubiq_platform_encryption_new(host, papi, sapi, cfg, &e);
     if (res == 0) {
+        e->cfg = cfg;
         const char * const fmt = "%s/encryption/key";
 
         cJSON * json;
@@ -353,6 +355,13 @@ ubiq_platform_encryption_begin(
                 aadbuf, aadlen,
                 &enc->ctx);
             if (res == 0) {
+                  res = ubiq_billing_add_billing_event(
+                    enc->billing_ctx,
+                    enc->papi,
+                    "", "",
+                    ENCRYPTION,
+                    1, 0 ); // key number not used for unstructured
+
                 enc->key.uses.cur++;
             }
         } else {

@@ -35,7 +35,7 @@ int
 ubiq_platform_common_parse_new_key(
     const cJSON * const json,
     const char * const srsa,
-    char ** const session, char ** const fingerprint,
+    // char ** const session, char ** const fingerprint,
     void ** const keybuf, size_t * const keylen);
 
 int

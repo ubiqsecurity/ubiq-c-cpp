@@ -12,6 +12,8 @@
 #endif
 
 const char * ubiq_support_user_agent = NULL;
+const char * ubiq_support_product = NULL;
+const char * ubiq_support_version = NULL;
 
 int
 ubiq_support_gmtime_r(

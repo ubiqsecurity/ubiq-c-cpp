@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 #include <ubiq/platform/credentials.h>
+#include <ubiq/platform/configuration.h>
 
 __BEGIN_DECLS
 
@@ -75,6 +76,14 @@ UBIQ_PLATFORM_API
 int
 ubiq_platform_encryption_create(
     const struct ubiq_platform_credentials * const creds,
+    const unsigned int uses,
+    struct ubiq_platform_encryption ** const enc);
+
+UBIQ_PLATFORM_API
+int
+ubiq_platform_encryption_create_with_config(
+    const struct ubiq_platform_credentials * const creds,
+    const struct ubiq_platform_configuration * cfg,
     const unsigned int uses,
     struct ubiq_platform_encryption ** const enc);
 
@@ -158,6 +167,14 @@ ubiq_platform_fpe_enc_dec_create(
     const struct ubiq_platform_credentials * const creds,
     struct ubiq_platform_fpe_enc_dec_obj ** const enc);
 
+// Piecewise functions
+UBIQ_PLATFORM_API
+int
+ubiq_platform_fpe_enc_dec_create_with_config(
+    const struct ubiq_platform_credentials * const creds,
+    const struct ubiq_platform_configuration * const cfg,
+    struct ubiq_platform_fpe_enc_dec_obj ** const enc);
+
 UBIQ_PLATFORM_API
 int
 ubiq_platform_fpe_encrypt_data(
@@ -236,6 +253,11 @@ namespace ubiq {
             UBIQ_PLATFORM_API
             encryption(const credentials & creds, unsigned int uses);
 
+            UBIQ_PLATFORM_API
+            encryption(const credentials & creds, 
+            configuration & cfg,
+            unsigned int uses);
+
             encryption(const encryption &) = delete;
             UBIQ_PLATFORM_API
             encryption(encryption &&) = default;
@@ -290,6 +312,18 @@ namespace ubiq {
                   const std::string & pt);
 
           UBIQ_PLATFORM_API
+          std::string
+          encrypt(const credentials & creds,
+                  const std::string & ffs_name,
+                  const std::string & pt);
+
+          UBIQ_PLATFORM_API
+          std::vector<std::string>
+          encrypt_for_search(const credentials & creds,
+                  const std::string & ffs_name,
+                  const std::string & pt);
+
+          UBIQ_PLATFORM_API
           std::vector<std::string>
           encrypt_for_search(const credentials & creds,
                   const std::string & ffs_name,
@@ -298,6 +332,20 @@ namespace ubiq {
           UBIQ_PLATFORM_API
           std::string
           encrypt(const credentials & creds,
+                  const std::string & ffs_name,
+                  const std::vector<std::uint8_t> & tweak,
+                  const std::string & pt);
+
+          UBIQ_PLATFORM_API
+          std::string
+          encrypt(const credentials & creds,
+                  const std::string & ffs_name,
+                  const std::vector<std::uint8_t> & tweak,
+                  const std::string & pt);
+
+          UBIQ_PLATFORM_API
+          std::vector<std::string>
+          encrypt_for_search(const credentials & creds,
                   const std::string & ffs_name,
                   const std::vector<std::uint8_t> & tweak,
                   const std::string & pt);
@@ -343,6 +391,11 @@ namespace ubiq {
              */
             UBIQ_PLATFORM_API
             encryption(const credentials & creds);
+
+            UBIQ_PLATFORM_API
+            encryption(const credentials & creds,
+            configuration & cfg
+            );
 
             UBIQ_PLATFORM_API
             virtual

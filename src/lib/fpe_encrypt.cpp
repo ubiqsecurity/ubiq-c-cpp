@@ -5,10 +5,26 @@
 
 using namespace ubiq::platform::fpe;
 
+encryption::encryption(const credentials & creds,
+  configuration & cfg
+) {
+    struct ubiq_platform_fpe_enc_dec_obj * enc(nullptr);
+    int res;
+
+    res = ubiq_platform_fpe_enc_dec_create_with_config(&*creds, &(*cfg), &enc);
+    if (res != 0) {
+        throw std::system_error(-res, std::generic_category(), get_error(enc));
+    }
+
+    _enc.reset(enc, &ubiq_platform_fpe_enc_dec_destroy);
+
+}
+
 
 encryption::encryption(const credentials & creds)
 {
     struct ubiq_platform_fpe_enc_dec_obj * enc(nullptr);
+
     int res;
 
     res = ubiq_platform_fpe_enc_dec_create(&*creds, &enc);

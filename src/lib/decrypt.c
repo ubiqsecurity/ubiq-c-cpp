@@ -5,6 +5,7 @@
 #include "ubiq/platform/internal/credentials.h"
 #include "ubiq/platform/internal/common.h"
 #include "ubiq/platform/internal/support.h"
+#include "ubiq/platform/internal/billing.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -17,11 +18,13 @@ struct ubiq_platform_decryption
 {
     /* http[s]://host/api/v0 */
     const char * restapi;
+    const char * papi;
     struct ubiq_platform_rest_handle * rest;
+    struct ubiq_billing_ctx * billing_ctx;
 
     const char * srsa;
 
-    char * session;
+    // char * session;
 
     struct {
         struct {
@@ -29,7 +32,7 @@ struct ubiq_platform_decryption
             size_t len;
         } raw, enc;
 
-        char * fingerprint;
+        // char * fingerprint;
         unsigned int uses;
     } key;
 
@@ -44,6 +47,19 @@ ubiq_platform_decryption_create(
     const struct ubiq_platform_credentials * const creds,
     struct ubiq_platform_decryption ** const dec)
 {
+  struct ubiq_platform_configuration * cfg = NULL;
+
+  ubiq_platform_configuration_load_configuration(NULL, &cfg);
+
+  return ubiq_platform_decryption_create_with_config(creds, cfg, dec);
+}
+
+int
+ubiq_platform_decryption_create_with_config(
+    const struct ubiq_platform_credentials * const creds,
+    const struct ubiq_platform_configuration * const cfg,
+    struct ubiq_platform_decryption ** const dec)
+{
     static const char * const api_path = "api/v0";
 
     const char * const host = ubiq_platform_credentials_get_host(creds);
@@ -56,9 +72,15 @@ ubiq_platform_decryption_create(
     int res;
 
     res = -ENOMEM;
-    len = ubiq_platform_snprintf_api_url(NULL, 0, host, api_path) + 1;
-    d = calloc(1, sizeof(*d) + len + strlen(srsa) + 1);
-    if (d) {
+
+    len = ubiq_platform_snprintf_api_url(NULL, 0, host, api_path);
+
+    if (((int)len) <= 0) { // error of some sort
+      res = len;
+    } else {
+      len++;
+      d = calloc(1, sizeof(*d) + len + strlen(srsa) + 1 + strlen(papi) + 1);
+      if (d) {
         d->restapi = (char *)(d + 1);
         ubiq_platform_snprintf_api_url((char *)d->restapi, len, host, api_path);
 
@@ -70,16 +92,24 @@ ubiq_platform_decryption_create(
         d->srsa = d->restapi + len;
         strcpy((char *)d->srsa, srsa);
 
+        d->papi = d->restapi + len + strlen(srsa) + 1;
+        strcpy((char *)d->papi, papi);
+
         res = ubiq_platform_rest_handle_create(papi, sapi, &d->rest);
-        if (res != 0) {
-            free(d);
+
+        if (!res) {
+          res = ubiq_billing_ctx_create(&d->billing_ctx, host, d->rest, cfg);
         }
+
+      }
     }
 
-    if (res == 0) {
-        *dec = d;
+    if (res != 0) {
+        free(d);
+        d = NULL;
     }
 
+    *dec = d;
     return res;
 }
 
@@ -90,43 +120,11 @@ ubiq_platform_decryption_reset(
 {
     if (d->key.raw.len) {
         /*
-         * if the key has been used at all, then notify
-         * the server of the number of uses before
-         * discarding it
+         * if the key has been used at all, discarding it
          */
 
-        if (d->key.uses > 0) {
-            const char * const fmt = "%s/decryption/key/%s/%s";
-
-            cJSON * json;
-            char * url, * str;
-            int len, res;
-
-            len = snprintf(
-                NULL, 0, fmt, d->restapi, d->key.fingerprint, d->session);
-            url = malloc(len + 1);
-            snprintf(
-                url, len + 1, fmt, d->restapi, d->key.fingerprint, d->session);
-
-            json = cJSON_CreateObject();
-            cJSON_AddItemToObject(
-                json, "uses", cJSON_CreateNumber(d->key.uses));
-            str = cJSON_Print(json);
-            cJSON_Delete(json);
-
-            res = ubiq_platform_rest_request(
-                d->rest,
-                HTTP_RM_PATCH, url, "application/json", str, strlen(str));
-
-            free(str);
-            free(url);
-
-            if (res != 0 ||
-                ubiq_platform_rest_response_code(
-                    d->rest) != HTTP_RC_NO_CONTENT) {
-                /* should signal this to the caller/user somehow */
-            }
-        }
+        memset(d->key.raw.buf, 0, d->key.raw.len);
+        memset(d->key.enc.buf, 0, d->key.enc.len);
 
         free(d->key.raw.buf);
         free(d->key.enc.buf);
@@ -134,11 +132,11 @@ ubiq_platform_decryption_reset(
         d->key.raw.buf = d->key.enc.buf = NULL;
         d->key.raw.len = d->key.raw.len = 0;
 
-        free(d->key.fingerprint);
-        d->key.fingerprint = NULL;
+        // free(d->key.fingerprint);
+        // d->key.fingerprint = NULL;
 
-        free(d->session);
-        d->session = NULL;
+        // free(d->session);
+        // d->session = NULL;
 
         d->key.uses = 0;
 
@@ -199,7 +197,7 @@ ubiq_platform_decryption_new_key(
             if (json) {
                 res = ubiq_platform_common_parse_new_key(
                     json, d->srsa,
-                    &d->session, &d->key.fingerprint,
+                    // &d->session, &d->key.fingerprint,
                     &d->key.raw.buf, &d->key.raw.len);
 
                 cJSON_Delete(json);
@@ -217,6 +215,7 @@ ubiq_platform_decryption_destroy(
     struct ubiq_platform_decryption * const d)
 {
     ubiq_platform_decryption_reset(d);
+    ubiq_billing_ctx_destroy(d->billing_ctx);
     ubiq_platform_rest_handle_destroy(d->rest);
 
     free(d->buf);
@@ -359,6 +358,13 @@ ubiq_platform_decryption_update(
                             aadbuf, aadlen,
                             &dec->ctx);
                         if (res == 0) {
+                            res = ubiq_billing_add_billing_event(
+                                dec->billing_ctx,
+                                dec->papi,
+                                "", "",
+                                DECRYPTION,
+                                1, 0 ); // key number not used for unstructured
+
                             dec->key.uses++;
                         }
                     }

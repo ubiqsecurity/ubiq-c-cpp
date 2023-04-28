@@ -7,6 +7,7 @@ add_executable(
 
   cache.cpp
   credentials.cpp
+  configuration.cpp
   decrypt.cpp
   encrypt.cpp
   fpedecrypt.cpp

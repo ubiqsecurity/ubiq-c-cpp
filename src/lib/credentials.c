@@ -149,9 +149,8 @@ ubiq_platform_credentials_param_handler(
     const char * const section,
     const char * const name, const char * const value)
 {
-    int res;
+    int res = 1;
 
-    res = 1;
     if (section && strlen(section) > 0) {
         struct ubiq_platform_credentials_list * const cl = udata;
 

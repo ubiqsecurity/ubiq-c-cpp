@@ -3,11 +3,14 @@ set_source_files_properties(
   PROPERTIES
   COMPILE_DEFINITIONS INI_ALLOW_MULTILINE=0)
 
-set_source_files_properties(
-  init.c
-  PROPERTIES
-  COMPILE_DEFINITIONS
-  UBIQ_PLATFORM_USER_AGENT=\"ubiq-c/${PROJECT_VERSION}\")
+
+set_property(
+  SOURCE init.c
+  APPEND
+  PROPERTY COMPILE_DEFINITIONS
+  UBIQ_PLATFORM_USER_AGENT=\"ubiq-c/${PROJECT_VERSION}\"
+  UBIQ_VERSION=\"${PROJECT_VERSION}\"
+  UBIQ_PRODUCT=\"ubiq-c\")
 
 add_library(
   c_objects
@@ -15,9 +18,11 @@ add_library(
   OBJECT
 
   algorithm.c
+  billing.c
   cache.c
   common.c
   credentials.c
+  configuration.c
   decrypt.c
   encrypt.c
   fpe.c
@@ -74,11 +79,15 @@ set_target_properties(
   PROPERTIES
   POSITION_INDEPENDENT_CODE ON)
 
-set_source_files_properties(
-  init.cpp
-  PROPERTIES
-  COMPILE_DEFINITIONS
-  UBIQ_PLATFORM_USER_AGENT=\"ubiq-c++/${PROJECT_VERSION}\")
+  set_property(
+    SOURCE init.cpp
+    APPEND
+    PROPERTY COMPILE_DEFINITIONS
+    UBIQ_PLATFORM_USER_AGENT=\"ubiq-c++/${PROJECT_VERSION}\"
+    UBIQ_VERSION=\"${PROJECT_VERSION}\"
+    UBIQ_PRODUCT=\"ubiq-c++\")
+  
+
 
 add_library(
   cxx_objects
@@ -86,6 +95,7 @@ add_library(
   OBJECT
 
   credentials.cpp
+  configuration.cpp
   decrypt.cpp
   encrypt.cpp
   fpe_encrypt.cpp

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <ubiq/platform/compat/cdefs.h>
+#include <search.h>
 
 __BEGIN_DECLS
 
@@ -28,6 +29,20 @@ ubiq_platform_cache_find_element(
   struct ubiq_platform_cache const *  ubiq_cache,
   const char * const key
 );
+
+int
+ubiq_platform_cache_get_element_count(
+  struct ubiq_platform_cache * ubiq_cache,
+  unsigned int * count
+);
+
+
+void
+ubiq_platform_cache_walk_r(
+  struct ubiq_platform_cache * ubiq_cache,
+  void (* action) (const void *__nodep, VISIT __value,
+			       void *__closure) ,
+  void *__closure);
 
 __END_DECLS
 
