@@ -100,19 +100,15 @@ cpp_fpe_decrypt::encrypt_decrypt_bulk(
 
 TEST_F(cpp_fpe_decrypt, simple)
 {
-    encrypt_decrypt("ALPHANUM_SSN", "123 456 789");
+    encrypt_decrypt("ALPHANUM_SSN", "0123456789");
 }
 
 TEST_F(cpp_fpe_decrypt, bulk)
 {
-    encrypt_decrypt_bulk("ALPHANUM_SSN", "123 456 789");
+    encrypt_decrypt_bulk("ALPHANUM_SSN", "0123456789");
 }
 
 
-TEST_F(cpp_fpe_decrypt, bulk_generic_string)
-{
-    encrypt_decrypt_bulk("GENERIC_STRING", "1234567890ABCDEFGHIJKLMNOP");
-}
 
 TEST(c_fpe_decrypt, piecewise_bad_char)
 {
@@ -196,7 +192,7 @@ TEST(c_fpe_decrypt, piecewise_too_short)
 TEST(c_fpe_decrypt, piecewise_all_zeroth)
 {
 
-    char pt [] = "000000000000000";
+    char pt [] = "!!!!!!!!!!!!!!!!!!";
     static const char * const ffs_name = "ALPHANUM_SSN";
 
     struct ubiq_platform_credentials * creds;
@@ -263,7 +259,7 @@ TEST(c_fpe_decrypt, piecewise_all_passthrough)
 TEST(c_fpe_decrypt, piecewise_leading_passthrough)
 {
 
-    char pt [] = "- - - ---------12-45-6789---------------";
+    char pt [] = "------------12-45-6789---------------";
     static const char * const ffs_name = "ALPHANUM_SSN";
 
     struct ubiq_platform_credentials * creds;

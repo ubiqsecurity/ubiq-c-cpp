@@ -282,8 +282,8 @@ TEST_F(cpp_fpe_encrypt_2, invalid_specific_creds)
 
 TEST_F(cpp_fpe_encrypt_2, invalid_keynum)
 {
-  std::string ffs_name("SO_ALPHANUM_PIN");
-  std::string pt("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ");
+  std::string ffs_name("SSN");
+  std::string pt("0123456789");
   std::string ct;
 
 
@@ -299,7 +299,7 @@ TEST_F(cpp_fpe_encrypt_2, invalid_keynum)
 
 TEST(c_fpe_encrypt_2, simple)
 {
-    static const char * const pt = " 01121231231231231& 1 &2311200 ";
+    static const char * const pt = "0123456789";
 //    static const char * const pt = "00001234567890";//234567890";
     static const char * const ffs_name = "ALPHANUM_SSN";
 
@@ -331,7 +331,7 @@ TEST(c_fpe_encrypt_2, simple)
 
 TEST(c_fpe_encrypt_2, simple_search)
 {
-    static const char * const pt = " 01121231231231231& 1 &2311200 ";
+    static const char * const pt = ";0123456-789ABCDEF|";
 //    static const char * const pt = "00001234567890";//234567890";
     static const char * const ffs_name = "ALPHANUM_SSN";
 
@@ -384,7 +384,7 @@ TEST(c_fpe_encrypt_2, simple_search)
 
 TEST(c_fpe_encrypt_2, piecewise)
 {
-    static const char * const pt = " 01121231231231231& 1 &2311200 ";
+    static const char * const pt = ";0123456-789ABCDEF|";
 //    static const char * const pt = "00001234567890";//234567890";
     static const char * const ffs_name = "ALPHANUM_SSN";
 
@@ -440,7 +440,7 @@ TEST(c_fpe_encrypt_2, piecewise)
 
 TEST(c_fpe_encrypt_2, piecewise_search)
 {
-    static const char * const pt = " 01121231231231231& 1 &2311200 ";
+    static const char * const pt = ";0123456-789ABCDEF|";
 //    static const char * const pt = "00001234567890";//234567890";
     static const char * const ffs_name = "ALPHANUM_SSN";
 
@@ -488,7 +488,7 @@ TEST(c_fpe_encrypt_2, piecewise_search)
 
 TEST(c_fpe_encrypt_2, mixed_forward)
 {
-    static const char * const pt = " 01121231231231231& 1 &2311200 ";
+    static const char * const pt = ";0123456-789ABCDEF|";
 //    static const char * const pt = "00001234567890";//234567890";
     static const char * const ffs_name = "ALPHANUM_SSN";
 
@@ -528,7 +528,7 @@ TEST(c_fpe_encrypt_2, mixed_forward)
 
 TEST(c_fpe_encrypt_2, mixed_backwards)
 {
-    static const char * const pt = " 01121231231231231& 1 &2311200 ";
+    static const char * const pt = ";0123456-789ABCDEF|";
 //    static const char * const pt = "00001234567890";//234567890";
     static const char * const ffs_name = "ALPHANUM_SSN";
 
@@ -569,7 +569,7 @@ TEST(c_fpe_encrypt_2, mixed_backwards)
 
 TEST(c_fpe_encrypt_2, 10_cycles)
 {
-    static const char * const pt = " 01121231231231231& 1 &2311200 ";
+    static const char * const pt = ";0123456-789ABCDEF|";
 //    static const char * const pt = "00001234567890";//234567890";
     static const char * const ffs_name = "ALPHANUM_SSN";
 
@@ -609,38 +609,6 @@ TEST(c_fpe_encrypt_2, 10_cycles)
 
 }
 
-
-TEST(c_fpe_encrypt_2, generic)
-{
-    static const char * const pt = "1234567890ABCDEFGHIJKLMNOP";
-//    static const char * const pt = "00001234567890";//234567890";
-    static const char * const ffs_name = "GENERIC_STRING";
-
-    struct ubiq_platform_credentials * creds;
-    char * ctbuf(nullptr);
-    size_t ctlen;
-    char * ptbuf(nullptr);
-    size_t ptlen;
-    int res;
-
-    res = ubiq_platform_credentials_create(&creds);
-    ASSERT_EQ(res, 0);
-
-    res = ubiq_platform_fpe_encrypt(creds,
-      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
-    EXPECT_EQ(res, 0);
-
-    res = ubiq_platform_fpe_decrypt(creds,
-      ffs_name, NULL, 0, (char *)ctbuf, strlen(ctbuf), &ptbuf, &ptlen);
-    EXPECT_EQ(res, 0);
-
-    EXPECT_EQ(strcmp(pt, ptbuf),0);
-
-    ubiq_platform_credentials_destroy(creds);
-
-    free(ctbuf);
-    free(ptbuf);
-}
 
 TEST(c_fpe_encrypt_2, error_handling_null_object)
 {
@@ -682,7 +650,7 @@ TEST(c_fpe_encrypt_2, error_handling_notnull_object)
 TEST(c_fpe_encrypt_2, error_handling_invalid_ffs)
 {
 
-  static const char * const pt = " 01121231231231231& 1 &2311200 ";
+  static const char * const pt = ";0123456-789ABCDEF|";
   static const char * const ffs_name = "ALPHANUM_SSN";
 
   struct ubiq_platform_credentials * creds;
@@ -727,7 +695,7 @@ TEST(c_fpe_encrypt_2, error_handling_invalid_ffs)
 TEST(c_fpe_encrypt_2, error_handling_invalid_creds)
 {
 
-  static const char * const pt = " 01121231231231231& 1 &2311200 ";
+  static const char * const pt = ";0123456-789ABCDEF|";
   static const char * const ffs_name = "ALPHANUM_SSN";
 
   struct ubiq_platform_credentials * creds;
@@ -890,7 +858,7 @@ TEST(c_fpe_encrypt_2, error_handling_invalid_LEN)
 
 TEST(c_fpe_encrypt_2, error_handling_invalid_papi)
 {
-    static const char * const pt = " 01121231231231231& 1 &2311200 ";
+    static const char * const pt = ";0123456-789ABCDEF|";
     static const char * const ffs_name = "ALPHANUM_SSN";
 
     struct ubiq_platform_credentials * creds_orig;
@@ -948,7 +916,7 @@ TEST(c_fpe_encrypt_2, error_handling_invalid_papi)
 
 TEST(c_fpe_encrypt_2, error_handling_invalid_sapi)
 {
-    static const char * const pt = " 01121231231231231& 1 &2311200 ";
+    static const char * const pt = ";0123456-789ABCDEF|";
     static const char * const ffs_name = "ALPHANUM_SSN";
 
     struct ubiq_platform_credentials * creds_orig;
@@ -1007,7 +975,7 @@ TEST(c_fpe_encrypt_2, error_handling_invalid_sapi)
 
 TEST(c_fpe_encrypt_2, error_handling_invalid_rsa)
 {
-    static const char * const pt = " 01121231231231231& 1 &2311200 ";
+    static const char * const pt = ";0123456-789ABCDEF|";
     static const char * const ffs_name = "ALPHANUM_SSN";
 
     struct ubiq_platform_credentials * creds_orig;
@@ -1065,7 +1033,7 @@ TEST(c_fpe_encrypt_2, error_handling_invalid_rsa)
 
 TEST(c_fpe_encrypt_2, error_handling_invalid_host)
 {
-    static const char * const pt = " 01121231231231231& 1 &2311200 ";
+    static const char * const pt = ";0123456-789ABCDEF|";
     static const char * const ffs_name = "ALPHANUM_SSN";
 
     struct ubiq_platform_credentials * creds_orig;
@@ -1125,8 +1093,8 @@ TEST(c_fpe_encrypt_2, error_handling_invalid_host)
 TEST(c_fpe_encrypt_2, error_handling_invalid_keynum)
 {
 
-  static const char * const pt = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  static const char * const ffs_name = "SO_ALPHANUM_PIN";
+  static const char * const pt = "0123456789";
+  static const char * const ffs_name = "SSN";
 
   struct ubiq_platform_credentials * creds;
   struct ubiq_platform_fpe_enc_dec_obj *enc;
@@ -1200,7 +1168,7 @@ TEST_F(cpp_fpe_encrypt_2, 1m)
 
 TEST(c_fpe_encrypt_2, new)
 {
-    static const char * const pt = " 01121231231231231& 1 &2311200 ";
+    static const char * const pt = ";0123456-789ABCDEF|";
     static const char * const ffs_name = "ALPHANUM_SSN";
 
     struct ubiq_platform_credentials * creds;

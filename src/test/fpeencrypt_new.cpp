@@ -11,6 +11,25 @@ class cpp_fpe_encrypt : public ::testing::Test
 public:
     void SetUp(void);
     void TearDown(void);
+    void test_batch_rt(  
+      const std::string &dataset_name,
+      const std::string &pt,
+      const std::string &expected_ct);
+
+    void test_simple_rt(  
+      const std::string &dataset_name,
+      const std::string &pt,
+      const std::string &expected_ct);
+
+    void test_rt(  
+      const std::string &dataset_name,
+      const std::string &pt,
+      const std::string &expected_ct);
+
+    void search(  
+      const std::string &dataset_name,
+      const std::string &pt,
+      const std::string &expected_ct);
 
 protected:
     ubiq::platform::credentials _creds;
@@ -25,6 +44,131 @@ void cpp_fpe_encrypt::SetUp(void)
 
 void cpp_fpe_encrypt::TearDown(void)
 {
+}
+
+void cpp_fpe_encrypt::search(
+  const std::string &dataset_name,
+  const std::string &pt,
+  const std::string &expected_ct) {
+
+  std::vector<std::string> ct, ct2;
+
+  ASSERT_NO_THROW(
+      ct = ubiq::platform::fpe::encrypt_for_search(_creds, dataset_name, pt));
+
+  ASSERT_NO_THROW(
+      ct2 = ubiq::platform::fpe::encrypt_for_search(_creds, dataset_name, std::vector<std::uint8_t>(), pt));
+
+  EXPECT_EQ(ct, ct2);
+
+  // Expect that the supplied CT is found in one of the search keys - will work regardless of how many times the 
+  // data has been rotated
+  bool found_ct(false);
+  for (auto x : ct) {
+      found_ct = found_ct || (expected_ct == x);
+      std::string ptbuf = ubiq::platform::fpe::decrypt(_creds, dataset_name, x);
+      EXPECT_EQ(pt, ptbuf);
+  }
+
+  EXPECT_TRUE(found_ct);
+}
+
+void cpp_fpe_encrypt::test_simple_rt(
+  const std::string &dataset_name,
+  const std::string &pt,
+  const std::string &expected_ct) {
+  std::string ct;
+  std::string rt;
+
+  ASSERT_NO_THROW(
+      ct = ubiq::platform::fpe::encrypt(_creds, dataset_name, pt));
+
+  ASSERT_NO_THROW(
+      rt = ubiq::platform::fpe::decrypt(_creds, dataset_name, ct));
+
+  EXPECT_EQ(rt, pt);
+
+  // Decrypt the expected value - will address issue when source data key has been rotated
+  ASSERT_NO_THROW(
+      rt = ubiq::platform::fpe::decrypt(_creds, dataset_name, expected_ct));
+  EXPECT_EQ(rt, pt);
+
+  std::vector<std::string> ct_arr, ct2_arr;
+  ASSERT_NO_THROW(
+      ct_arr = ubiq::platform::fpe::encrypt_for_search(_creds, dataset_name, pt));
+
+  ASSERT_NO_THROW(
+      ct2_arr = ubiq::platform::fpe::encrypt_for_search(_creds, dataset_name, std::vector<std::uint8_t>(), pt));
+
+  EXPECT_EQ(ct_arr, ct2_arr);
+
+      // std::cout << "  pt: " << pt << std::endl;
+  bool found_ct(false);
+  for (auto x : ct_arr) {
+      found_ct = found_ct || (expected_ct == x);
+      std::string ptbuf = ubiq::platform::fpe::decrypt(_creds, dataset_name, x);
+      // std::cout << "  ct: " << x << std::endl;
+      // std::cout << "  ptbuf: " << ptbuf << std::endl;
+      EXPECT_EQ(pt, ptbuf);
+  }
+  EXPECT_TRUE(found_ct);
+
+}
+
+void cpp_fpe_encrypt::test_batch_rt(
+  const std::string &dataset_name,
+  const std::string &pt,
+  const std::string &expected_ct) {
+  std::string ct;
+  std::string rt;
+
+  _enc = ubiq::platform::fpe::encryption(_creds);
+  _dec = ubiq::platform::fpe::decryption(_creds);
+
+
+  ASSERT_NO_THROW(
+      ct = _enc.encrypt(dataset_name, pt));
+
+  ASSERT_NO_THROW(
+      rt = _dec.decrypt(dataset_name, ct));
+
+  EXPECT_EQ(rt, pt);
+
+  // Decrypt the expected value - will address issue when source data key has been rotated
+  ASSERT_NO_THROW(
+      rt = _dec.decrypt(dataset_name, expected_ct));
+  EXPECT_EQ(rt, pt);
+
+  std::vector<std::string> ct_arr, ct2_arr;
+  ASSERT_NO_THROW(
+      ct_arr = _enc.encrypt_for_search(dataset_name, pt));
+
+  ASSERT_NO_THROW(
+      ct2_arr = _enc.encrypt_for_search(dataset_name, pt));
+
+  EXPECT_EQ(ct_arr, ct2_arr);
+
+      // std::cout << "  pt: " << pt << std::endl;
+  bool found_ct(false);
+  for (auto x : ct_arr) {
+      found_ct = found_ct || (expected_ct == x);
+      std::string ptbuf = _dec.decrypt(dataset_name, x);
+      // std::cout << "  ct: " << x << std::endl;
+      // std::cout << "  ptbuf: " << ptbuf << std::endl;
+      EXPECT_EQ(pt, ptbuf);
+  }
+  EXPECT_TRUE(found_ct);
+
+}
+
+void cpp_fpe_encrypt::test_rt(
+  const std::string &dataset_name,
+  const std::string &pt,
+  const std::string &expected_ct) {
+
+  test_simple_rt(dataset_name, pt, expected_ct);
+  test_batch_rt(dataset_name, pt, expected_ct);
+
 }
 
 TEST_F(cpp_fpe_encrypt, none)
@@ -47,156 +191,49 @@ TEST_F(cpp_fpe_encrypt, simple)
   EXPECT_EQ(ct, ct2);
 }
 
-TEST_F(cpp_fpe_encrypt, ascii7_rt)
+
+TEST_F(cpp_fpe_encrypt, ALPHANUM_SSN_rt)
 {
-  std::string pt("0123456 789ABCDEF-abcdef");
-  std::string ct;
-  std::string rt;
-
-  ASSERT_NO_THROW(
-      ct = ubiq::platform::fpe::encrypt(_creds, "ascii7", pt));
-
-  ASSERT_NO_THROW(
-      rt = ubiq::platform::fpe::decrypt(_creds, "ascii7", ct));
-
-  EXPECT_EQ(rt, pt);
+  test_rt("ALPHANUM_SSN", ";0123456-789ABCDEF|", ";!!!E7`+-ai1ykOp8r|");
 }
 
-TEST_F(cpp_fpe_encrypt, ascii8_a_rt)
-{
-  std::string pt("1234567890");
-  std::string ct;
-  //                    123456789
-  // std::string expected("01n84kBbgÜ");
-  std::string rt;
-
-  ASSERT_NO_THROW(
-      ct = ubiq::platform::fpe::encrypt(_creds, "ascii8", pt));
-
-  // EXPECT_EQ(ct, expected);
-
-  ASSERT_NO_THROW(
-      rt = ubiq::platform::fpe::decrypt(_creds, "ascii8", ct));
-
-  EXPECT_EQ(rt, pt);
-}
-
-
-TEST_F(cpp_fpe_encrypt, ascii8_b_rt)
-{
-   
-  std::string       pt("-1Ó23Ò45Ñ678Ô9Õ0");
-  // std::string expected("-0Ó1nÒ84ÑkBbÔgÕÜ");
-  std::string ct;
-  std::string rt;
-
-  ASSERT_NO_THROW(
-      ct = ubiq::platform::fpe::encrypt(_creds, "ascii8", pt));
-
-
-  // EXPECT_EQ(ct, expected);
-
-  ASSERT_NO_THROW(
-      rt = ubiq::platform::fpe::decrypt(_creds, "ascii8", ct));
-
-  EXPECT_EQ(rt, pt);
-}
-
-TEST_F(cpp_fpe_encrypt, unicode_rt)
-{
-  
-  std::string pt("Õ0123ʓ4Ò56789-abcAʒBʕCÊËÌÍʐÎÏðñòʔóôÑĵĶķĸ-ĹϺϻʑϼϽÓϾϿÔ");
-  // std::string expected("Õ0000ʓ0Ò000sx-έpóķʒίʕ9ķqgDʐBvAfϿʔòάÑΪέZV-JqkʑßmÓovÔ");
-  std::string ct;
-  std::string rt;
-
-  ASSERT_NO_THROW(
-      ct = ubiq::platform::fpe::encrypt(_creds, "unicode", pt));
-
-  // EXPECT_EQ(ct, expected);
-
-  ASSERT_NO_THROW(
-      rt = ubiq::platform::fpe::decrypt(_creds, "unicode", ct));
-
-  EXPECT_EQ(rt, pt);
-}
-
-TEST_F(cpp_fpe_encrypt, unicode_a_rt)
-{
-  
-  std::string pt("0123456789abcABC");
-  // std::string expected("00XϿkNήaJB");
-  std::string ct;
-  std::string rt;
-
-  ASSERT_NO_THROW(
-      ct = ubiq::platform::fpe::encrypt(_creds, "unicode", pt));
-
-  // EXPECT_EQ(ct, expected);
-
-  ASSERT_NO_THROW(
-      rt = ubiq::platform::fpe::decrypt(_creds, "unicode", ct));
-
-  EXPECT_EQ(rt, pt);
-}
-
-TEST_F(cpp_fpe_encrypt, simple_search)
-{
-  std::string pt("0123456789");
-  std::vector<std::string> ct, ct2;
-
-  ASSERT_NO_THROW(
-      ct = ubiq::platform::fpe::encrypt_for_search(_creds, "ALPHANUM_SSN", pt));
-
-  ASSERT_NO_THROW(
-      ct2 = ubiq::platform::fpe::encrypt_for_search(_creds, "ALPHANUM_SSN", std::vector<std::uint8_t>(), pt));
-
-      EXPECT_EQ(ct, ct2);
-
-  for (auto x : ct) {
-      std::string ptbuf = ubiq::platform::fpe::decrypt(_creds, "ALPHANUM_SSN", x);
-      EXPECT_EQ(pt, ptbuf);
-  }
-}
-
-TEST_F(cpp_fpe_encrypt, bulk)
-{
-  std::string ffs_name("ALPHANUM_SSN");
-  std::string pt("0123456789");
-  std::string ct, ct2;
-
-  _enc = ubiq::platform::fpe::encryption(_creds);
-  ASSERT_NO_THROW(
-      ct = _enc.encrypt(ffs_name, pt));
-
-  ASSERT_NO_THROW(
-      ct2 = _enc.encrypt(ffs_name, std::vector<std::uint8_t>(), pt));
-
-  EXPECT_EQ(ct, ct2);
-}
-
-// #ifdef NODEF
-// TEST_F(cpp_fpe_encrypt, bulk_search)
+// TEST_F(cpp_fpe_encrypt, ALPHANUM_SSN_dev_rt)
 // {
-//   std::string ffs_name("ALPHANUM_SSN");
-//   std::string pt("ABCDEFGHI");
-//   std::vector<std::string> ct, ct2;
-
-//   _enc = ubiq::platform::fpe::encryption(_creds);
-//   _dec = ubiq::platform::fpe::decryption(_creds);
-//   ASSERT_NO_THROW(
-//       ct = _enc.encrypt_for_search(ffs_name, pt));
-
-//   ASSERT_NO_THROW(
-//       ct2 = _enc.encrypt_for_search(ffs_name, std::vector<std::uint8_t>(), pt));
-
-//   EXPECT_EQ(ct, ct2);
-
-//   for (auto x : ct) {
-//     std::string ptbuf = _dec.decrypt(ffs_name, x);
-//     EXPECT_EQ(pt, ptbuf);
-//   }
+//   test_rt("ALPHANUM_SSN", "0123456789", "30003mA5by");
 // }
+
+
+TEST_F(cpp_fpe_encrypt, BIRTH_DATE_rt)
+{
+  test_rt("BIRTH_DATE", ";01\\02-1960|", ";!!\\!!-oKzi|");
+}
+
+TEST_F(cpp_fpe_encrypt, SSN_rt)
+{
+  test_rt("SSN", "-0-1-2-3-4-5-6-7-8-9-", "-0-0-0-0-1-I-L-8-j-D-");
+}
+
+TEST_F(cpp_fpe_encrypt, UTF8_STRING_COMPLEX_rt)
+{
+  test_rt("UTF8_STRING_COMPLEX", "ÑÒÓķĸĹϺϻϼϽϾÔÕϿは世界abcdefghijklmnopqrstuvwxyzこんにちÊʑʒʓËÌÍÎÏðñòóôĵĶʔʕ", "ÑÒÓにΪΪΪΪΪΪ3ÔÕoeϽΫAÛMĸOZphßÚdyÌô0ÝϼPtĸTtSKにVÊϾέÛはʑʒʓÏRϼĶufÝK3MXaʔʕ");
+}
+
+TEST_F(cpp_fpe_encrypt, UTF8_STRING_COMPLEX_rt_1)
+{
+  test_rt("UTF8_STRING_COMPLEX", "ķĸĹϺϻϼϽϾϿは世界abcdefghijklmnopqrstuvwxyzこんにちÊËÌÍÎÏðñòóôĵĶ", "にΪΪΪΪΪΪ3oeϽΫAÛMĸOZphßÚdyÌô0ÝϼPtĸTtSKにVÊϾέÛはÏRϼĶufÝK3MXa");
+}
+
+// TEST_F(cpp_fpe_encrypt, UTF8_STRING_COMPLEX_dev_rt)
+// {
+//   test_rt("UTF8_STRING_COMPLEX", "ķĸĹϺϻϼϽϾϿは世界abcdefghijklmnopqrstuvwxyzこんにちÊËÌÍÎÏðñòóôĵĶ", "にΪΪΪΪΪΪこm99Ì6qyLoĸϻÎ8mó4MogdϺϻ7ϼYBDTaKRはΫpññD7ÍϽĸϿBnϿog");
+// }
+
+// TEST_F(cpp_fpe_encrypt, UTF8_STRING_COMPLEX_dev_rt_1)
+// {
+//   test_rt("UTF8_STRING_COMPLEX","ÑÒÓķĸĹϺϻϼϽϾϿは世界abcdefghijklmnopqrstuvwxyzこんにちÊËÌÍÎÏðñòóôĵĶʔʕ", "ÑÒÓにΪΪΪΪΪΪこm99Ì6qyLoĸϻÎ8mó4MogdϺϻ7ϼYBDTaKRはΫpññD7ÍϽĸϿBnϿogʔʕ");
+// }
+
+
 
 TEST_F(cpp_fpe_encrypt, invalid_ffs)
 {
@@ -375,8 +412,8 @@ TEST_F(cpp_fpe_encrypt, invalid_specific_creds)
 
 TEST_F(cpp_fpe_encrypt, invalid_keynum)
 {
-  std::string ffs_name("SO_ALPHANUM_PIN");
-  std::string pt("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ");
+  std::string ffs_name("SSN");
+  std::string pt("0123456789");
   std::string ct;
 
 
@@ -391,50 +428,78 @@ TEST_F(cpp_fpe_encrypt, invalid_keynum)
 }
 // #endif
 
-TEST(c_fpe_encrypt, piecewise)
-{
-    static const char * const pt = "123 456-7890";
-//    static const char * const pt = "00001234567890";//234567890";
-    static const char * const ffs_name = "ALPHANUM_SSN";
+
+void c_test_simple_rt(
+  const char * const dataset_name,
+  const char * const pt,
+  const char * const expected_ct) {
 
     struct ubiq_platform_credentials * creds;
-    struct ubiq_platform_fpe_enc_dec_obj *enc;
+    // struct ubiq_platform_fpe_enc_dec_obj *enc;
     char * ctbuf(nullptr);
     size_t ctlen;
     char * ptbuf(nullptr);
     size_t ptlen;
+
+    char ** ct_arr(nullptr);
+    size_t ctcount(0);
+
     int res;
 
     res = ubiq_platform_credentials_create(&creds);
     ASSERT_EQ(res, 0);
 
-    res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
-    ASSERT_EQ(res, 0);
-
-    res = ubiq_platform_fpe_encrypt_data(enc,
-      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+    res = ubiq_platform_fpe_encrypt(creds,
+      dataset_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
     EXPECT_EQ(res, 0);
-    EXPECT_EQ(strlen(pt), ctlen);
+    EXPECT_EQ(u8_mbsnlen((uint8_t *)pt, strlen(pt)), u8_mbsnlen((uint8_t *)ctbuf, strlen(ctbuf) ));
 
+    res = ubiq_platform_fpe_decrypt(creds,
+      dataset_name, NULL, 0, (char *)ctbuf, strlen(ctbuf), &ptbuf, &ptlen);
+    EXPECT_EQ(strcmp(pt, ptbuf),0);
 
-    // EXPECT_EQ(strcmp(pt, ptbuf),0);
+    res = ubiq_platform_fpe_encrypt_for_search(creds,
+      dataset_name, NULL, 0, pt, strlen(pt), &ct_arr, &ctcount);
 
-    ubiq_platform_fpe_enc_dec_destroy(enc);
+    EXPECT_EQ(res, 0);
+    EXPECT_TRUE(ctcount >= 0);
+
+    bool found_ct(false);
+    for (int i = 0; i < ctcount; i++) {
+
+      found_ct = found_ct || (strcmp(ct_arr[i], expected_ct) == 0);
+
+      char * ptbuf = NULL;
+      size_t ptlen = 0;
+
+      res = ubiq_platform_fpe_decrypt(creds,
+        dataset_name, NULL, 0, (char *)ct_arr[i], strlen(ct_arr[i]), &ptbuf, &ptlen);
+      EXPECT_EQ(res, 0) << "i (" << i << ")  ct_arr[i](" << ct_arr[i] << ")  ptbuf (" << ptbuf << ")" << std::endl;
+      EXPECT_EQ(u8_mbsnlen((uint8_t *)pt, strlen(pt)), u8_mbsnlen((uint8_t *)ct_arr[i], strlen(ct_arr[i]) ));
+      EXPECT_EQ(strcmp(pt, ptbuf),0);
+
+      // Decrypt each one and confirm results match PT
+      free(ptbuf);
+    }
+
+    EXPECT_TRUE(found_ct);
+
+    for (int i = 0; i < ctcount; i++) {
+      free(ct_arr[i]);
+    }
+    free(ct_arr);
 
     ubiq_platform_credentials_destroy(creds);
 
     free(ctbuf);
     free(ptbuf);
+
 }
 
-
-
-
-TEST(c_fpe_decrypt, piecewise)
-{
-    static const char * const pt = "123 456-7890";
-//    static const char * const pt = "00001234567890";//234567890";
-    static const char * const ffs_name = "ALPHANUM_SSN";
+void c_test_batch_rt(
+  const char * const dataset_name,
+  const char * const pt,
+  const char * const expected_ct) {
 
     struct ubiq_platform_credentials * creds;
     struct ubiq_platform_fpe_enc_dec_obj *enc;
@@ -442,6 +507,10 @@ TEST(c_fpe_decrypt, piecewise)
     size_t ctlen;
     char * ptbuf(nullptr);
     size_t ptlen;
+
+    char ** ct_arr(nullptr);
+    size_t ctcount(0);
+
     int res;
 
     res = ubiq_platform_credentials_create(&creds);
@@ -451,35 +520,94 @@ TEST(c_fpe_decrypt, piecewise)
     ASSERT_EQ(res, 0);
 
     res = ubiq_platform_fpe_encrypt_data(enc,
-      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+      dataset_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
     EXPECT_EQ(res, 0);
-    EXPECT_EQ(strlen(pt), ctlen);
-    // printf("CT (%s)\n", ctbuf);
+    EXPECT_EQ(u8_mbsnlen((uint8_t *)pt, strlen(pt)), u8_mbsnlen((uint8_t *)ctbuf, strlen(ctbuf) ));
 
     res = ubiq_platform_fpe_decrypt_data(enc,
-      ffs_name, NULL, 0, ctbuf, ctlen, &ptbuf, &ptlen);
-
-    if (res) {
-      int err_num;
-      char * err_msg = NULL;
-
-      res = ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
-      printf("error: %s\n", err_msg);
-    }
-
-    EXPECT_EQ(res, 0);
-    EXPECT_EQ(strlen(pt), ptlen);
-    // printf("PT (%s)\n", ptbuf);
+      dataset_name, NULL, 0, ctbuf, ctlen, &ptbuf, &ptlen);
 
     EXPECT_EQ(strcmp(pt, ptbuf),0);
 
+    res = ubiq_platform_fpe_encrypt_data_for_search(enc,
+      dataset_name, NULL, 0, pt, strlen(pt), &ct_arr, &ctcount);
+    EXPECT_EQ(res, 0);
+    EXPECT_TRUE(ctcount >= 0);
+
+    bool found_ct(false);
+    for (int i = 0; i < ctcount; i++) {
+
+      found_ct = found_ct || (strcmp(ct_arr[i], expected_ct) == 0);
+
+      char * ptbuf = NULL;
+      size_t ptlen = 0;
+
+      // Decrypt each one and confirm results match PT
+      res = ubiq_platform_fpe_decrypt_data(enc,
+         dataset_name, NULL, 0, ct_arr[i], strlen(ct_arr[i]), &ptbuf, &ptlen);
+      EXPECT_EQ(res, 0) << "i (" << i << ")  ct_arr[i](" << ct_arr[i] << ")  ptbuf (" << ptbuf << ")" << std::endl;
+
+      EXPECT_EQ(u8_mbsnlen((uint8_t *)pt, strlen(pt)), u8_mbsnlen((uint8_t *)ptbuf, strlen(ptbuf) ));
+
+      EXPECT_EQ(strcmp(pt, ptbuf),0);
+      free(ptbuf);
+    }
+
+    EXPECT_TRUE(found_ct);
+
     ubiq_platform_fpe_enc_dec_destroy(enc);
 
     ubiq_platform_credentials_destroy(creds);
 
+    for (int i = 0; i < ctcount; i++) {
+      free(ct_arr[i]);
+    }
+    free(ct_arr);
+
+
     free(ctbuf);
     free(ptbuf);
+
 }
+
+void c_test_rt(
+  const char * const dataset_name,
+  const char * const pt,
+  const char * const expected_ct) {
+
+  c_test_simple_rt(dataset_name, pt, expected_ct);
+  c_test_batch_rt(dataset_name, pt, expected_ct);
+
+}
+
+
+TEST(c_fpe_encrypt, ALPHANUM_SSN_rt)
+{
+  c_test_rt("ALPHANUM_SSN", ";0123456-789ABCDEF|", ";!!!E7`+-ai1ykOp8r|");
+}
+
+TEST(c_fpe_encrypt, UTF8_STRING_COMPLEX_rt)
+{
+  c_test_rt("UTF8_STRING_COMPLEX", "ÑÒÓķĸĹϺϻϼϽϾÔÕϿは世界abcdefghijklmnopqrstuvwxyzこんにちÊʑʒʓËÌÍÎÏðñòóôĵĶʔʕ", "ÑÒÓにΪΪΪΪΪΪ3ÔÕoeϽΫAÛMĸOZphßÚdyÌô0ÝϼPtĸTtSKにVÊϾέÛはʑʒʓÏRϼĶufÝK3MXaʔʕ");
+}
+
+TEST(c_fpe_encrypt, UTF8_STRING_COMPLEX_rt_1)
+{
+  c_test_rt("UTF8_STRING_COMPLEX", "ķĸĹϺϻϼϽϾϿは世界abcdefghijklmnopqrstuvwxyzこんにちÊËÌÍÎÏðñòóôĵĶ", "にΪΪΪΪΪΪ3oeϽΫAÛMĸOZphßÚdyÌô0ÝϼPtĸTtSKにVÊϾέÛはÏRϼĶufÝK3MXa");
+}
+
+TEST(c_fpe_encrypt, BIRTH_DATE_rt)
+{
+  c_test_rt("BIRTH_DATE", ";01\\02-1960|", ";!!\\!!-oKzi|");
+}
+
+TEST(c_fpe_encrypt, SSN_rt)
+{
+  c_test_rt("SSN", "-0-1-2-3-4-5-6-7-8-9-", "-0-0-0-0-1-I-L-8-j-D-");
+}
+
+
+
 
 TEST(c_fpe_encrypt, piecewise_bad_char)
 {
@@ -566,8 +694,8 @@ TEST(c_fpe_encrypt, 1m)
 
 TEST(c_fpe_encrypt, u32_1m)
 {
-  static const char * const ffs_name = "unicode";
-  static const char * const pt = "123 456-7890";
+  static const char * const ffs_name = "UTF8_STRING_COMPLEX";
+  static const char * const pt = "は世界abcdefghijklmnop";
 
     struct ubiq_platform_credentials * creds;
     struct ubiq_platform_fpe_enc_dec_obj *enc;
@@ -615,7 +743,7 @@ TEST(c_fpe_encrypt, u32_1m)
 TEST(c_fpe_decrypt, 1m)
 {
   static const char * const ffs_name = "ALPHANUM_SSN";
-  static const char * const ct = "!!= J*K-42c(";
+  static const char * const ct = ";!!!E7`+-ai1ykOp8r|";
 
   struct ubiq_platform_credentials * creds;
   struct ubiq_platform_fpe_enc_dec_obj *enc;
@@ -661,7 +789,7 @@ TEST(c_fpe_decrypt, 1m)
 
 TEST(c_fpe_encrypt, piecewise_cached)
 {
-    static const char * const pt = " 01121231231231231& 1 &2311200 ";
+    static const char * const pt = "0123456-789ABCDEF";
 //    static const char * const pt = "00001234567890";//234567890";
     static const char * const ffs_name = "ALPHANUM_SSN";
 
@@ -697,106 +825,13 @@ TEST(c_fpe_encrypt, piecewise_cached)
 
     ubiq_platform_credentials_destroy(creds);
 
-    free(ctbuf);
-    free(ptbuf);
-}
-
-TEST(c_fpe_encrypt, utf8)
-{
-    static const char * const pt = " 01121 2312-3123";
-//    static const char * const pt = "00001234567890";//234567890";
-//    static const char * const ffs_name = "MTB";
-
-    struct ubiq_platform_credentials * creds;
-    struct ubiq_platform_fpe_enc_dec_obj *enc;
-    char * ctbuf(nullptr);
-    size_t ctlen;
-    char * ptbuf(nullptr);
-    size_t ptlen;
-    int res;
-
-    res = ubiq_platform_credentials_create(&creds);
-    ASSERT_EQ(res, 0);
-
-    res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
-    ASSERT_EQ(res, 0);
-
-    res = ubiq_platform_fpe_encrypt_data(enc,
-      "ascii7", NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
-    EXPECT_EQ(res, 0);
-    EXPECT_EQ(strlen(pt), ctlen);
-    //printf("PT %s ctbuf %s\n", pt, ctbuf);
-
-    //  res = ubiq_platform_fpe_encrypt_data(enc,
-    //   "ascii8", NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
-    // EXPECT_EQ(res, 0);
-  
-
-    // EXPECT_EQ(strcmp(pt, ptbuf),0);
-
-    ubiq_platform_fpe_enc_dec_destroy(enc);
-
-    ubiq_platform_credentials_destroy(creds);
-
-    free(ctbuf);
-    free(ptbuf);
-}
-TEST(c_fpe_encrypt, simple_search)
-{
-    static const char * const pt = "-01121231231231231&-1-&2311200-";
-//    static const char * const pt = "00001234567890";//234567890";
-    static const char * const ffs_name = "ALPHANUM_SSN";
-
-    struct ubiq_platform_credentials * creds;
-    char ** ctbuf(nullptr);
-    size_t ctcount(0);
-    char * ptbuf(nullptr);
-    size_t ptlen;
-    int res;
-
-    res = ubiq_platform_credentials_create(&creds);
-    ASSERT_EQ(res, 0);
-
-    res = ubiq_platform_fpe_encrypt_for_search(creds,
-      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctcount);
-    EXPECT_EQ(res, 0);
-    EXPECT_TRUE(ctcount >= 0);
-    EXPECT_EQ(strlen(pt), strlen(ctbuf[0]));
-
-    for (int i = 0; i < ctcount; i++) {
-      char * ptbuf = NULL;
-      size_t ptlen = 0;
-      EXPECT_EQ(u8_width((uint8_t *)pt, strlen(pt),""), u8_width((uint8_t *)ctbuf[i], strlen(ctbuf[i]), ""));
-
-      // Decrypt and compare with PT
-      res = ubiq_platform_fpe_decrypt(creds,
-        ffs_name, NULL, 0, ctbuf[i], strlen(ctbuf[i]), &ptbuf, &ptlen);
-      EXPECT_EQ(res, 0);
-
-      EXPECT_EQ(strcmp(pt, ptbuf),0);
-
-      free(ptbuf);
-
-    }
-
-    // res = ubiq_platform_fpe_decrypt(creds,
-    //   ffs_name, NULL, 0, (char *)ctbuf, strlen(ctbuf), &ptbuf, &ptlen);
-    // EXPECT_EQ(res, 0);
-    //
-    // EXPECT_EQ(strcmp(pt, ptbuf),0);
-
-    ubiq_platform_credentials_destroy(creds);
-
-    for (int i = 0; i < ctcount; i++) {
-      free(ctbuf[i]);
-    }
     free(ctbuf);
     free(ptbuf);
 }
 
 TEST(c_fpe_encrypt, piecewise2)
 {
-    static const char * const pt = " 01121231231231231& 1 &2311200 ";
+    static const char * const pt = ";0123456-789ABCDEF|";
 //    static const char * const pt = "00001234567890";//234567890";
     static const char * const ffs_name = "ALPHANUM_SSN";
 
@@ -850,57 +885,10 @@ TEST(c_fpe_encrypt, piecewise2)
     free(ptbuf2);
 }
 
-TEST(c_fpe_encrypt, piecewise_search)
-{
-    static const char * const pt = " 01121231231231231& 1 &2311200 ";
-//    static const char * const pt = "00001234567890";//234567890";
-    static const char * const ffs_name = "ALPHANUM_SSN";
-
-    struct ubiq_platform_credentials * creds;
-    struct ubiq_platform_fpe_enc_dec_obj *enc;
-    char ** ctbuf(nullptr);
-    size_t ctcount(0);
-    int res;
-
-    res = ubiq_platform_credentials_create(&creds);
-    ASSERT_EQ(res, 0);
-
-    res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
-    ASSERT_EQ(res, 0);
-
-    res = ubiq_platform_fpe_encrypt_data_for_search(enc,
-      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctcount);
-    EXPECT_EQ(res, 0);
-    EXPECT_TRUE(ctcount >= 0);
-
-    for (int i = 0; i < ctcount; i++) {
-      char * ptbuf = NULL;
-      size_t ptlen = 0;
-      EXPECT_EQ(u8_width((uint8_t *)pt, strlen(pt),""), u8_width((uint8_t *)ctbuf[i], strlen(ctbuf[i]), ""));
-
-      // Decrypt each one and confirm results match PT
-      res = ubiq_platform_fpe_decrypt_data(enc,
-         ffs_name, NULL, 0, ctbuf[i], strlen(ctbuf[i]), &ptbuf, &ptlen);
-      EXPECT_EQ(res, 0) << "i (" << i << ")  ctbuf[i](" << ctbuf[i] << ")  ptbuf (" << ptbuf << ")" << std::endl;
-
-      EXPECT_EQ(strcmp(pt, ptbuf),0);
-      free(ptbuf);
-    }
-
-
-    ubiq_platform_fpe_enc_dec_destroy(enc);
-
-    ubiq_platform_credentials_destroy(creds);
-
-    for (int i = 0; i < ctcount; i++) {
-      free(ctbuf[i]);
-    }
-    free(ctbuf);
-}
 
 TEST(c_fpe_encrypt, mixed_forward)
 {
-    static const char * const pt = " 01121231231231231& 1 &2311200 ";
+    static const char * const pt = ";0123456-789ABCDEF|";
 //    static const char * const pt = "00001234567890";//234567890";
     static const char * const ffs_name = "ALPHANUM_SSN";
 
@@ -940,7 +928,7 @@ TEST(c_fpe_encrypt, mixed_forward)
 
 TEST(c_fpe_encrypt, mixed_backwards)
 {
-    static const char * const pt = " 01121231231231231& 1 &2311200 ";
+    static const char * const pt = ";0123456-789ABCDEF|";
 //    static const char * const pt = "00001234567890";//234567890";
     static const char * const ffs_name = "ALPHANUM_SSN";
 
@@ -981,7 +969,7 @@ TEST(c_fpe_encrypt, mixed_backwards)
 
 TEST(c_fpe_encrypt, 10_cycles)
 {
-    static const char * const pt = " 01121231231231231& 1 &2311200 ";
+    static const char * const pt = ";0123456-789ABCDEF|";
 //    static const char * const pt = "00001234567890";//234567890";
     static const char * const ffs_name = "ALPHANUM_SSN";
 
@@ -1021,42 +1009,6 @@ TEST(c_fpe_encrypt, 10_cycles)
 
 }
 
-
-TEST(c_fpe_encrypt, generic)
-{
-    static const char * const pt = "1234567890ABCDEFGHIJKLMNOP";
-    // static const char * const ct = "!!-uWaT\"oJRY_V/lqu|hV5yy!5";
-//    static const char * const pt = "00001234567890";//234567890";
-    static const char * const ffs_name = "GENERIC_STRING";
-
-    struct ubiq_platform_credentials * creds;
-    char * ctbuf(nullptr);
-    size_t ctlen;
-    char * ptbuf(nullptr);
-    size_t ptlen;
-    int res;
-
-    res = ubiq_platform_credentials_create(&creds);
-    ASSERT_EQ(res, 0);
-
-    res = ubiq_platform_fpe_encrypt(creds,
-      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
-    EXPECT_EQ(res, 0);
-    EXPECT_EQ(strlen(pt), ctlen);
-    // EXPECT_EQ(strcmp(ct, ctbuf), 0) << "pt(" << pt << ")    ctbuf(" << ctbuf << ")" << std::endl;
-
-    res = ubiq_platform_fpe_decrypt(creds,
-      ffs_name, NULL, 0, ctbuf, strlen(ctbuf), &ptbuf, &ptlen);
-    EXPECT_EQ(res, 0);
-    EXPECT_EQ(strlen(pt), ptlen);
-
-    EXPECT_EQ(strcmp(pt, ptbuf),0) << "pt(" << pt << ")    ptbuf(" << ptbuf << ")" << std::endl;
-
-    ubiq_platform_credentials_destroy(creds);
-
-    free(ctbuf);
-    free(ptbuf);
-}
 
 TEST(c_fpe_encrypt, error_handling_null_object)
 {
@@ -1098,7 +1050,7 @@ TEST(c_fpe_encrypt, error_handling_notnull_object)
 TEST(c_fpe_encrypt, error_handling_invalid_ffs)
 {
 
-  static const char * const pt = " 01121231231231231& 1 &2311200 ";
+  static const char * const pt = ";0123456-789ABCDEF|";
   static const char * const ffs_name = "ALPHANUM_SSN";
 
   struct ubiq_platform_credentials * creds;
@@ -1143,7 +1095,7 @@ TEST(c_fpe_encrypt, error_handling_invalid_ffs)
 TEST(c_fpe_encrypt, error_handling_invalid_creds)
 {
 
-  static const char * const pt = " 01121231231231231& 1 &2311200 ";
+  static const char * const pt = ";0123456-789ABCDEF|";
   static const char * const ffs_name = "ALPHANUM_SSN";
 
   struct ubiq_platform_credentials * creds;
@@ -1195,7 +1147,7 @@ TEST(c_fpe_encrypt, error_handling_invalid_creds)
 TEST(c_fpe_encrypt, error_handling_invalid_PT_CT)
 {
 
-  static const char * const pt = " 123456789$";
+  static const char * const pt =  "-0-1-2-3-4-5-6-7-8-9$";
   static const char * const ffs_name = "SSN";
 
   struct ubiq_platform_credentials * creds;
@@ -1306,7 +1258,7 @@ TEST(c_fpe_encrypt, error_handling_invalid_LEN)
 
 TEST(c_fpe_encrypt, error_handling_invalid_papi)
 {
-    static const char * const pt = " 01121231231231231& 1 &2311200 ";
+    static const char * const pt =  ";0123456-789ABCDEF|";
     static const char * const ffs_name = "ALPHANUM_SSN";
 
     struct ubiq_platform_credentials * creds_orig;
@@ -1364,7 +1316,7 @@ TEST(c_fpe_encrypt, error_handling_invalid_papi)
 
 TEST(c_fpe_encrypt, error_handling_invalid_sapi)
 {
-    static const char * const pt = " 01121231231231231& 1 &2311200 ";
+    static const char * const pt =  ";0123456-789ABCDEF|";
     static const char * const ffs_name = "ALPHANUM_SSN";
 
     struct ubiq_platform_credentials * creds_orig;
@@ -1423,7 +1375,7 @@ TEST(c_fpe_encrypt, error_handling_invalid_sapi)
 
 TEST(c_fpe_encrypt, error_handling_invalid_rsa)
 {
-    static const char * const pt = " 01121231231231231& 1 &2311200 ";
+    static const char * const pt =  ";0123456-789ABCDEF|";
     static const char * const ffs_name = "ALPHANUM_SSN";
 
     struct ubiq_platform_credentials * creds_orig;
@@ -1481,7 +1433,7 @@ TEST(c_fpe_encrypt, error_handling_invalid_rsa)
 
 TEST(c_fpe_encrypt, error_handling_invalid_host)
 {
-    static const char * const pt = " 01121231231231231& 1 &2311200 ";
+    static const char * const pt =  ";0123456-789ABCDEF|";
     static const char * const ffs_name = "ALPHANUM_SSN";
 
     struct ubiq_platform_credentials * creds_orig;
@@ -1541,8 +1493,8 @@ TEST(c_fpe_encrypt, error_handling_invalid_host)
 TEST(c_fpe_encrypt, error_handling_invalid_keynum)
 {
 
-  static const char * const pt = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  static const char * const ffs_name = "SO_ALPHANUM_PIN";
+  static const char * const pt = "0123456789";
+  static const char * const ffs_name = "SSN";
 
   struct ubiq_platform_credentials * creds;
   struct ubiq_platform_fpe_enc_dec_obj *enc;
@@ -1616,7 +1568,7 @@ TEST_F(cpp_fpe_encrypt, 1m)
 
 TEST(c_fpe_encrypt, new)
 {
-    static const char * const pt = " 01121231231231231& 1 &2311200 ";
+    static const char * const pt = ";0123456-789ABCDEF|";
 //    static const char * const pt = "00001234567890";//234567890";
     static const char * const ffs_name = "ALPHANUM_SSN";
 

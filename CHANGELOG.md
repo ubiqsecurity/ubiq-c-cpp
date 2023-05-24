@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.0.1.0 - 2023-05-17
+* Standardize unit tests across different languages
+* Fix memory leak
+
 ## 2.0.0.0 - 2023-04-19
 * FPE and usage reporting optimizations
 

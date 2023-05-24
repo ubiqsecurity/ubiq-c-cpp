@@ -1470,7 +1470,9 @@ ubiq_platform_fpe_enc_dec_create(
 
   ubiq_platform_configuration_load_configuration(NULL, &cfg);
 
-  return ubiq_platform_fpe_enc_dec_create_with_config(creds, cfg, enc);
+  int ret = ubiq_platform_fpe_enc_dec_create_with_config(creds, cfg, enc);
+  ubiq_platform_configuration_destroy(cfg);
+  return ret;
 
 }
 
@@ -1665,8 +1667,18 @@ ubiq_platform_fpe_encrypt_data_for_search(
     int x = i;
     if (!res) {res = get_ctx(enc, ffs_definition, &x , &ctx);}
     UBIQ_DEBUG(debug_flag, printf("i(%d) x(%d) res(%d)\n", i, x, res));
-    if (!res) { res = char_fpe_encrypt_data(enc, ffs_definition, ctx, i, tweak, tweaklen, ptbuf, ptlen, &ret_ct[i], &len);}
-    UBIQ_DEBUG(debug_flag, printf("%s %s res(%d) ret_ct[i](%s)\n", csu, "char_fpe_encrypt_data", res, ret_ct[i]));
+
+    if (!res) {
+      if (ffs_definition->character_types == UINT8) {
+        res = char_fpe_encrypt_data(enc, ffs_definition, ctx, i, tweak, tweaklen, ptbuf, ptlen,  &ret_ct[i], &len);
+        UBIQ_DEBUG(debug_flag, printf("%s %s res(%d) ret_ct[i](%s)\n", csu, "char_fpe_encrypt_data", res, ret_ct[i]));
+      } else {
+        res = u32_fpe_encrypt_data(enc, ffs_definition, ctx, i, tweak, tweaklen, ptbuf, ptlen, &ret_ct[i], &len);
+        UBIQ_DEBUG(debug_flag, printf("%s %s res(%d) ret_ct[i](%s)\n", csu, "u32_fpe_encrypt_data", res, ret_ct[i]));
+      }
+    }
+
+    // if (!res) { res = char_fpe_encrypt_data(enc, ffs_definition, ctx, i, tweak, tweaklen, ptbuf, ptlen, &ret_ct[i], &len);}
 
     // char_fpe_encrypt_data does not add billing event - ubiq_platform_fpe_enc_dec_obj adds billing but does not accept key number.
     // Therefore, need to add billing records here
