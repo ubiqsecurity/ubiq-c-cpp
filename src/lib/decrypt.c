@@ -51,7 +51,9 @@ ubiq_platform_decryption_create(
 
   ubiq_platform_configuration_load_configuration(NULL, &cfg);
 
-  return ubiq_platform_decryption_create_with_config(creds, cfg, dec);
+  int ret = ubiq_platform_decryption_create_with_config(creds, cfg, dec);
+  ubiq_platform_configuration_destroy(cfg);
+  return ret;
 }
 
 int
