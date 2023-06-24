@@ -32,6 +32,15 @@
 #define UBIQ_DEBUG(x,y)
 #endif
 
+// Defined in CMAKE if glibc < 2.30
+#ifdef SUPPRESS_TWALK_R
+void
+twalk_r (const void *vroot, void (*action) (const void *, VISIT, void *),
+	   void *closure) {
+}
+
+#endif
+
 
 struct ubiq_platform_cache {
   void * root;
