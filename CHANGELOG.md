@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.0.2.0 - 2023-06-14
+* Optimizations for Encrypt For Search algorithms
+
 ## 2.0.1.0 - 2023-05-17
 * Standardize unit tests across different languages
 * Fix memory leak

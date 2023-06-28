@@ -25,7 +25,7 @@ stages:
     - deploy
 
 build-debian:
-    image: debian:stable
+    image: debian:bullseye
     variables:
         GIT_SUBMODULE_STRATEGY: recursive
     stage: build
@@ -59,7 +59,7 @@ build-debian:
 #        - build
 
 test-debian:
-    image: debian:stable
+    image: debian:bullseye
     stage: test
     before_script:
         - apt -y update
@@ -121,7 +121,7 @@ package-debian:
         - schedules
 
 deploy:
-    image: debian:stable
+    image: debian:bullseye
     stage: deploy
     before_script:
         - apt -y update
