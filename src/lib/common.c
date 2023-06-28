@@ -103,7 +103,6 @@ ubiq_url_parse(
     return err;
 }
 
-static
 int
 ubiq_platform_common_parse_key(
   const cJSON * const json,
@@ -133,16 +132,12 @@ ubiq_platform_common_parse_key(
       j = cJSON_GetObjectItemCaseSensitive(
           json, "wrapped_data_key");
       if (cJSON_IsString(j) && j->valuestring != NULL) {
-          void * buf;
-          int len;
 
-          len = ubiq_support_base64_decode(
-              &buf, j->valuestring, strlen(j->valuestring));
+        res = ubiq_platform_common_decrypt_wrapped_key(
+          prvpem, srsa, 
+          j->valuestring,
+          keybuf, keylen);
 
-          res = ubiq_support_asymmetric_decrypt(
-              prvpem, srsa, buf, len, keybuf, keylen);
-
-          free(buf);
       } else {
           res = -EBADMSG;
       }
@@ -150,6 +145,28 @@ ubiq_platform_common_parse_key(
   return res;
 }
 
+
+int
+ubiq_platform_common_decrypt_wrapped_key(
+    const char * const prvpem,
+    const char * const srsa,
+    const char * const base64_wrapped_data_key,
+    void ** const keybuf, size_t * const keylen)
+{
+  int res = 0;
+  void * buf;
+  int len;
+
+  len = ubiq_support_base64_decode(
+      &buf, base64_wrapped_data_key, strlen(base64_wrapped_data_key));
+
+  res = ubiq_support_asymmetric_decrypt(
+      prvpem, srsa, buf, len, keybuf, keylen);
+
+  free(buf);
+
+  return res;
+}
 
 int
 ubiq_platform_common_parse_new_key(

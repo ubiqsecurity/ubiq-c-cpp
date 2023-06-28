@@ -718,7 +718,7 @@ create_and_add_ctx_cache(
 
   char * key_str = NULL;
 
-  get_key_cache_string(ffs->name, key_number, &key_str);
+  res = get_key_cache_string(ffs->name, key_number, &key_str);
 
   struct ff1_ctx * ctx = NULL;
   UBIQ_DEBUG(debug_flag, printf("%s ffs->input_character_set(%s)\n", csu, ffs->input_character_set ));
@@ -930,6 +930,31 @@ get_ctx(
   return res;
 }
 
+// Parse the FFS definition and add to the cache
+
+static
+int
+ffs_add_def(
+  struct ubiq_platform_fpe_enc_dec_obj * const e,
+  cJSON * const ffs_json,
+  const struct ffs ** ffs_definition)
+{
+  int res = 0;
+  if (ffs_json) {
+    struct ffs * f = NULL;
+    res = ffs_create(ffs_json,  &f);
+    if (!res) {
+      ubiq_platform_cache_add_element(e->ffs_cache, f->name, CACHE_DURATION, f, &ffs_destroy);
+      *ffs_definition = f;
+    } else {
+      // Error, so free resources.
+      ffs_destroy(f);
+    }
+  }
+  return res;
+}
+
+
 static
 int
 ffs_get_def(
@@ -986,13 +1011,8 @@ ffs_get_def(
         rsp = ubiq_platform_rest_response_content(e->rest, &len);
         res = (ffs_json = cJSON_ParseWithLength(rsp, len)) ? 0 : INT_MIN;
 
-        if (res == 0 && ffs_json) {
-          struct ffs * f = NULL;
-          res = ffs_create(ffs_json,  &f);
-          if (!res) {
-            ubiq_platform_cache_add_element(e->ffs_cache, ffs_name, CACHE_DURATION, f, &ffs_destroy);
-            *ffs_definition = f;
-          }
+        if (res == 0) {
+          res = ffs_add_def(e, ffs_json, ffs_definition);
         }
         cJSON_Delete(ffs_json);
       }
@@ -1362,6 +1382,182 @@ int u32_fpe_decrypt_data(
   return res;
 }
 
+// Load the search keys for a specific FFS.  
+// Will check for FFS or individual keys before adding to cache
+
+static 
+int 
+  load_search_keys(
+    struct ubiq_platform_fpe_enc_dec_obj * const e,
+    const char * const ffs_name,
+    int * num_keys_loaded)
+{
+
+  const char * const csu = "load_search_keys";
+  const char * const fmt = "%s/fpe/def_keys?ffs_name=%s&papi=%s";
+  int debug_flag = 0;
+
+  UBIQ_DEBUG(debug_flag, printf("%s %s\n",csu, "started"));
+
+  char * url = NULL;
+  size_t len = 0;
+  int res = 0;
+  const void * rsp = NULL;
+
+  const struct ffs * ffs_definition;
+
+  char * encoded_name = NULL;
+  res = ubiq_platform_rest_uri_escape(e->rest, ffs_name, &encoded_name);
+
+  len = snprintf(NULL, 0, fmt, e->restapi, encoded_name, e->encoded_papi);
+  url = malloc(len + 1);
+  snprintf(url, len + 1, fmt, e->restapi, encoded_name, e->encoded_papi);
+
+  UBIQ_DEBUG(debug_flag, printf("%s url(%s)\n",csu, url));
+
+  free(encoded_name);
+
+  // Execute the query
+  res = ubiq_platform_rest_request(
+        e->rest,
+        HTTP_RM_GET, url, "application/json", NULL, 0);
+
+
+  UBIQ_DEBUG(debug_flag, printf("%s res(%d)\n",csu, res));
+
+  if (!CAPTURE_ERROR(e, res, "Unable to process request to get Search Keys"))
+    {
+      // Get HTTP response code.  If not OK, return error value
+      http_response_code_t rc = ubiq_platform_rest_response_code(e->rest);
+
+      UBIQ_DEBUG(debug_flag, printf("%s http_response_code_t(%d)\n",csu, rc));
+
+
+      if (rc != HTTP_RC_OK) {
+        // Capture Error
+        res = save_rest_error(e, e->rest, rc);
+      } else {
+        // Get the response payload, parse, and continue.
+        cJSON * def_keys_json;
+        rsp = ubiq_platform_rest_response_content(e->rest, &len);
+
+        // UBIQ_DEBUG(debug_flag, printf("%s rsp(%s)\n",csu, rsp));
+        res = (def_keys_json = cJSON_ParseWithLength(rsp, len)) ? 0 : INT_MIN;
+
+        // UBIQ_DEBUG(debug_flag, printf("%s json(%s)\n",csu, cJSON_Print(def_keys_json)));
+
+        if (res == 0 && cJSON_IsObject(def_keys_json)) {
+          cJSON * top_lvl = cJSON_GetObjectItemCaseSensitive(def_keys_json, ffs_name);
+          if (!cJSON_IsObject(top_lvl)) {
+            printf("cJSON_GetObjectItemCaseSensitive(ffs_name\n");
+            return -EINVAL;
+          }
+
+          cJSON * ffs_json = cJSON_GetObjectItemCaseSensitive(top_lvl, "ffs");
+          if (!cJSON_IsObject(ffs_json)) {
+            printf("cJSON_GetObjectItemCaseSensitive(ffs\n");
+            return -EINVAL;
+          }
+
+          cJSON * prv_key = cJSON_GetObjectItemCaseSensitive(top_lvl, "encrypted_private_key");
+          if (!cJSON_IsString(prv_key)) {
+            printf("cJSON_GetObjectItemCaseSensitive(encrypted_private_key\n");
+            return -EINVAL;
+          }
+
+          cJSON * key_num = cJSON_GetObjectItemCaseSensitive(top_lvl, "current_key_number");
+          if (!cJSON_IsNumber(key_num)) {
+            printf("cJSON_GetObjectItemCaseSensitive(current_key_number\n");
+            return -EINVAL;
+          }
+
+          cJSON * keys = cJSON_GetObjectItemCaseSensitive(top_lvl, "keys");
+          if (!cJSON_IsArray(keys)) {
+            printf("cJSON_GetObjectItemCaseSensitive(keys\n");
+            return -EINVAL;
+          }
+
+          int key_count = cJSON_GetArraySize(keys);
+          int current_key_number = cJSON_GetNumberValue(key_num);
+          const char * const prvpem = cJSON_GetStringValue(prv_key);
+
+          *num_keys_loaded = key_count;
+          // Check cache first for FFS
+
+          if (NULL == (ffs_definition = (struct ffs *)ubiq_platform_cache_find_element(e->ffs_cache, ffs_name))) {
+            UBIQ_DEBUG(debug_flag, printf("%s FFS (%s) not in cache\n",csu, ffs_name));
+            ffs_add_def(e, ffs_json, &ffs_definition);
+          } else {
+            UBIQ_DEBUG(debug_flag, printf("%s FFS (%s) already is cache\n",csu, ffs_name));
+          }
+            UBIQ_DEBUG(debug_flag, printf("%s key_count (%d) \n",csu, key_count));
+
+          for (int i = 0; ((i < key_count) && (0 == res)); i++) {
+            // Test cache to see if key already exists
+
+            char * key_str = NULL;
+            void * keybuf = NULL;
+            size_t keylen = 0;
+            struct ctx_cache_element * ctx_element = NULL;
+
+            res = get_key_cache_string(ffs_name, i, &key_str);
+            if ((0 == res) && (NULL == ubiq_platform_cache_find_element(e->key_cache, key_str))) {
+              UBIQ_DEBUG(debug_flag, printf("%s key (%i) not in cache\n",csu, i));
+              struct fpe_key * k = NULL;
+              res = fpe_key_create(&k);
+              if (!res) {
+
+                cJSON * key = cJSON_GetArrayItem(keys, i);
+                res = ubiq_platform_common_decrypt_wrapped_key(
+                  prvpem, e->srsa,
+                  key->valuestring,
+                  &k->buf, &k->len);
+
+                if (!res) {
+                    k->key_number = (unsigned int)i;
+
+                    res = create_and_add_ctx_cache(e,ffs_definition, k->key_number, k, &ctx_element);
+
+                    if (!res) {
+                      // Add for the encrypt call - key_number isn't known
+                      if (i == current_key_number) {
+                        free(key_str);
+                        res = get_key_cache_string(ffs_name, -1, &key_str);
+                        if (!res) {
+                          if (NULL == ubiq_platform_cache_find_element(e->key_cache, key_str)) {
+                            UBIQ_DEBUG(debug_flag, printf("%s key (%d) not in cache\n",csu, -1));
+                            res = create_and_add_ctx_cache(e,ffs_definition, -1, k, &ctx_element);
+                          } else {
+                            UBIQ_DEBUG(debug_flag, printf("%s key (%d) already in cache\n",csu, -1));
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+                UBIQ_DEBUG(debug_flag, printf("%s before fpe_key_destroy\n",csu));
+                fpe_key_destroy(k);
+                UBIQ_DEBUG(debug_flag, printf("%s after fpe_key_destroy\n",csu));
+
+            } else {
+              UBIQ_DEBUG(debug_flag, printf("%s key (%i) already in cache\n",csu, i));
+            }
+            free(key_str);
+          }
+          UBIQ_DEBUG(debug_flag, printf("%s End loop\n",csu));
+        }
+        cJSON_Delete(def_keys_json);
+      }
+    }
+    UBIQ_DEBUG(debug_flag, printf("%s before free url\n",csu));
+    free(url);
+    UBIQ_DEBUG(debug_flag, printf("%s done (%i)\n",csu, res));
+    return res;
+}
+
+
+
+
 /**************************************************************************************
  *
  * Public functions
@@ -1601,6 +1797,7 @@ ubiq_platform_fpe_decrypt(
   return res;
 }
 
+// Simple version
 int
 ubiq_platform_fpe_encrypt_for_search(
     const struct ubiq_platform_credentials * const creds,
@@ -1624,6 +1821,7 @@ ubiq_platform_fpe_encrypt_for_search(
 
 }
 
+// Bulk version
 int
 ubiq_platform_fpe_encrypt_data_for_search(
   struct ubiq_platform_fpe_enc_dec_obj * const enc,
@@ -1637,10 +1835,13 @@ ubiq_platform_fpe_encrypt_data_for_search(
   int debug_flag = 0;
   const struct ffs * ffs_definition = NULL;
   struct ff1_ctx * ctx = NULL;
-  int key_number = -1;
+  // int key_number = -1;
   int res = 0;
   char ** ret_ct = NULL;
   char * dataset_groups_name = NULL; // TODO - change to parameter in the future for FQN
+
+  int key_count = 0;
+  res = load_search_keys(enc, ffs_name, &key_count);
 
   UBIQ_DEBUG(debug_flag, printf("%s %s res(%d)\n", csu, "start", res));
 
@@ -1649,20 +1850,20 @@ ubiq_platform_fpe_encrypt_data_for_search(
   UBIQ_DEBUG(debug_flag, printf("%s %s res(%d)\n", csu, "ffs_get_def", res));
 
   // Get the ctx and the key number for the current key
-  if (!res) {res = get_ctx(enc, ffs_definition, &key_number , &ctx);}
-  UBIQ_DEBUG(debug_flag, printf("%s %s res(%d) key_number(%d)\n", csu, "get_ctx", res, key_number));
+  // if (!res) {res = get_ctx(enc, ffs_definition, &key_number , &ctx);}
+  // UBIQ_DEBUG(debug_flag, printf("%s %s res(%d) key_number(%d)\n", csu, "get_ctx", res, key_number));
 
   // Loop over all keys up to the current key, and encrypt the data using each key
   if (!res) {
-    *count = key_number + 1;
+    *count = key_count;
     ret_ct = (char **)calloc(*count, sizeof(char *));
     if (!ret_ct) {
       res = -ENOMEM;
     }
   }
-  UBIQ_DEBUG(debug_flag, printf("%s %s res(%d) key_number(%d)\n", csu, "alloc", res, key_number));
+  UBIQ_DEBUG(debug_flag, printf("%s %s res(%d) key_count(%d)\n", csu, "alloc", res, key_count));
 
-  for (int i = 0; !res && i <= key_number; i++) {
+  for (int i = 0; !res && i < key_count; i++) {
     size_t len = 0;
     int x = i;
     if (!res) {res = get_ctx(enc, ffs_definition, &x , &ctx);}
@@ -1694,7 +1895,7 @@ ubiq_platform_fpe_encrypt_data_for_search(
   }
 
   if (res) {
-    for (int i = 0; i <= key_number; i++) {
+    for (int i = 0; i < key_count; i++) {
       free(ret_ct[i]);
       ret_ct = NULL;
     }

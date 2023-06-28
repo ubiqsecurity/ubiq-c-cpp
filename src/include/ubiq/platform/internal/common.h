@@ -32,6 +32,13 @@ void ubiq_url_reset(struct ubiq_url * const);
 int ubiq_url_parse(struct ubiq_url * const, const char * const);
 
 int
+ubiq_platform_common_decrypt_wrapped_key(
+    const char * const prvpem,
+    const char * const srsa,
+    const char * const base64_wrapped_data_key,
+    void ** const keybuf, size_t * const keylen);
+
+int
 ubiq_platform_common_parse_new_key(
     const cJSON * const json,
     const char * const srsa,
