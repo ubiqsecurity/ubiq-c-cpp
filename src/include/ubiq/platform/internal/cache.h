@@ -1,7 +1,7 @@
 #pragma once
 
 #include <ubiq/platform/compat/cdefs.h>
-#include <search.h>
+
 
 __BEGIN_DECLS
 
@@ -9,6 +9,7 @@ struct ubiq_platform_cache ;
 
 int
 ubiq_platform_cache_create(
+  unsigned int capacity,
   struct ubiq_platform_cache ** const ubiq_cache);
 
 void
@@ -40,7 +41,7 @@ ubiq_platform_cache_get_element_count(
 void
 ubiq_platform_cache_walk_r(
   struct ubiq_platform_cache * ubiq_cache,
-  void (* action) (const void *__nodep, VISIT __value,
+  void (* action) (const void *__nodep, 
 			       void *__closure) ,
   void *__closure);
 

@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.0.3.0 - 2023-06-29
+* Data caching optimization
+
 ## 2.0.2.0 - 2023-06-14
 * Optimizations for Encrypt For Search algorithms
 
