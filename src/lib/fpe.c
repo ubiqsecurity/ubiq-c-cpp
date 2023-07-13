@@ -114,7 +114,9 @@ struct ubiq_platform_fpe_enc_dec_obj
     char * papi;
     char * encoded_papi;
     char * srsa;
+    // Curl library is not thread safe.  Need separate one for Billing and non-billing
     struct ubiq_platform_rest_handle * rest;
+    struct ubiq_platform_rest_handle * billing_rest;
 
     struct ubiq_billing_ctx * billing_ctx;
 
@@ -770,10 +772,16 @@ ubiq_platform_fpe_encryption(
         e->restapi = calloc(len, 1);
         ubiq_platform_snprintf_api_url(e->restapi, len, host, api_path);
         res = ubiq_platform_rest_handle_create(papi, sapi, &e->rest);
+        // Curl library is not thread safe.  Need separate one for Billing and non-billing
+        if (!res) {
+          res = ubiq_platform_rest_handle_create(papi, sapi, &e->billing_rest);
+        }
       }
       if (!res) {
         res = ubiq_platform_rest_uri_escape(e->rest, papi, &e->encoded_papi);
       }
+
+
       if (!res) {
         e->srsa = strdup(srsa);
         if (e->srsa == NULL) {
@@ -787,13 +795,17 @@ ubiq_platform_fpe_encryption(
         }
       }
       if (!res) {
-        res = ubiq_platform_cache_create(&e->ffs_cache);
+        // htable size 500 - means slots for 500 possible key colisions - probably way more than the 
+        // number of datasets being used here
+        res = ubiq_platform_cache_create(500, &e->ffs_cache);
       }
       if (!res) {
-        res = ubiq_platform_cache_create(&e->key_cache);
+        // htable size 500 - means slots for 500 possible key colisions
+        // Reduces the likelyhood of a key collision 
+        res = ubiq_platform_cache_create(500, &e->key_cache);
       }
       if (!res) {
-        res = ubiq_billing_ctx_create(&e->billing_ctx, host, e->rest, cfg);
+        res = ubiq_billing_ctx_create(&e->billing_ctx, host, e->billing_rest, cfg);
       }
     }
 
@@ -962,6 +974,8 @@ ffs_get_def(
   const char * const ffs_name,
   const struct ffs ** ffs_definition)
 {
+
+
   const char * const csu = "ffs_get_def";
   const char * const fmt = "%s/ffs?ffs_name=%s&papi=%s";
 
@@ -1710,10 +1724,10 @@ ubiq_platform_fpe_enc_dec_destroy(
   const char * const csu = "ubiq_platform_fpe_enc_dec_destroy";
 
   if (e) {
-    int i= 0;
+
     // Need to make sure billing ctx is destroyed before other objects
     ubiq_billing_ctx_destroy(e->billing_ctx);
-
+    ubiq_platform_rest_handle_destroy(e->billing_rest);
     ubiq_platform_rest_handle_destroy(e->rest);
     free(e->restapi);
     free(e->papi);

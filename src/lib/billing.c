@@ -16,7 +16,6 @@
 #include <string.h>
 #include <assert.h>
 #include <time.h>
-#include <search.h>
 #include <pthread.h>
 
 
@@ -59,6 +58,7 @@ static int debug_flag = 0;
 // We are using CACHE but really want just a tree / hash storage
 static const time_t CACHE_DURATION = 7 * 24 * 60 * 60;
 
+static const unsigned int CACHE_CAPACITY = 500;
 
 /**************************************************************************************
  *
@@ -115,7 +115,7 @@ void billing_element_destroy(
 
 static
 void
-billing_walk_r(const void *nodep, VISIT which, void *__closure);
+billing_walk_r(const void *nodep, void *__closure);
 
 static
 int
@@ -301,7 +301,7 @@ process_billing_task(void * data) {
 
       struct ubiq_platform_cache * local_cache  = e->billing_elements_cache;
       e->billing_elements_cache = NULL;
-      ubiq_platform_cache_create(&e->billing_elements_cache );
+      ubiq_platform_cache_create(CACHE_CAPACITY, &e->billing_elements_cache );
 
       // Can unlock since cache is now local
       pthread_mutex_unlock(&e->billing_lock);
@@ -348,7 +348,9 @@ process_billing_btree(
       cJSON * json_array = cJSON_CreateArray();
 
       // Conver the tree to a json array
+      UBIQ_DEBUG(debug_flag, printf("start walking (%d)\n", element_count));
       ubiq_platform_cache_walk_r(billing_btree, billing_walk_r, (void *)json_array);
+      UBIQ_DEBUG(debug_flag, printf("  done walking\n"));
 
       cJSON * json_usage = cJSON_CreateObject();
       cJSON_AddItemToObject(json_usage, "usage", json_array);
@@ -366,17 +368,15 @@ process_billing_btree(
 
 static
 void
-billing_walk_r(const void *nodep, VISIT which, void *__closure)
+billing_walk_r(const void *nodep, void *__closure)
 {
+  int debug_flag = 1;
   static const char * const csu = "billing_walk_r";
 
   cJSON * json_array = (cJSON*) __closure;
 
   struct billing_element * billing_element;
   cJSON * element = NULL;
-
-  switch (which) {
-  case leaf:
 
     billing_element = *(struct billing_element **) nodep;
     serialize_billing_element(billing_element, &element);
@@ -388,23 +388,6 @@ billing_walk_r(const void *nodep, VISIT which, void *__closure)
     
     // UBIQ_DEBUG(debug_flag, printf("%s \n \t%s \n",csu, billing_element->dataset_name));
 
-    break;
-  case postorder:
-    billing_element = *(struct billing_element **) nodep;
-    serialize_billing_element(billing_element, &element);
-    cJSON_AddItemToArray(json_array, element);
-
-    UBIQ_DEBUG(debug_flag, printf("postorder %s \n \t%p \n",csu, billing_element));
-    UBIQ_DEBUG(debug_flag, printf("postorder %s \n \tkey(%d) \n",csu, billing_element->key_number));
-    UBIQ_DEBUG(debug_flag, printf("postorder %s \n \tdataset_ptr(%p) \n",csu, billing_element->dataset_name));
-    
-    break;
-
-  default:
-    UBIQ_DEBUG(debug_flag, printf("%s OTHER \n",csu));
-  // Nothing to do except for leaf
-    break;
-  }
     UBIQ_DEBUG(debug_flag, printf("%s \n \t END \n",csu));
 }
 
@@ -579,7 +562,7 @@ ubiq_billing_ctx_create(
     strcpy(local_ctx->billing_url, host_path);
     strcat(local_ctx->billing_url, "/api/v3/tracking/events");
 
-    res = ubiq_platform_cache_create(&local_ctx->billing_elements_cache);
+    res = ubiq_platform_cache_create(CACHE_CAPACITY, &local_ctx->billing_elements_cache);
     if (!res) {
       local_ctx->rest = (struct ubiq_platform_rest_handle * const) rest;
     }
@@ -621,6 +604,7 @@ void
 ubiq_billing_ctx_destroy(struct ubiq_billing_ctx * const ctx){
 
   if (ctx) {
+    UBIQ_DEBUG(debug_flag, printf("ubiq_billing_ctx_destroy\n"));
     pthread_mutex_lock(&ctx->billing_lock);
 
     struct ubiq_platform_cache * billing_elements_cache =  ctx->billing_elements_cache;
@@ -684,9 +668,11 @@ ubiq_billing_add_billing_event(
 
   // Check billing element cache based on key
 
+  // Lock the billing object since find / create can modify structure.  Don't want something else
+  // modifying it while this is occuring.
+  pthread_mutex_lock(&e->billing_lock);
   billing_element = (struct billing_element *)ubiq_platform_cache_find_element(e->billing_elements_cache, key_str);
   if (billing_element != NULL) {
-    pthread_mutex_lock(&e->billing_lock);
     UBIQ_DEBUG(debug_flag, printf("%s %s\n",csu, "key found in Cache"));
 
     billing_element->count += count;
@@ -694,13 +680,8 @@ ubiq_billing_add_billing_event(
     const time_t now = time(NULL);
 
     res = ubiq_support_gmtime_r(&now, &billing_element->last_call_timestamp);
-
-    pthread_mutex_unlock(&e->billing_lock);
   }
   else {
-
-    UBIQ_DEBUG(debug_flag, printf("%s \n \t%s len(%i)\n",csu, key_str, len));
-
     res = billing_element_create(
       &billing_element,
       api_key,
@@ -710,12 +691,10 @@ ubiq_billing_add_billing_event(
       count,
       billing_action);
 
-    pthread_mutex_lock(&e->billing_lock);
-
     ubiq_platform_cache_add_element(e->billing_elements_cache, key_str, CACHE_DURATION, billing_element, &billing_element_destroy);
-
-    pthread_mutex_unlock(&e->billing_lock);
   }
+  pthread_mutex_unlock(&e->billing_lock);
+  
   if (key_str != NULL) {
     free(key_str);
   }
