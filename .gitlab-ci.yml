@@ -40,23 +40,28 @@ build-debian:
         - cmake --build build -- -j$(nproc)
         - cmake --build build --target package -- -j$(nproc)
 
-#build-centos:
-#    image: centos:8
-#    variables:
-#        GIT_SUBMODULE_STRATEGY: recursive
-#    stage: build
-#    before_script:
-#        - yum -y update
-#        - yum install -y gcc gcc-c++ make gmp-c++ gmp-devel 
-#        - yum install -y openssl-devel libcurl-devel file rpm-build cmake
-#    script:
-#        - cmake -S. -Bbuild
-#        - cmake --build build -- -j$(nproc)
-#        - cmake --build build --target package -- -j$(nproc)
-#    cache:
-#       key: "centos-${CI_COMMIT_REF_SLUG}"
-#       paths:
-#        - build
+build-centos-8-stream:
+    image: quay.io/centos/centos:stream8
+    variables:
+        GIT_SUBMODULE_STRATEGY: recursive
+    stage: build
+    before_script:
+        - yum -y update
+        - yum install -y gcc gcc-c++ make gmp-c++ gmp-devel 
+        - yum install -y openssl-devel libcurl-devel file rpm-build cmake
+        - cd /tmp
+        - curl -LOJ http://mirror.centos.org/centos/8-stream/PowerTools/x86_64/os/Packages/libunistring-devel-0.9.9-3.el8.x86_64.rpm
+        - yum install -y ./libunistring*.rpm
+        - rm -f ./lib*.rpm
+        - cd -
+    script:
+        - cmake -S. -Bbuild
+        - cmake --build build -- -j$(nproc)
+        - cmake --build build --target package -- -j$(nproc)
+    cache:
+       key: "centos-${CI_COMMIT_REF_SLUG}"
+       paths:
+        - build
 
 test-debian:
     image: debian:bullseye
@@ -67,21 +72,23 @@ test-debian:
     script:
         - ldd build/src/test/unittests
         - build/src/test/unittests
+        - ldd build/src/test/test_performance
+        - ls -l build/src/test src/test/DATA
+        - build/src/test/test_performance
 
-#test-centos:
-#    image: centos:8
-#    stage: test
-#    before_script:
-#        - yum -y update
-#        - yum install -y gcc gcc-c++
-#        - yum install --allowerasing -y libcurl
-#    script:
-#        - ldd build/src/test/unittests
-#        - build/src/test/unittests
-#    cache:
-#       key: "centos-${CI_COMMIT_REF_SLUG}"
-#       paths:
-#        - build
+test-centos-8-stream:
+    image: quay.io/centos/centos:stream8
+    stage: test
+    script:
+        - ldd build/src/test/unittests
+        - build/src/test/unittests
+        - ldd build/src/test/test_performance
+        - ls -l build/src/test src/test/DATA
+        - build/src/test/test_performance
+    cache:
+       key: "centos-${CI_COMMIT_REF_SLUG}"
+       paths:
+        - build
 
 sast:
     variables:
