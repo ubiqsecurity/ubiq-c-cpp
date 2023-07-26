@@ -1,3 +1,7 @@
+/*
+* Test harness that uses C APIs but CPP because of convenience 
+* and timing numbers.
+*/
 #include "test_harness_helper.h"
 
 #include <ubiq/platform.h>
@@ -5,6 +9,7 @@
 #include <iostream>
 #include <map>
 #include <chrono>
+#include <string.h>
 
 
 
@@ -22,17 +27,27 @@ class PerfCounts {
 int main(const int argc, char * const argv[])
 {
     Options options;
-    ubiq::platform::credentials creds;
     std::list<Data_rec> data;
     std::map<std::string, PerfCounts> perf_values;
 
     std::list<Data_rec> errors;
     int exit_value = EXIT_SUCCESS;
 
+    static const size_t buflen = 2048;
+    static const size_t search_keys_max = 128;
+    char pt_buf[buflen];
+    char ct_buf[buflen];
+    size_t len = 0;
+    size_t len2 = 0;
+    char search_buf[128][buflen];
+
+    struct ubiq_platform_credentials * creds;
+    struct ubiq_platform_fpe_enc_dec_obj *enc = NULL;
+    int res = 0;
+
     try {
       /* library must be initialized */
-      ubiq::platform::init();
-      
+      ubiq_platform_init();      
 
       /*
        * the ubiq_getopt function will parse the command line for arguments
@@ -44,34 +59,44 @@ int main(const int argc, char * const argv[])
                         options);
 
       if (options.credentials.length() == 0) {
-        creds = ubiq::platform::credentials();
+          res = ubiq_platform_credentials_create(&creds);
       } else {
-        creds = ubiq::platform::credentials(
-            options.credentials,
-            options.profile);
+          res = ubiq_platform_credentials_create_specific(
+          options.credentials.c_str(), options.profile.c_str(), &creds);
       }
-      if (!creds) {
-          std::cerr << "unable to load credentials" << std::endl;
+
+      if (!creds || res) {
+          std::cerr << "unable to load credentials: return code(" << res << ")" << std::endl;
           std::exit(EXIT_FAILURE);
       }
 
       ubiq_load_datafile(options.infile, data);
 
-      ubiq::platform::fpe::decryption dec(creds);
-      ubiq::platform::fpe::encryption enc(creds);
+      res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
 
       for (std::list<Data_rec>::iterator dit=data.begin(); dit != data.end(); ++dit) {
         auto itr = perf_values.find(dit->dataset_name);
         if (itr == perf_values.end()) {
           try {
-            std::string ct = enc.encrypt(dit->dataset_name, dit->plain_text);
+            len = buflen;
+            res = ubiq_platform_fpe_encrypt_data_prealloc(enc, dit->dataset_name.c_str(), NULL, 0, 
+              dit->plain_text.c_str(), dit->plain_text.length(),
+              ct_buf, &len);
+            
+            // printf("Encrypt Init:\n\tpt(%s)\n\tct(%s)\n\t len(%d) res(%d)\n", dit->plain_text.c_str(), ct_buf, len, res);
           } catch (const std::exception& e) {
             exit_value = EXIT_FAILURE;
             std::cerr << "Error: " << e.what() << std::endl;
             std::cerr << "     dataset: '" << dit->dataset_name << "'  plaintext: '"<< dit->plain_text << "'" << std::endl;
           }
           try {
-            std::string pt = dec.decrypt(dit->dataset_name, dit->cipher_text);
+            len = buflen;
+            res = ubiq_platform_fpe_decrypt_data_prealloc(enc, dit->dataset_name.c_str(), NULL, 0, 
+              dit->cipher_text.c_str(), dit->cipher_text.length(),
+              pt_buf, &len);
+
+            // printf("Decrypt Init:\n\tct(%s)\n\tpt(%s)\n\t len(%d) res(%d)\n", dit->cipher_text.c_str(), pt_buf, len, res);
+
           } catch (const std::exception& e) {
             exit_value = EXIT_FAILURE;
             std::cerr << "Error: " << e.what() << std::endl;
@@ -81,16 +106,33 @@ int main(const int argc, char * const argv[])
           itr = perf_values.find(dit->dataset_name);
         }
 
+        
         try {
+          len = buflen;
+          len2 = buflen;
+
+          // printf("Data :\n\tpt(%s)\n\tct(%s)\n", dit->plain_text.c_str(), dit->cipher_text.c_str());
+
           auto start = std::chrono::steady_clock::now();
 
-          std::string ct = enc.encrypt(dit->dataset_name, dit->plain_text);
+    
+
+          res = ubiq_platform_fpe_encrypt_data_prealloc(enc, dit->dataset_name.c_str(), NULL, 0, 
+              dit->plain_text.c_str(), dit->cipher_text.length(),
+              ct_buf, &len);
+
           auto encrypt = std::chrono::steady_clock::now();
 
-          std::string pt = dec.decrypt(dit->dataset_name, dit->cipher_text);
+          res = ubiq_platform_fpe_decrypt_data_prealloc(enc, dit->dataset_name.c_str(), NULL, 0, 
+            dit->cipher_text.c_str(), dit->cipher_text.length(),
+            pt_buf, &len2);
+
           auto decrypt = std::chrono::steady_clock::now();
 
-          if (ct != dit->cipher_text || pt != dit->plain_text) {
+            // printf("Encrypt :\n\tct(%s)\n\tlen(%d) res(%d)\n", ct_buf, len, res);
+            // printf("Decrypt :\n\tpt(%s)\n\tlen(%d) res(%d)\n", pt_buf, len2, res);
+
+          if (strcmp(ct_buf, dit->cipher_text.c_str()) || strcmp(pt_buf, dit->plain_text.c_str())) {
             errors.push_back(*dit);
           }
 
@@ -187,7 +229,9 @@ int main(const int argc, char * const argv[])
       exit_value = EXIT_FAILURE;
     }
     /* The library needs to clean up after itself */
-    ubiq::platform::exit();
+    ubiq_platform_fpe_enc_dec_destroy(enc);
+    ubiq_platform_credentials_destroy(creds);
+    ubiq_platform_exit();
 
     exit(exit_value);
 }

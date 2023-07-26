@@ -382,6 +382,96 @@ TEST(c_fpe_encrypt_2, simple_search)
     free(ptbuf);
 }
 
+TEST(c_fpe_encrypt_2, complex_search)
+{
+    static const char * const pt = "ÑÒÓķĸĹϺϻϼϽϾÔÕϿは世界abcdefghijklmnopqrstuvwxyzこんにちÊʑʒʓËÌÍÎÏðñòóôĵĶʔʕ";
+//    static const char * const pt = "00001234567890";//234567890";
+    static const char * const ffs_name = "UTF8_STRING_COMPLEX";
+
+    struct ubiq_platform_credentials * creds;
+    char ** ctbuf(nullptr);
+    size_t ctcount(0);
+    char * ptbuf(nullptr);
+    size_t ptlen;
+    int res;
+
+    res = ubiq_platform_credentials_create(&creds);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_encrypt_for_search(creds,
+      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctcount);
+    EXPECT_EQ(res, 0);
+    EXPECT_TRUE(ctcount >= 0);
+    // EXPECT_EQ(strlen(pt), strlen(ctbuf[0]));
+
+    for (int i = 0; i < ctcount; i++) {
+      char * ptbuf = NULL;
+      size_t ptlen = 0;
+
+      // Decrypt and compare with PT
+      res = ubiq_platform_fpe_decrypt(creds,
+        ffs_name, NULL, 0, ctbuf[i], strlen(ctbuf[i]), &ptbuf, &ptlen);
+      EXPECT_EQ(res, 0);
+
+      EXPECT_EQ(strcmp(pt, ptbuf),0);
+
+      free(ptbuf);
+    }
+
+    ubiq_platform_credentials_destroy(creds);
+
+    for (int i = 0; i < ctcount; i++) {
+      free(ctbuf[i]);
+    }
+    free(ctbuf);
+    free(ptbuf);
+}
+
+TEST(c_fpe_encrypt_2, complex_search_b)
+{
+    static const char * const pt = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz"; // PT is almost always going to be less characters that CT
+//    static const char * const pt = "00001234567890";//234567890";
+    static const char * const ffs_name = "UTF8_STRING_COMPLEX";
+
+    struct ubiq_platform_credentials * creds;
+    char ** ctbuf(nullptr);
+    size_t ctcount(0);
+    char * ptbuf(nullptr);
+    size_t ptlen;
+    int res;
+
+    res = ubiq_platform_credentials_create(&creds);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_encrypt_for_search(creds,
+      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctcount);
+    EXPECT_EQ(res, 0);
+    EXPECT_TRUE(ctcount >= 0);
+    // EXPECT_EQ(strlen(pt), strlen(ctbuf[0]));
+
+    for (int i = 0; i < ctcount; i++) {
+      char * ptbuf = NULL;
+      size_t ptlen = 0;
+
+      // Decrypt and compare with PT
+      res = ubiq_platform_fpe_decrypt(creds,
+        ffs_name, NULL, 0, ctbuf[i], strlen(ctbuf[i]), &ptbuf, &ptlen);
+      EXPECT_EQ(res, 0);
+
+      EXPECT_EQ(strcmp(pt, ptbuf),0);
+
+      free(ptbuf);
+    }
+
+    ubiq_platform_credentials_destroy(creds);
+
+    for (int i = 0; i < ctcount; i++) {
+      free(ctbuf[i]);
+    }
+    free(ctbuf);
+    free(ptbuf);
+}
+
 TEST(c_fpe_encrypt_2, piecewise)
 {
     static const char * const pt = ";0123456-789ABCDEF|";
@@ -1221,3 +1311,160 @@ TEST(c_fpe_encrypt_2, new)
     free(ptbuf2);
 }
 
+
+
+TEST(c_fpe_encrypt_2, prealloc)
+{
+    static const char * const pt = ";0123456-789ABCDEF|";
+    static const char * const ffs_name = "ALPHANUM_SSN";
+
+    struct ubiq_platform_credentials * creds;
+    struct ubiq_platform_fpe_enc_dec_obj *enc;
+    char * ctbuf(nullptr);
+    size_t ctlen;
+
+    char * ptbuf(nullptr);
+    size_t ptlen;
+    int res;
+
+    res = ubiq_platform_credentials_create(&creds);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_encrypt_data(enc,
+      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+    EXPECT_EQ(res, 0);
+    EXPECT_EQ(strlen(pt), ctlen);
+
+    // CTBUF has been allocated
+    char ct_alloc[50];
+    size_t len = 50;
+
+    res = ubiq_platform_fpe_encrypt_data_prealloc(enc,
+      ffs_name, NULL, 0, pt, strlen(pt), ct_alloc, &len);
+    EXPECT_EQ(res, 0);
+    EXPECT_EQ(strlen(pt), len);
+    EXPECT_EQ(strcmp(ctbuf, ct_alloc),0);
+
+    len = strlen(pt);
+    res = ubiq_platform_fpe_encrypt_data_prealloc(enc,
+      ffs_name, NULL, 0, pt, strlen(pt), ct_alloc, &len);
+    EXPECT_NE(res, 0);
+    EXPECT_EQ(strlen(pt) + 1, len);
+
+    // len should be correct from prior call (includes null terminator)
+    res = ubiq_platform_fpe_encrypt_data_prealloc(enc,
+      ffs_name, NULL, 0, pt, strlen(pt), ct_alloc, &len);
+    EXPECT_EQ(res, 0);
+    EXPECT_EQ(strlen(pt), len);
+    EXPECT_EQ(strcmp(ctbuf, ct_alloc),0);
+
+
+    char pt_alloc[50];
+    len = sizeof(pt_alloc);
+
+    res = ubiq_platform_fpe_decrypt_data_prealloc(enc,
+       ffs_name, NULL, 0, (char *)ctbuf, ctlen, pt_alloc, &len);
+    EXPECT_EQ(res, 0);
+    EXPECT_EQ(strlen(ctbuf), len);
+    EXPECT_EQ(strcmp(pt, pt_alloc),0);
+
+    len = strlen(ctbuf);
+    res = ubiq_platform_fpe_decrypt_data_prealloc(enc,
+       ffs_name, NULL, 0, (char *)ctbuf, ctlen, pt_alloc, &len);
+    EXPECT_NE(res, 0);
+    EXPECT_EQ(strlen(ctbuf) + 1, len);
+
+    // len should be correct from prior call (includes null terminator)
+    res = ubiq_platform_fpe_decrypt_data_prealloc(enc,
+       ffs_name, NULL, 0, (char *)ctbuf, ctlen, pt_alloc, &len);
+    EXPECT_EQ(res, 0);
+    EXPECT_EQ(strlen(pt), len);
+    EXPECT_EQ(strcmp(ctbuf, ct_alloc),0);
+
+    ubiq_platform_fpe_enc_dec_destroy(enc);
+
+    ubiq_platform_credentials_destroy(creds);
+
+    free(ctbuf);
+    free(ptbuf);
+}
+
+
+TEST(c_fpe_encrypt_2, prealloc_complex)
+{
+    static const char * const pt = "abcdefghijklmnop";
+    static const char * const ffs_name = "UTF8_STRING_COMPLEX";
+
+    struct ubiq_platform_credentials * creds;
+    struct ubiq_platform_fpe_enc_dec_obj *enc;
+    char * ctbuf(nullptr);
+    size_t ctlen;
+
+    char * ptbuf(nullptr);
+    size_t ptlen;
+    int res;
+
+    res = ubiq_platform_credentials_create(&creds);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_encrypt_data(enc,
+      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+    EXPECT_EQ(res, 0);
+    EXPECT_EQ(u8_mbsnlen((uint8_t *)pt, strlen(pt)), u8_mbsnlen((uint8_t *)ctbuf, strlen(ctbuf) ));
+
+    // CTBUF has been allocated
+    char ct_alloc[50];
+    size_t len = 50;
+
+    res = ubiq_platform_fpe_encrypt_data_prealloc(enc,
+      ffs_name, NULL, 0, pt, strlen(pt), ct_alloc, &len);
+    EXPECT_EQ(res, 0);
+    EXPECT_EQ(u8_mbsnlen((uint8_t *)pt, strlen(pt)), u8_mbsnlen((uint8_t *)ct_alloc, strlen(ct_alloc) ));
+    EXPECT_EQ(strcmp(ctbuf, ct_alloc),0);
+
+    len--; // Force buffer to small failure
+    res = ubiq_platform_fpe_encrypt_data_prealloc(enc,
+      ffs_name, NULL, 0, pt, strlen(pt), ct_alloc, &len);
+    EXPECT_NE(res, 0);
+
+    // len should be right size from prior call
+    res = ubiq_platform_fpe_encrypt_data_prealloc(enc,
+      ffs_name, NULL, 0, pt, strlen(pt), ct_alloc, &len);
+    EXPECT_EQ(res, 0);
+    EXPECT_EQ(u8_mbsnlen((uint8_t *)pt, strlen(pt)), u8_mbsnlen((uint8_t *)ct_alloc, strlen(ct_alloc) ));
+    EXPECT_EQ(strcmp(ctbuf, ct_alloc),0);
+
+
+    char pt_alloc[50];
+    len = sizeof(pt_alloc);
+
+    res = ubiq_platform_fpe_decrypt_data_prealloc(enc,
+       ffs_name, NULL, 0, (char *)ctbuf, ctlen, pt_alloc, &len);
+    EXPECT_EQ(res, 0);
+    EXPECT_EQ(u8_mbsnlen((uint8_t *)pt_alloc, strlen(pt_alloc)), u8_mbsnlen((uint8_t *)ct_alloc, strlen(ct_alloc) ));
+    EXPECT_EQ(strcmp(pt, pt_alloc),0);
+
+    len--;
+    res = ubiq_platform_fpe_decrypt_data_prealloc(enc,
+       ffs_name, NULL, 0, (char *)ctbuf, ctlen, pt_alloc, &len);
+    EXPECT_NE(res, 0);
+
+    res = ubiq_platform_fpe_decrypt_data_prealloc(enc,
+       ffs_name, NULL, 0, (char *)ctbuf, ctlen, pt_alloc, &len);
+    EXPECT_EQ(res, 0);
+    EXPECT_EQ(u8_mbsnlen((uint8_t *)pt_alloc, strlen(pt_alloc)), u8_mbsnlen((uint8_t *)ct_alloc, strlen(ct_alloc) ));
+    EXPECT_EQ(strcmp(ctbuf, ct_alloc),0);
+
+    ubiq_platform_fpe_enc_dec_destroy(enc);
+
+    ubiq_platform_credentials_destroy(creds);
+
+    free(ctbuf);
+    free(ptbuf);
+}

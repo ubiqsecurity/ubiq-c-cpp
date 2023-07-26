@@ -75,9 +75,9 @@ ubiq_fpe_bulk_encrypt(
       res = ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
       fprintf(stderr, "Encryption Error Code: %d  %s\n\n", err_num, err_msg);
       free(err_msg);
-    free(ctbuf);
     }
   }
+  free(ctbuf);
   ubiq_platform_fpe_enc_dec_destroy(enc);
   return res;
 }

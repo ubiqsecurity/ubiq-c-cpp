@@ -27,6 +27,12 @@ add_executable(
   test_harness_helper.cpp
   test_harness.cpp)
 
+add_executable(
+  test_performance_c
+  
+  test_harness_helper.cpp
+  test_harness-c.cpp)
+  
 target_link_directories(
    unittests
    PUBLIC ${CMAKE_BINARY_DIR}/fpe/src)
@@ -48,6 +54,20 @@ target_link_libraries(
   test_performance
   ubiqclient++-static pthread ubiqfpe.a)
 
+target_include_directories(
+  test_performance_c
+  PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/../include
+  ${CMAKE_CURRENT_SOURCE_DIR}/../ext/ubiq-fpe-c/src/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/../ext)
+
+target_link_directories(
+   test_performance_c
+   PUBLIC ${CMAKE_BINARY_DIR}/fpe/src)
+target_link_libraries(
+  test_performance_c
+  ubiqclient++-static pthread ubiqfpe.a)
+
   
 if(WIN32)
   target_compile_definitions(
@@ -65,6 +85,11 @@ else()
   target_link_libraries(
     test_performance
     curl crypto gmp)
+
+  target_link_libraries(
+    test_performance_c
+    curl crypto gmp)
+  
 endif()
 
 target_link_libraries(
@@ -75,10 +100,14 @@ target_link_libraries(
     test_performance
     unistring)
 
-
+target_link_libraries(
+  test_performance_c
+  unistring)
+  
 add_custom_target(
   run_tests
   COMMAND unittests
+  COMMAND test_performance_c
   COMMAND test_performance
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
   

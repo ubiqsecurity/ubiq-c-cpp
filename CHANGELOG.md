@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.0.4.0 - 2023-07-25
+* Added APIs to support pre-allocated output buffers
+
 ## 2.0.3.0 - 2023-06-29
 * Data caching optimization
 
