@@ -174,6 +174,31 @@ ubiq_platform_fpe_enc_dec_create_with_config(
     const struct ubiq_platform_credentials * const creds,
     const struct ubiq_platform_configuration * const cfg,
     struct ubiq_platform_fpe_enc_dec_obj ** const enc);
+/**
+ * @brief Encrypt data using a pre-allocated byffer of data for the results.
+ * 
+ * @param enc handle to the Encrypt / Decrypt object
+ * @param ffs_name name of the Dataset to use when encrypting the data.
+ * @param tweak array of bytes to use for tweak 
+ * @param tweaklen length of the tweak
+ * @param ptbuf buffer containing the plain text.  String should be NULL terminated.
+ * @param ptlen number of bytes of data in the plain text not including the NULL
+ * terminator.
+ * @param ctbuf pre-allocated buffer large enough to contain the
+ * cipher text including the NULL terminator.
+ * @param ctlen indicates the size of allocated buffer.  Will be set to the number of 
+ * bytes of the ctbuf returned or necessary space if ctbuf is not long enough
+ * @return integer, 0 on success or negative error number on failure. 
+ */
+UBIQ_PLATFORM_API
+int
+ubiq_platform_fpe_encrypt_data_prealloc(
+  struct ubiq_platform_fpe_enc_dec_obj * const enc,
+  const char * const ffs_name,
+  const uint8_t * const tweak, const size_t tweaklen,
+  const char * const ptbuf, const size_t ptlen,
+  char * const ctbuf, size_t * const ctlen
+);
 
 UBIQ_PLATFORM_API
 int
@@ -188,6 +213,35 @@ ubiq_platform_fpe_encrypt_data(
 // ctbuf is array of NULL terminated UTF8 strings
 // length is not returned since each ctbuf element may be different number of
 // bytes due to multi-byte characters
+
+/**
+ * @brief Perform encryption on the same plain text using many different key numbers to find a cipher text 
+ * that may match a database
+ * 
+ * @param enc handle to the Encrypt / Decrypt object
+ * @param ffs_name name of the Dataset to use when encrypting the data.
+ * @param tweak array of bytes to use for tweak 
+ * @param tweaklen length of the tweak
+ * @param ptbuf buffer containing the plain text.  String should be NULL terminated.
+ * @param ptlen number of bytes of data in the plain text not including the NULL
+ * terminator.
+ * @param ctbuf - array of buffers for the search results
+ * @param ctbuflen - indicates the size each array element in the allocated buffer.  Will be set to the number of 
+ * bytes of the longest cipher text value or the number of bytes required, including the NULL terminator
+ * @param count the number of array elements allocated in ctbuf.  Will be set to the number of cipher text values returned.
+ * If count is not large enough for all cipher text values, an error will be returned and this value will be set to the neccessary value.
+ * @return integer, 0 on success or negative error number on failure. 
+ */
+UBIQ_PLATFORM_API
+int
+ubiq_platform_fpe_encrypt_data_for_search_prealloc(
+  struct ubiq_platform_fpe_enc_dec_obj * const enc,
+  const char * const ffs_name,
+  const uint8_t * const tweak, const size_t tweaklen,
+  const char * const ptbuf, const size_t ptlen,
+  char ** const ctbuf, size_t * const ctbuflen, size_t * const count
+);
+
 UBIQ_PLATFORM_API
 int
 ubiq_platform_fpe_encrypt_data_for_search(

@@ -161,6 +161,33 @@ ubiq_platform_fpe_decrypt_data(
   char ** const ptbuf, size_t * const ptlen
 );
 
+/**
+ * @brief Decrypt data using a pre-allocated buffer of data for the results.
+ * 
+ * @param enc handle to the Encrypt / Decrypt object
+ * @param ffs_name name of the Dataset to use when decrypting the data.
+ * @param tweak array of bytes to use for tweak 
+ * @param tweaklen length of the tweak
+ * @param ctbuf buffer containing the cipher text.  String should be NULL terminated.
+ * @param ctlen number of bytes of data in the cipher text not including the NULL
+ * terminator.
+ * @param ptbuf pre-allocated buffer large enough to contain the
+ * decrypted data including the NULL terminator.
+ * @param ptlen indicates the size of allocated buffer.  Will be set to the number of 
+ * bytes of the ptbuf returned or necessary space if ptbuf is not long enough
+ * @return integer, 0 on success or negative error number on failure. 
+ */
+
+UBIQ_PLATFORM_API
+int
+ubiq_platform_fpe_decrypt_data_prealloc(
+  struct ubiq_platform_fpe_enc_dec_obj * const enc,
+  const char * const ffs_name,
+  const uint8_t * const tweak, const size_t tweaklen,
+  const char * const ctbuf, const size_t ctlen,
+  char * const ptbuf, size_t * const ptlen
+);
+
 __END_DECLS
 
 #if defined(__cplusplus)

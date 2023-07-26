@@ -605,7 +605,6 @@ const char * const FFS_NAME = "SSN";
 char * ptbuf[] = {"123-45-6789", "987-65-4321","111-22-3333","444-55-6666",NULL};
 char * ctbuf = NULL;
 size_t ctlen = 0;
-int res = 0;
 ...
 int res = ubiq_platform_init();
 
@@ -627,6 +626,50 @@ while ((!res) && *p) {
   }
   ...
   free(ctbuf);
+  p++;
+}
+
+...
+ubiq_platform_fpe_enc_dec_destroy(enc);
+ubiq_platform_credentials_destroy(creds);
+
+ubiq_platform_exit();
+
+```
+```c
+/* C - Usuing preallocated buffer for the cipher text */
+#include <ubiq/platform.h>
+
+struct ubiq_platform_credentials * creds = NULL;
+struct ubiq_platform_fpe_enc_dec_obj *enc = NULL;
+const char * const FFS_NAME = "SSN";
+// Loop through a bunch of plaintext values
+char * ptbuf[] = {"123-45-6789", "987-65-4321","111-22-3333","444-55-6666",NULL};
+// ctbuf has to be larger enough to hold the cipher text of longest string PLUS the NULL terminator
+char ctbuf[1024]; 
+size_t len = sizeof(ctbuf);
+.....
+int res = ubiq_platform_init();
+
+if (!res) {res = ubiq_platform_credentials_create(&creds); }
+if (!res) {res = ubiq_platform_fpe_enc_dec_create(creds, &enc); }
+
+// Loop throut all the PT values and encrypt each one
+char ** p = ptbuf;
+while ((!res) && *p) {
+  // Reset the variable for the max size of the available buffer each time through loop
+  size_t ctlen = len;
+  res = ubiq_platform_fpe_encrypt_data_prealloc(enc,
+     FFS_NAME, NULL, 0, *p, strlen(*p), ctbuf, &ctlen);
+  // Check for error message and print error information
+  if (res) {
+    char * err_msg = NULL;
+    int err_num;
+    ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
+    printf("Error (%d) Encountered.  What '%s'\n", err_num, err_msg);
+    free(err_msg);
+  }
+  ....
   p++;
 }
 
@@ -679,8 +722,6 @@ const char * const FFS_NAME = "SSN";
 char * ctbuf[] = {"7\"c-`P-fGj?", "7$S-27-9D4A",NULL};
 char * ptbuf = NULL;
 size_t ptlen = 0;
-
-int res = 0;
 ...
 int res = ubiq_platform_init();
 
@@ -701,6 +742,48 @@ while ((!res) && *c) {
   }
   ...
   free(ptbuf);
+  c++;
+}
+
+...
+ubiq_platform_fpe_enc_dec_destroy(enc);
+ubiq_platform_credentials_destroy(creds);
+
+ubiq_platform_exit();
+
+```
+```c
+/* C - Usuing preallocated buffer for the cipher text */
+#include <ubiq/platform.h>
+
+struct ubiq_platform_credentials * creds = NULL;
+struct ubiq_platform_fpe_enc_dec_obj *enc = NULL;
+const char * const FFS_NAME = "ALPHANUM_SSN";
+char * ctbuf[] = {"7\"c-`P-fGj?", "7$S-27-9D4A",NULL};
+// Has to be larger enough to hold the cipher text of longest string PLUS the NULL terminator
+char ptbuf[1024]; 
+size_t len = sizeof(ptbuf);
+...
+int res = ubiq_platform_init();
+
+if (!res) {res = ubiq_platform_credentials_create(&creds); }
+if (!res) {res = ubiq_platform_fpe_enc_dec_create(creds, &enc); }
+
+// Loop throut all the CT values and decrypt each one
+char ** c = ctbuf;
+while ((!res) && *c) {
+  // Reset the variable for the max size of the available buffer each time through loop
+  size_t ptlen = len;
+  res = ubiq_platform_fpe_decrypt_data_prealloc(enc,
+    FFS_NAME, NULL, 0, *c, strlen(*c), ptbuf, &ptlen);
+  if (res) {
+    char * err_msg = NULL;
+    int err_num;
+    ubiq_platform_fpe_get_last_error(enc, &err_num, &err_msg);
+    printf("Error (%d) Encountered.  What '%s'\n", err_num, err_msg);
+    free(err_msg);
+  }
+  ...
   c++;
 }
 

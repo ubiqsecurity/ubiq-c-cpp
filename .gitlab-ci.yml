@@ -74,6 +74,7 @@ test-debian:
         - build/src/test/unittests
         - ldd build/src/test/test_performance
         - ls -l build/src/test src/test/DATA
+        - build/src/test/test_performance_c
         - build/src/test/test_performance
 
 test-centos-8-stream:
@@ -84,6 +85,7 @@ test-centos-8-stream:
         - build/src/test/unittests
         - ldd build/src/test/test_performance
         - ls -l build/src/test src/test/DATA
+        - build/src/test/test_performance_c
         - build/src/test/test_performance
     cache:
        key: "centos-${CI_COMMIT_REF_SLUG}"
