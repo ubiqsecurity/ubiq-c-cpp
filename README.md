@@ -637,7 +637,7 @@ ubiq_platform_exit();
 
 ```
 ```c
-/* C - Usuing preallocated buffer for the cipher text */
+/* C - Using preallocated buffer for the cipher text */
 #include <ubiq/platform.h>
 
 struct ubiq_platform_credentials * creds = NULL;
@@ -753,7 +753,7 @@ ubiq_platform_exit();
 
 ```
 ```c
-/* C - Usuing preallocated buffer for the cipher text */
+/* C - Using preallocated buffer for the cipher text */
 #include <ubiq/platform.h>
 
 struct ubiq_platform_credentials * creds = NULL;
