@@ -1,5 +1,8 @@
 # Changelog
 
+## 
+* fix typo in README
+
 ## 2.0.4.0 - 2023-07-25
 * Added APIs to support pre-allocated output buffers
 
