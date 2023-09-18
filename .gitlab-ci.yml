@@ -24,7 +24,7 @@ stages:
     - test
     - deploy
 
-build-debian:
+build-debian-11:
     image: debian:bullseye
     variables:
         GIT_SUBMODULE_STRATEGY: recursive
@@ -39,6 +39,30 @@ build-debian:
         - cmake -S. -Bbuild
         - cmake --build build -- -j$(nproc)
         - cmake --build build --target package -- -j$(nproc)
+    cache:
+       key: "debian-11-${CI_COMMIT_REF_SLUG}"
+       paths:
+        - build
+
+build-debian-12:
+    image: debian:bookworm
+    variables:
+        GIT_SUBMODULE_STRATEGY: recursive
+    stage: build
+    before_script:
+        - apt -y update
+        - apt -y install cmake gcc g++
+        - apt -y install libcurl4-openssl-dev libssl-dev
+        - apt -y install dpkg-dev file libgmp-dev
+        - apt -y install libunistring-dev
+    script:
+        - cmake -S. -Bbuild
+        - cmake --build build -- -j$(nproc)
+        - cmake --build build --target package -- -j$(nproc)
+    cache:
+       key: "debian-12-${CI_COMMIT_REF_SLUG}"
+       paths:
+        - build
 
 build-centos-8-stream:
     image: quay.io/centos/centos:stream8
@@ -63,7 +87,7 @@ build-centos-8-stream:
        paths:
         - build
 
-test-debian:
+test-debian-11:
     image: debian:bullseye
     stage: test
     before_script:
@@ -76,6 +100,28 @@ test-debian:
         - ls -l build/src/test src/test/DATA
         - build/src/test/test_performance_c
         - build/src/test/test_performance
+    cache:
+       key: "debian-11-${CI_COMMIT_REF_SLUG}"
+       paths:
+        - build
+
+test-debian-12:
+    image: debian:bookworm
+    stage: test
+    before_script:
+        - apt -y update
+        - apt -y install libcurl4 libssl3
+    script:
+        - ldd build/src/test/unittests
+        - build/src/test/unittests
+        - ldd build/src/test/test_performance
+        - ls -l build/src/test src/test/DATA
+        - build/src/test/test_performance_c
+        - build/src/test/test_performance
+    cache:
+       key: "debian-12-${CI_COMMIT_REF_SLUG}"
+       paths:
+        - build
 
 test-centos-8-stream:
     image: quay.io/centos/centos:stream8
@@ -116,7 +162,8 @@ include:
 #    except:
 #        - schedules
 
-package-debian:
+package-debian-11:
+    image: debian:bullseye
     stage: deploy
     artifacts:
         paths:
@@ -124,10 +171,34 @@ package-debian:
     script:
         - ls build/*.deb
     only:
+        - UB1-980_Debian_bookworm_port
         - master
         - tags
     except:
         - schedules
+    cache:
+       key: "debian-11-${CI_COMMIT_REF_SLUG}"
+       paths:
+        - build
+
+package-debian-12:
+    image: debian:bookworm
+    stage: deploy
+    artifacts:
+        paths:
+            - build/*.deb
+    script:
+        - ls build/*.deb
+    only:
+        - UB1-980_Debian_bookworm_port
+        - master
+        - tags
+    except:
+        - schedules
+    cache:
+       key: "debian-12-${CI_COMMIT_REF_SLUG}"
+       paths:
+        - build
 
 deploy:
     image: debian:bullseye
@@ -153,3 +224,8 @@ deploy:
         - tags
     except:
         - schedules
+    cache:
+       key: "debian-11-${CI_COMMIT_REF_SLUG}"
+       paths:
+        - build
+        

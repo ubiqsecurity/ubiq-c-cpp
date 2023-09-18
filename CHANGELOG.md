@@ -1,7 +1,8 @@
 # Changelog
 
-## 
+## 2.0.5.0 - 2023-09-17
 * fix typo in README
+* Changed google test submodule version to support debian 12 (bookworm)
 
 ## 2.0.4.0 - 2023-07-25
 * Added APIs to support pre-allocated output buffers
