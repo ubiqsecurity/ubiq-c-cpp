@@ -16,6 +16,7 @@ See the [C/C++ API docs](https://dev.ubiqsecurity.com/docs/api) and
 Individual interfaces are documented in greater detail in:
 * [platform.h](src/include/ubiq/platform.h)
 * [credentials.h](src/include/ubiq/platform/credentials.h)
+* [configuration.h](src/include/ubiq/platform/configuration.h)
 * [encrypt.h](src/include/ubiq/platform/encrypt.h)
 * [decrypt.h](src/include/ubiq/platform/decrypt.h)
 
@@ -221,7 +222,7 @@ common errors include:
     The library has not been initialized
 * `-EBADMSG`:
     The server rejected a message from the client or vice versa. This is
-    usually an incompatibility betweer the client and server, but can also
+    usually an incompatibility between the client and server, but can also
     be caused by the clock being set incorrectly on the client side,
     causing authentication to fail. This error can also be caused by an
     invalid or unsupported data format during decryption
@@ -611,7 +612,7 @@ int res = ubiq_platform_init();
 if (!res) {res = ubiq_platform_credentials_create(&creds); }
 if (!res) {res = ubiq_platform_fpe_enc_dec_create(creds, &enc); }
 
-// Loop throut all the PT values and encrypt each one
+// Loop through all the PT values and encrypt each one
 char ** p = ptbuf;
 while ((!res) && *p) {
   res = ubiq_platform_fpe_encrypt_data(enc,
@@ -654,7 +655,7 @@ int res = ubiq_platform_init();
 if (!res) {res = ubiq_platform_credentials_create(&creds); }
 if (!res) {res = ubiq_platform_fpe_enc_dec_create(creds, &enc); }
 
-// Loop throut all the PT values and encrypt each one
+// Loop through all the PT values and encrypt each one
 char ** p = ptbuf;
 while ((!res) && *p) {
   // Reset the variable for the max size of the available buffer each time through loop
@@ -728,7 +729,7 @@ int res = ubiq_platform_init();
 if (!res) {res = ubiq_platform_credentials_create(&creds); }
 if (!res) {res = ubiq_platform_fpe_enc_dec_create(creds, &enc); }
 
-// Loop throut all the CT values and decrypt each one
+// Loop through all the CT values and decrypt each one
 char ** c = ctbuf;
 while ((!res) && *c) {
   res = ubiq_platform_fpe_decrypt_data(enc,
@@ -769,7 +770,7 @@ int res = ubiq_platform_init();
 if (!res) {res = ubiq_platform_credentials_create(&creds); }
 if (!res) {res = ubiq_platform_fpe_enc_dec_create(creds, &enc); }
 
-// Loop throut all the CT values and decrypt each one
+// Loop through all the CT values and decrypt each one
 char ** c = ctbuf;
 while ((!res) && *c) {
   // Reset the variable for the max size of the available buffer each time through loop
@@ -818,7 +819,48 @@ catch (const std::exception& e) {
 }
 ubiq::platform::exit();
 ```
+### Encrypt For Search
 
+The same plaintext data will result in different cipher text when encrypted using different data keys.  The Encrypt For Search function will encrypt the same plain text for a given dataset using all previously used data keys.  This will provide a collection of cipher text values that can be used when searching for existing records where the data was encrypted and the specific version of the data key is not known in advance.
 
+```c
+/* C - Encrypting a SSN value using all previously used data keys */
+
+    const char * const DATASET_NAME = "SSN";
+    char * ptbuf = "123-45-6789";
+    char ** ct_arr(NULL);
+    size_t ctcount(0);
+
+    int res = ubiq_platform_init();
+
+    if (!res) {res = ubiq_platform_credentials_create(&creds); }
+    if (!res) {res = ubiq_platform_fpe_enc_dec_create(creds, &enc); }
+
+    ubiq_platform_fpe_encrypt_data_for_search(enc, DATASET_NAME, NULL, 0, ptbuf, strlen(ptbuf), &ct_arr, &ctcount);
+    ...
+
+    for (int i = 0; i < ctcount; i++) {
+      free(ct_arr[i]);
+    }
+    free(ct_arr);
+
+    ubiq_platform_exit();
+```
+```c++
+/* C++ - Encrypting a SSN value using all previously used data keys */
+
+    std::string dataset_name("SSN");
+    std::string pt("123-45-6789");
+    std::vector<std::string> ct_arr;
+    ubiq::platform::credentials creds;
+
+    ubiq::platform::init();
+
+    enc = ubiq::platform::fpe::encryption(creds);
+    ct_arr = enc.encrypt_for_search(dataset_name, pt);
+    ...
+
+    ubiq::platform::exit();
+```
 [dashboard]:https://dashboard.ubiqsecurity.com/
 [credentials]:https://dev.ubiqsecurity.com/docs/how-to-create-api-keys
