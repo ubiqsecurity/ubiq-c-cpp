@@ -269,6 +269,40 @@ TEST(c_decrypt, get_non_empty_usage)
     ubiq_platform_credentials_destroy(creds);
 }
 
+TEST_F(cpp_decrypt, get_usage)
+{
+    std::string usage;
+    std::string pt("ABC");
+    ubiq::platform::encryption _enc = ubiq::platform::encryption(_creds, 1);
+    _dec = ubiq::platform::decryption(_creds);
+
+    usage = _enc.get_copy_of_usage();
+    EXPECT_EQ(usage.compare("{\"usage\":[]}"), 0);
+
+    usage = _dec.get_copy_of_usage();
+    EXPECT_EQ(usage.compare("{\"usage\":[]}"), 0);
+
+    std::vector<uint8_t> pre = _enc.begin();
+    std::vector<uint8_t> mid = _enc.update(pt.data(), pt.size());
+    std::vector<uint8_t> post = _enc.end();
+
+    usage = _enc.get_copy_of_usage();
+    EXPECT_NE(usage.compare("{\"usage\":[]}"), 0);
+
+    std::vector<uint8_t> ct(pre);
+    ct.insert(ct.end(), mid.begin(), mid.end());
+    ct.insert(ct.end(), post.begin(), post.end());
+
+    pre = _dec.begin();
+    mid = _dec.update(ct.data(), ct.size());
+    post = _dec.end();
+
+    usage = _dec.get_copy_of_usage();
+    EXPECT_NE(usage.compare("{\"usage\":[]}"), 0);
+
+}
+
+
 // TEST(c_billing, simple)
 // {
 

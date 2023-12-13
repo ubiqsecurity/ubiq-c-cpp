@@ -99,3 +99,23 @@ ubiq::platform::encrypt(
 
     return v;
 }
+
+std::string
+encryption::get_copy_of_usage(void)
+{
+    std::string v("");
+    char * ctbuf(nullptr);
+    size_t ctlen(0);
+    int res(0);
+
+    res = ubiq_platform_encryption_get_copy_of_usage(_enc.get(), &ctbuf, &ctlen);
+    if (res != 0) {
+        throw std::system_error(-res, std::generic_category());
+    }
+
+    v.resize(ctlen);
+    std::memcpy((char *)v.data(), ctbuf, ctlen);
+    std::free(ctbuf);
+
+    return v;
+}

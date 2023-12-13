@@ -362,6 +362,11 @@ namespace ubiq {
             end(void)
                 override;
 
+            UBIQ_PLATFORM_API
+            std::string
+            get_copy_of_usage(void);
+
+
         private:
             std::shared_ptr<::ubiq_platform_encryption> _enc;
         };
