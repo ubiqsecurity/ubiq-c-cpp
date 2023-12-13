@@ -2339,3 +2339,15 @@ ubiq_platform_fpe_encrypt_data_for_search(
 
   return res;
 }
+
+
+int
+ubiq_platform_fpe_enc_dec_get_copy_of_usage(
+    struct ubiq_platform_fpe_enc_dec_obj * const obj,
+    char ** const buffer, size_t * const buffer_len) {
+
+      if (obj == NULL || buffer == NULL || buffer_len == NULL) {
+        return -EINVAL;
+      }
+      return ubiq_billing_get_copy_of_usage(obj->billing_ctx, buffer, buffer_len);
+    }
