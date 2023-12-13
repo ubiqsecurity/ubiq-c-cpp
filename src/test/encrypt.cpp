@@ -37,6 +37,29 @@ TEST_F(cpp_encrypt, simple)
         v = ubiq::platform::encrypt(_creds, pt.data(), pt.size()));
 }
 
+TEST_F(cpp_encrypt, get_usage)
+{
+    std::string usage;
+    std::string pt("ABC");
+    _enc = ubiq::platform::encryption(_creds, 1);
+
+    ASSERT_NO_THROW(
+        usage = _enc.get_copy_of_usage());
+
+    EXPECT_EQ(usage.compare("{\"usage\":[]}"), 0);
+
+    std::vector<uint8_t> pre = _enc.begin();
+    std::vector<uint8_t> mid = _enc.update(pt.data(), pt.size());
+    std::vector<uint8_t> post = _enc.end();
+
+    usage = _enc.get_copy_of_usage();
+
+    EXPECT_NE(usage.compare("{\"usage\":[]}"), 0);
+
+}
+
+
+
 TEST(c_encrypt, simple)
 {
     static const char * const pt = "ABC";
