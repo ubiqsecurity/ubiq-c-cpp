@@ -153,6 +153,17 @@ ubiq_platform_encryption_end(
     struct ubiq_platform_encryption * const enc,
     void ** const ctbuf, size_t * const ctlen);
 
+UBIQ_PLATFORM_API
+int
+ubiq_platform_encryption_add_user_defined_metadata(
+    struct ubiq_platform_encryption * const enc,
+    const char * const jsonString);
+
+UBIQ_PLATFORM_API
+int
+ubiq_platform_encryption_get_copy_of_usage(
+    struct ubiq_platform_encryption * const enc,
+    char ** const buffer, size_t * const buffer_len);
 
 /*
  * *******************************************

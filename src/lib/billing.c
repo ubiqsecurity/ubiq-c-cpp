@@ -327,12 +327,13 @@ process_billing_task(void * data) {
 
 static
 int
-process_billing_btree(
+getBillingUsage(
   struct ubiq_billing_ctx * ctx,
-  struct ubiq_platform_cache * billing_btree
+  struct ubiq_platform_cache * billing_btree,
+  cJSON * json_usage 
   )
 {
-  static const char * const csu = "process_billing_btree";
+  static const char * const csu = "getBillingJsonArray";
 
   int res = -EINVAL;
   unsigned int element_count = 0;
@@ -345,6 +346,7 @@ process_billing_btree(
     res = ubiq_platform_cache_get_element_count(billing_btree, &element_count);
     UBIQ_DEBUG(debug_flag, printf("%s  element_count(%d)\n", csu, element_count));
     if (!res && element_count > 0) {
+      // Array is cleaned up when the json_usage oject is destroyed
       cJSON * json_array = cJSON_CreateArray();
 
       // Conver the tree to a json array
@@ -352,18 +354,32 @@ process_billing_btree(
       ubiq_platform_cache_walk_r(billing_btree, billing_walk_r, (void *)json_array);
       UBIQ_DEBUG(debug_flag, printf("  done walking\n"));
 
-      cJSON * json_usage = cJSON_CreateObject();
       cJSON_AddItemToObject(json_usage, "usage", json_array);
-
-      // Could improve by skipping the json array and simply using a long string.
-      send_billing_data(ctx, json_usage);
-
-      cJSON_Delete(json_usage);
-      // cJSON_Delete(json_array);
     }
   }
   return res;
 
+}
+
+static
+int
+process_billing_btree(
+  struct ubiq_billing_ctx * ctx,
+  struct ubiq_platform_cache * billing_btree
+  )
+{
+  static const char * const csu = "process_billing_btree";
+
+  cJSON * json_usage = cJSON_CreateObject();
+
+  int res = getBillingUsage(ctx, billing_btree, json_usage);
+
+  if (res) {
+     send_billing_data(ctx, json_usage);
+  }
+
+  cJSON_Delete(json_usage);
+  return res;
 }
 
 static
@@ -703,3 +719,58 @@ ubiq_billing_add_billing_event(
 
 }
 
+void
+ubiq_billing_add_user_defined_metadata( struct ubiq_billing_ctx * const e,
+                        const char * const jsonString) {
+}
+
+/** Retuns 0 on success, negative with an error
+ * Buffer will be set to the size of the returned buffer.  Due to
+ * the async nature of the processing, it is possible that the 
+ * buffer size required can change between calls.  The caller is 
+ * responsible for freeing the memory
+*/
+
+int
+ubiq_billing_get_copy_of_usage( struct ubiq_billing_ctx * const e,
+                char ** const buffer, size_t * const buffer_len) {
+  
+  // static const char * const empty_usage = "{\"usage\" : []}";
+  unsigned int element_count = 0;
+  int res = 0;
+  int empty = 0;
+
+  cJSON * json_usage = cJSON_CreateObject();
+
+  *buffer = NULL;
+  *buffer_len = 0;
+  pthread_mutex_lock(&e->billing_lock);
+  UBIQ_DEBUG(debug_flag, printf("%s after lock\n", csu));
+
+  if (e->billing_elements_cache == NULL) {
+    empty = 1;
+  }
+
+  if (ubiq_platform_cache_get_element_count(e->billing_elements_cache, &element_count) == 0 && element_count == 0) {
+    empty = 1;
+  }
+
+  if (empty) {
+    cJSON * json_array = cJSON_CreateArray();
+    cJSON_AddItemToObject(json_usage, "usage", json_array);
+  } else {
+    res = getBillingUsage(e, e->billing_elements_cache, json_usage);
+  }
+  pthread_mutex_unlock(&e->billing_lock);
+
+  if (!res) {
+    *buffer = cJSON_PrintUnformatted(json_usage);
+    if (*buffer != NULL) {
+      *buffer_len = strlen(*buffer);
+    } else {
+      res = -ENOMEM;
+    }
+  }
+  cJSON_Delete(json_usage);
+  return res;
+}

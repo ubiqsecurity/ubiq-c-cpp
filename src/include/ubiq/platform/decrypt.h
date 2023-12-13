@@ -145,6 +145,18 @@ ubiq_platform_decryption_end(
     struct ubiq_platform_decryption * const dec,
     void ** const ptbuf, size_t * const ptlen);
 
+UBIQ_PLATFORM_API
+int
+ubiq_platform_decryption_add_user_defined_metadata(
+    struct ubiq_platform_decryption * const dec,
+    const char * const jsonString);
+
+UBIQ_PLATFORM_API
+int
+ubiq_platform_decryption_get_copy_of_usage(
+    struct ubiq_platform_decryption * const dec,
+    char ** const buffer, size_t * const buffer_len);
+
 /*
  * *******************************************
  *                  FPE
