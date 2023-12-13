@@ -120,6 +120,155 @@ TEST(c_decrypt, simple)
 }
 
 
+TEST(c_decrypt, get_empty_usage)
+{
+
+    struct ubiq_platform_credentials * creds;
+    struct ubiq_platform_decryption * dec;
+    char * buf = NULL;
+    size_t len = 0;
+    int res;
+
+    res = ubiq_platform_credentials_create(&creds);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_decryption_create(creds, &dec);
+    EXPECT_EQ(res, 0);
+
+    res = ubiq_platform_decryption_get_copy_of_usage(dec, &buf, &len);
+    EXPECT_EQ(res, 0);
+
+    EXPECT_EQ(strcmp(buf, "{\"usage\":[]}"), 0);
+
+    free(buf);
+
+    ubiq_platform_decryption_destroy(dec);
+    ubiq_platform_credentials_destroy(creds);
+}
+
+TEST(c_decrypt, get_non_empty_usage)
+{
+    static const char * const pt = "ABC";
+
+    struct ubiq_platform_credentials * creds;
+    struct ubiq_platform_encryption * enc;
+    struct ubiq_platform_decryption * dec;
+    void * ctbuf = NULL;
+    void * ptbuf = NULL;
+    size_t ctlen = 0;
+    size_t ptlen = 0;
+    char * buf = NULL;
+    char * buf2 = NULL;
+    size_t len = 0;
+    int res;
+
+
+
+    res = ubiq_platform_credentials_create(&creds);
+    ASSERT_EQ(res, 0);
+
+    // Default configuration will need 5 events or 10 seconds before flushing so one encrypt / decrypt will 
+    // be fine
+    res = ubiq_platform_encryption_create(creds, 5, &enc);
+    EXPECT_EQ(res, 0);
+
+    res = ubiq_platform_decryption_create(creds, &dec);
+    EXPECT_EQ(res, 0);
+
+
+    res = ubiq_platform_decryption_get_copy_of_usage(dec, &buf, &len);
+    EXPECT_EQ(res, 0);
+    res = ubiq_platform_encryption_get_copy_of_usage(enc, &buf2, &len);
+    EXPECT_EQ(res, 0);
+
+    EXPECT_EQ(strcmp(buf, "{\"usage\":[]}"), 0);
+    EXPECT_EQ(strcmp(buf2, buf), 0);
+    free(buf);
+    free(buf2);
+
+    {
+        struct {
+            void * buf;
+            size_t len;
+        } pre, upd, end;
+
+        pre.buf = upd.buf = end.buf = NULL;
+
+        res = ubiq_platform_encryption_begin(
+            enc, &pre.buf, &pre.len);
+
+        res = ubiq_platform_encryption_update(
+            enc, pt, strlen(pt), &upd.buf, &upd.len);
+        ASSERT_EQ(res, 0);
+
+        res = ubiq_platform_encryption_end(
+                enc, &end.buf, &end.len);
+        ASSERT_EQ(res, 0);
+
+        ctlen = pre.len + upd.len + end.len;
+        ctbuf = malloc(ctlen);
+
+        memcpy(ctbuf, pre.buf, pre.len);
+        memcpy((char *)ctbuf + pre.len, upd.buf, upd.len);
+        memcpy((char *)ctbuf + pre.len + upd.len, end.buf, end.len);
+
+        free(end.buf);
+        free(upd.buf);
+        free(pre.buf);
+    }
+
+    EXPECT_EQ(res, 0);
+
+    {
+      struct {
+        void * buf;
+        size_t len;
+      } pre, upd, end;
+
+      pre.buf = upd.buf = end.buf = NULL;
+
+      res = ubiq_platform_decryption_begin(
+                  dec, &pre.buf, &pre.len);
+      ASSERT_EQ(res, 0);
+
+      res = ubiq_platform_decryption_update(
+            dec, ctbuf, ctlen, &upd.buf, &upd.len);
+      ASSERT_EQ(res, 0);
+
+      res = ubiq_platform_decryption_end(
+            dec, &end.buf, &end.len);
+      ASSERT_EQ(res, 0);
+
+      ptlen = pre.len + upd.len + end.len;
+      ptbuf = malloc(ptlen);
+
+      memcpy(ptbuf, pre.buf, pre.len);
+      memcpy((char *)ptbuf + pre.len, upd.buf, upd.len);
+      memcpy((char *)ptbuf + pre.len + upd.len, end.buf, end.len);
+
+      free(end.buf);
+      free(upd.buf);
+      free(pre.buf);
+    }
+
+    res = ubiq_platform_decryption_get_copy_of_usage(dec, &buf, &len);
+    res = ubiq_platform_encryption_get_copy_of_usage(enc, &buf2, &len);
+    EXPECT_EQ(res, 0);
+
+    EXPECT_NE(strcmp(buf, "{\"usage\":[]}"), 0);
+    EXPECT_NE(strcmp(buf2, "{\"usage\":[]}"), 0);
+    EXPECT_NE(strcmp(buf2, buf), 0);
+
+    free(buf);
+    free(buf2);
+    free(ptbuf);
+    free(ctbuf);
+
+    ubiq_platform_decryption_destroy(dec);
+    ubiq_platform_encryption_destroy(enc);
+    ubiq_platform_credentials_destroy(creds);
+}
+
 // TEST(c_billing, simple)
 // {
 

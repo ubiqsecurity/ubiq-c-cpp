@@ -33,7 +33,7 @@ struct ubiq_platform_decryption
         } raw, enc;
 
         // char * fingerprint;
-        unsigned int uses;
+        // unsigned int uses;
     } key;
 
     const struct ubiq_platform_algorithm * algo;
@@ -140,7 +140,7 @@ ubiq_platform_decryption_reset(
         // free(d->session);
         // d->session = NULL;
 
-        d->key.uses = 0;
+        // d->key.uses = 0;
 
         d->algo = NULL;
         if (d->ctx) {
@@ -367,7 +367,7 @@ ubiq_platform_decryption_update(
                                 DECRYPTION,
                                 1, 0 ); // key number not used for unstructured
 
-                            dec->key.uses++;
+                            // dec->key.uses++;
                         }
                     }
                 }
@@ -493,3 +493,27 @@ ubiq_platform_decrypt(
 
     return res;
 }
+
+int
+ubiq_platform_decryption_add_user_defined_metadata(
+    struct ubiq_platform_decryption * const dec,
+    const char * const jsonString) {
+
+      if (dec == NULL || jsonString == NULL) {
+        return -EINVAL;
+      }
+      ubiq_billing_add_user_defined_metadata(dec->billing_ctx, jsonString);
+      return 0;
+    }
+
+
+int
+ubiq_platform_decryption_get_copy_of_usage(
+    struct ubiq_platform_decryption * const dec,
+    char ** const buffer, size_t * const buffer_len) {
+
+      if (dec == NULL || buffer == NULL || buffer_len == NULL) {
+        return -EINVAL;
+      }
+      return ubiq_billing_get_copy_of_usage(dec->billing_ctx, buffer, buffer_len);
+    }
