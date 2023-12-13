@@ -279,6 +279,13 @@ ubiq_platform_fpe_get_last_error(
   char ** const err_msg
 );
 
+UBIQ_PLATFORM_API
+int
+ubiq_platform_fpe_enc_dec_get_copy_of_usage(
+    struct ubiq_platform_fpe_enc_dec_obj * const obj,
+    char ** const buffer, size_t * const buffer_len);
+
+
 __END_DECLS
 
 #if defined(__cplusplus)
