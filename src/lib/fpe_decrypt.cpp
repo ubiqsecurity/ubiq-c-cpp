@@ -90,3 +90,21 @@ ubiq::platform::fpe::decrypt(
 
     return pt;
 }
+
+std::string
+decryption:: get_copy_of_usage(void) {
+  std::string s("");
+  char * buf(nullptr);
+  size_t len;
+  int res(0);
+
+  res = ubiq_platform_fpe_enc_dec_get_copy_of_usage(_dec.get(), &buf, &len);
+  if (res != 0) {
+      throw std::system_error(-res, std::generic_category());
+  }
+  s.resize(len);
+  std::memcpy((char *)s.data(), buf, len);
+  std::free(buf);
+
+  return s;
+}

@@ -105,18 +105,18 @@ std::string
 decryption::get_copy_of_usage(void)
 {
     std::string v("");
-    char * ctbuf(nullptr);
-    size_t ctlen(0);
+    char * buf(nullptr);
+    size_t len(0);
     int res(0);
 
-    res = ubiq_platform_decryption_get_copy_of_usage(_dec.get(), &ctbuf, &ctlen);
+    res = ubiq_platform_decryption_get_copy_of_usage(_dec.get(), &buf, &len);
     if (res != 0) {
         throw std::system_error(-res, std::generic_category());
     }
 
-    v.resize(ctlen);
-    std::memcpy((char *)v.data(), ctbuf, ctlen);
-    std::free(ctbuf);
+    v.resize(len);
+    std::memcpy((char *)v.data(), buf, len);
+    std::free(buf);
 
     return v;
 }

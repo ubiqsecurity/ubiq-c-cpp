@@ -348,6 +348,11 @@ namespace ubiq {
               const std::string & pt
             ) ;
 
+            UBIQ_PLATFORM_API
+            virtual
+            std::string
+            get_copy_of_usage(void);
+
           private:
             std::shared_ptr<::ubiq_platform_fpe_enc_dec_obj> _dec;
           };
