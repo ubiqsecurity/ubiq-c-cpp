@@ -1730,3 +1730,49 @@ TEST(c_fpe_encrypt, get_usage_enc_dec)
     free(ctbuf);
     free(ptbuf);
 }
+
+TEST_F(cpp_fpe_encrypt, get_usage)
+{
+    static const char * const pt = ";0123456-789ABCDEF|";
+    static const char * const ffs_name = "ALPHANUM_SSN";
+
+    _enc = ubiq::platform::fpe::encryption(_creds);
+    std::string usage = _enc.get_copy_of_usage();
+    std::cout << usage << std::endl;
+    EXPECT_EQ(usage.compare("{\"usage\":[]}"), 0);
+
+    std::string ct = _enc.encrypt(ffs_name, pt);
+    std::string usage2 = _enc.get_copy_of_usage();
+    EXPECT_NE(usage.compare(usage2), 0);
+
+    ct = _enc.encrypt(ffs_name, pt);
+    std::string usage3 = _enc.get_copy_of_usage();
+    std::cout << usage3 << std::endl;
+    EXPECT_NE(usage3.compare(usage2), 0);
+}
+
+
+TEST_F(cpp_fpe_encrypt, get_usage_enc_dec)
+{
+    static const char * const pt = ";0123456-789ABCDEF|";
+    static const char * const dataset_name = "ALPHANUM_SSN";
+
+    _enc = ubiq::platform::fpe::encryption(_creds);
+    _dec = ubiq::platform::fpe::decryption(_creds);
+
+    std::string usage = _enc.get_copy_of_usage();
+    EXPECT_EQ(usage.compare("{\"usage\":[]}"), 0);
+
+    std::string usage2 = _dec.get_copy_of_usage();
+    EXPECT_EQ(usage.compare(usage2), 0);
+
+    std::string ct = _enc.encrypt(dataset_name, pt);
+    std::string ptbuf = _dec.decrypt(dataset_name, ct);
+
+    // Encrypt and Decrypt usage strings should be same length
+    usage = _enc.get_copy_of_usage();
+    EXPECT_GT(usage.length(),usage2.length());
+
+    usage2 = _dec.get_copy_of_usage();
+    EXPECT_EQ(usage.length(),usage2.length());
+}
