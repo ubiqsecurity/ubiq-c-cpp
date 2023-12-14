@@ -36,7 +36,7 @@ int
 ubiq_billing_get_copy_of_usage( struct ubiq_billing_ctx * const e,
                 char ** const buffer, size_t * const buffer_len);
 
-void
+int
 ubiq_billing_add_user_defined_metadata( struct ubiq_billing_ctx * const e,
                         const char * const jsonString);
 

@@ -81,3 +81,82 @@ TEST(c_encrypt, simple)
         free(ctbuf);
     }
 }
+
+TEST(c_encrypt, user_defined_metadata)
+{
+    static const char * const pt = "ABC";
+
+    struct ubiq_platform_credentials * creds;
+    struct ubiq_platform_encryption * enc;
+    char * buf = NULL;
+    size_t len = 0;
+    int res;
+
+    res = ubiq_platform_credentials_create(&creds);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_encryption_create(creds, 5, &enc);
+    EXPECT_EQ(res, 0);
+
+    res = ubiq_platform_encryption_get_copy_of_usage(enc, &buf, &len);
+    EXPECT_EQ(res, 0);
+    EXPECT_EQ(strcmp(buf, "{\"usage\":[]}"), 0);
+    free(buf);
+
+    // invalid
+    res = ubiq_platform_encryption_add_user_defined_metadata(NULL, NULL);
+    EXPECT_NE(res, 0);
+
+    char toolong[1050];
+    memset(toolong, 'a', sizeof(toolong));
+    toolong[sizeof(toolong)] = '\0';
+    res = ubiq_platform_encryption_add_user_defined_metadata(enc, toolong);
+    EXPECT_NE(res, 0);
+
+    res = ubiq_platform_encryption_add_user_defined_metadata(enc, "not json");
+    EXPECT_NE(res, 0);
+
+    res = ubiq_platform_encryption_add_user_defined_metadata(enc, "{\"UBIQ_SPECIAL_USER_DEFINED_KEY\" : \"UBIQ_SPECIAL_USER_DEFINED_VALUE\"}");
+    EXPECT_EQ(res, 0);
+
+    // should still be the empty
+    res = ubiq_platform_encryption_get_copy_of_usage(enc, &buf, &len);
+    EXPECT_EQ(res, 0);
+    EXPECT_EQ(strcmp(buf, "{\"usage\":[]}"), 0) << buf;
+    free(buf);
+
+    {
+        // Ignore the actual CT - just want the billing records
+        struct {
+            void * buf;
+            size_t len;
+        } pre, upd, end;
+
+        pre.buf = upd.buf = end.buf = NULL;
+
+        res = ubiq_platform_encryption_begin(
+            enc, &pre.buf, &pre.len);
+
+        res = ubiq_platform_encryption_update(
+            enc, pt, strlen(pt), &upd.buf, &upd.len);
+        ASSERT_EQ(res, 0);
+
+        res = ubiq_platform_encryption_end(
+                enc, &end.buf, &end.len);
+        ASSERT_EQ(res, 0);
+
+        free(end.buf);
+        free(upd.buf);
+        free(pre.buf);
+    }
+    res = ubiq_platform_encryption_get_copy_of_usage(enc, &buf, &len);
+    EXPECT_EQ(res, 0);
+    EXPECT_NE(strcmp(buf, "{\"usage\":[]}"), 0);
+    EXPECT_NE(strstr(buf, "UBIQ_SPECIAL_USER_DEFINED_KEY"), nullptr) << buf ;
+    EXPECT_NE(strstr(buf, "UBIQ_SPECIAL_USER_DEFINED_VALUE"), nullptr);
+    EXPECT_NE(strstr(buf, "user_defined"), nullptr);
+    free(buf);
+
+    ubiq_platform_encryption_destroy(enc);
+    ubiq_platform_credentials_destroy(creds);
+}

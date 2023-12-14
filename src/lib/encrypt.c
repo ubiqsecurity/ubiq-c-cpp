@@ -506,6 +506,5 @@ ubiq_platform_encryption_add_user_defined_metadata(
       if (enc == NULL || jsonString == NULL) {
         return -EINVAL;
       }
-      ubiq_billing_add_user_defined_metadata(enc->billing_ctx, jsonString);
-      return 0;
+      return ubiq_billing_add_user_defined_metadata(enc->billing_ctx, jsonString);
     }

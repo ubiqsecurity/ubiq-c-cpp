@@ -78,6 +78,7 @@ struct ubiq_billing_ctx {
     int    reporting_flush_interval; // seconds
     int    reporting_minimum_count;
     int    reporting_trap_exceptions; // true means ignore errors
+    char * user_defined_metadata; // if not NULL, added to all serialized events
 };
 
 // Just the fields that MAY be different between calls.  Right now API_KEY will be the same but
@@ -92,6 +93,11 @@ struct billing_element {
   struct tm last_call_timestamp;
   struct tm first_call_timestamp;
 };
+
+typedef struct billing_walk_closure {
+  char * user_defined_metadata;
+  cJSON * json_array;
+} billing_walk_closure_t;
 
 /**************************************************************************************
  *
@@ -135,6 +141,7 @@ static
 int
 serialize_billing_element(
   const struct billing_element * const billing_element,
+  const char * const user_defined_metadata,
   cJSON ** element
   );
 
@@ -347,14 +354,27 @@ getBillingUsage(
     UBIQ_DEBUG(debug_flag, printf("%s  element_count(%d)\n", csu, element_count));
     if (!res && element_count > 0) {
       // Array is cleaned up when the json_usage oject is destroyed
-      cJSON * json_array = cJSON_CreateArray();
+      billing_walk_closure_t billing_walk_closure;
+
+      // Will be freed later with the json_usage element
+
+      billing_walk_closure.json_array = cJSON_CreateArray();
+      billing_walk_closure.user_defined_metadata = NULL;
+
+      // Async and ctx object could be updated while this is running so take copy of existing value
+      if (ctx->user_defined_metadata != NULL) {
+        billing_walk_closure.user_defined_metadata = strdup(ctx->user_defined_metadata);
+      }
 
       // Conver the tree to a json array
       UBIQ_DEBUG(debug_flag, printf("start walking (%d)\n", element_count));
-      ubiq_platform_cache_walk_r(billing_btree, billing_walk_r, (void *)json_array);
+      ubiq_platform_cache_walk_r(billing_btree, billing_walk_r, (void *)&billing_walk_closure);
       UBIQ_DEBUG(debug_flag, printf("  done walking\n"));
 
-      cJSON_AddItemToObject(json_usage, "usage", json_array);
+      cJSON_AddItemToObject(json_usage, "usage", billing_walk_closure.json_array);
+      if (billing_walk_closure.user_defined_metadata != NULL) {
+        free(billing_walk_closure.user_defined_metadata);
+      }
     }
   }
   return res;
@@ -389,14 +409,16 @@ billing_walk_r(const void *nodep, void *__closure)
   int debug_flag = 1;
   static const char * const csu = "billing_walk_r";
 
-  cJSON * json_array = (cJSON*) __closure;
+
+  billing_walk_closure_t * billing_walk_closure = (billing_walk_closure_t *)__closure;
+  // cJSON * json_array = (cJSON*) __closure;
 
   struct billing_element * billing_element;
   cJSON * element = NULL;
 
     billing_element = *(struct billing_element **) nodep;
-    serialize_billing_element(billing_element, &element);
-    cJSON_AddItemToArray(json_array, element);
+    serialize_billing_element(billing_element, billing_walk_closure->user_defined_metadata, &element);
+    cJSON_AddItemToArray(billing_walk_closure->json_array, element);
 
     UBIQ_DEBUG(debug_flag, printf("leaf %s \n \t%p \n",csu, billing_element));
     UBIQ_DEBUG(debug_flag, printf("leaf %s \n \tkey(%d) \n",csu, billing_element->key_number));
@@ -492,6 +514,7 @@ static
 int
 serialize_billing_element(
   const struct billing_element * const billing_element,
+  const char * const user_defined_metadata,
   cJSON ** element
   )
 {
@@ -499,13 +522,19 @@ serialize_billing_element(
 
 
   // TODO - Change user agent into discreet platform and version fields for convenience
-  static const char * const json_fmt = "{\"datasets\":\"%s\", \"dataset_groups\":\"%s\", \"api_key\":\"%s\", \"count\":\"%lu\",  \"key_number\":\"%u\",  \"action\":\"%s\", \"product\":\"%s\", \"product_version\":\"%s\", \"user-agent\":\"%s\", \"api_version\":\"%s\", \"last_call_timestamp\":\"%s\", \"first_call_timestamp\":\"%s\"}";
+  static const char * const json_fmt = "{\"datasets\":\"%s\", \"dataset_groups\":\"%s\", \"api_key\":\"%s\", \"count\":\"%lu\",  \"key_number\":\"%u\",  \"action\":\"%s\", \"product\":\"%s\", \"product_version\":\"%s\", \"user-agent\":\"%s\", \"api_version\":\"%s\", \"last_call_timestamp\":\"%s\", \"first_call_timestamp\":\"%s\"%s}";
+  static const char * const user_defined_fmt = ",\"user_defined\" : %s";
+
   int res = 0;
 
   char * json_str;
   char * name = "";
   char * dataset_group = "";
   char * action_type = "encrypt";
+  // 1024 (max user_defined_metadata) PLUS this size of user_defined_fmt
+  char user_defined[1100];
+
+  user_defined[0] = 0;
 
   if (billing_element->dataset_name != NULL) {
     name = billing_element->dataset_name;
@@ -516,17 +545,20 @@ serialize_billing_element(
   if (billing_element->billing_action == DECRYPTION) {
     action_type = "decrypt";
   }
+  if (user_defined_metadata != NULL) {
+    snprintf(user_defined, sizeof(user_defined), user_defined_fmt, user_defined_metadata);
+  }
 
   char last_call_date_str[500];
   char first_call_date_str[500];
   strftime(last_call_date_str, sizeof(last_call_date_str), "%FT%T+00:00", &billing_element->last_call_timestamp);
   strftime(first_call_date_str, sizeof(first_call_date_str), "%FT%T+00:00", &billing_element->first_call_timestamp);
 
-  size_t len = snprintf(NULL, 0, json_fmt, name, dataset_group, billing_element->api_key, billing_element->count, billing_element->key_number, action_type, ubiq_support_product, ubiq_support_version, ubiq_support_user_agent, "V3", last_call_date_str, first_call_date_str);
+  size_t len = snprintf(NULL, 0, json_fmt, name, dataset_group, billing_element->api_key, billing_element->count, billing_element->key_number, action_type, ubiq_support_product, ubiq_support_version, ubiq_support_user_agent, "V3", last_call_date_str, first_call_date_str, user_defined);
   if ((json_str = malloc(len + 1)) == NULL) {
     res = -ENOMEM;
   } else {
-    snprintf(json_str, len+1, json_fmt, name, dataset_group, billing_element->api_key, billing_element->count, billing_element->key_number, action_type, ubiq_support_product, ubiq_support_version, ubiq_support_user_agent, "V3", last_call_date_str, first_call_date_str);
+    snprintf(json_str, len+1, json_fmt, name, dataset_group, billing_element->api_key, billing_element->count, billing_element->key_number, action_type, ubiq_support_product, ubiq_support_version, ubiq_support_user_agent, "V3", last_call_date_str, first_call_date_str, user_defined);
     UBIQ_DEBUG(debug_flag, printf("%s \n \t%s \n",csu, json_str));
     
     cJSON *e = cJSON_ParseWithLength(json_str, len);
@@ -571,6 +603,8 @@ ubiq_billing_ctx_create(
   local_ctx = calloc(1, sizeof(*local_ctx) + strlen(host_path) + 1 + strlen("/api/v3/tracking/events"));
   if (local_ctx) {
 
+    // Will be allocated separately but will also need to be destroy separately
+    local_ctx->user_defined_metadata = NULL;
     // Just a way to determine if it has been created correctly later
     local_ctx->process_billing_thread = pthread_self();
 
@@ -640,6 +674,9 @@ ubiq_billing_ctx_destroy(struct ubiq_billing_ctx * const ctx){
     pthread_mutex_destroy(&ctx->billing_lock);
 
     ubiq_platform_cache_destroy(billing_elements_cache);
+    if (ctx->user_defined_metadata) {
+      free(ctx->user_defined_metadata);
+    }
     free(ctx);
   }
 }
@@ -719,9 +756,28 @@ ubiq_billing_add_billing_event(
 
 }
 
-void
+int
 ubiq_billing_add_user_defined_metadata( struct ubiq_billing_ctx * const e,
                         const char * const jsonString) {
+  int res = 0;
+  int len = 0;
+
+  if (jsonString == NULL || e == NULL) {
+    res = -EINVAL;
+  } else if ((len = strlen(jsonString)) >= 1024) {
+    res = -E2BIG;
+  } else {
+    // Make sure valid json
+    cJSON *json = cJSON_ParseWithLength(jsonString, len);
+    if (json == NULL) {
+      res = -EINVAL;
+    } else {
+      e->user_defined_metadata = cJSON_Print(json);
+      // printf("%s\n", e->user_defined_metadata);
+      cJSON_Delete(json);
+    }
+  }
+  return res;
 }
 
 /** Retuns 0 on success, negative with an error
