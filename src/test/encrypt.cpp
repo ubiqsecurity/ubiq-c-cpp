@@ -155,8 +155,35 @@ TEST(c_encrypt, user_defined_metadata)
     EXPECT_NE(strstr(buf, "UBIQ_SPECIAL_USER_DEFINED_KEY"), nullptr) << buf ;
     EXPECT_NE(strstr(buf, "UBIQ_SPECIAL_USER_DEFINED_VALUE"), nullptr);
     EXPECT_NE(strstr(buf, "user_defined"), nullptr);
+    // printf("%s\n", buf);
     free(buf);
 
     ubiq_platform_encryption_destroy(enc);
     ubiq_platform_credentials_destroy(creds);
+}
+
+TEST_F(cpp_encrypt, user_defined_metadata)
+{
+    std::string usage;
+    std::string pt("ABC");
+    _enc = ubiq::platform::encryption(_creds, 1);
+
+    usage = _enc.get_copy_of_usage();
+    EXPECT_EQ(usage.compare("{\"usage\":[]}"), 0);
+
+    ASSERT_THROW(_enc.add_user_defined_metadata(""),std::system_error);
+    ASSERT_THROW(_enc.add_user_defined_metadata("{"),std::system_error);
+    ASSERT_NO_THROW(_enc.add_user_defined_metadata("{\"UBIQ_SPECIAL_USER_DEFINED_KEY\" : \"UBIQ_SPECIAL_USER_DEFINED_VALUE\"}"));
+
+    std::vector<uint8_t> pre = _enc.begin();
+    std::vector<uint8_t> mid = _enc.update(pt.data(), pt.size());
+    std::vector<uint8_t> post = _enc.end();
+
+    usage = _enc.get_copy_of_usage();
+
+    EXPECT_EQ(usage.find("{\"usage\":[]}"),  std::string::npos);
+    EXPECT_NE(usage.find("UBIQ_SPECIAL_USER_DEFINED_KEY"),  std::string::npos);
+    EXPECT_NE(usage.find("UBIQ_SPECIAL_USER_DEFINED_VALUE"),  std::string::npos);
+    EXPECT_NE(usage.find("user_defined"),  std::string::npos);
+
 }
