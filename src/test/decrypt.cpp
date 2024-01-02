@@ -302,7 +302,6 @@ TEST_F(cpp_decrypt, get_usage)
 
 }
 
-#ifdef NODEF
 TEST(c_decrypt, user_defined_metadata)
 {
     static const char * const pt = "ABC";
@@ -330,6 +329,7 @@ TEST(c_decrypt, user_defined_metadata)
 
     char toolong[1050];
     memset(toolong, 'a', sizeof(toolong));
+    toolong[sizeof(toolong)] = '\0';
     res = ubiq_platform_decryption_add_user_defined_metadata(dec, toolong);
     EXPECT_NE(res, 0);
 
@@ -346,6 +346,15 @@ TEST(c_decrypt, user_defined_metadata)
     free(buf);
 
     {
+        void * ctbuf = NULL;
+        void * ptbuf = NULL;
+        size_t ctlen = 0;
+        size_t ptlen = 0;
+
+        struct ubiq_platform_encryption * enc;
+        res = ubiq_platform_encryption_create(creds, 5, &enc);
+        EXPECT_EQ(res, 0);
+
         // Ignore the actual CT - just want the billing records
         struct {
             void * buf;
@@ -365,23 +374,60 @@ TEST(c_decrypt, user_defined_metadata)
                 enc, &end.buf, &end.len);
         ASSERT_EQ(res, 0);
 
+        ctlen = pre.len + upd.len + end.len;
+        ctbuf = malloc(ctlen);
+
+        memcpy(ctbuf, pre.buf, pre.len);
+        memcpy((char *)ctbuf + pre.len, upd.buf, upd.len);
+        memcpy((char *)ctbuf + pre.len + upd.len, end.buf, end.len);
+
         free(end.buf);
         free(upd.buf);
         free(pre.buf);
+
+        ubiq_platform_encryption_destroy(enc);
+
+        pre.buf = upd.buf = end.buf = NULL;
+
+        res = ubiq_platform_decryption_begin(
+                    dec, &pre.buf, &pre.len);
+        ASSERT_EQ(res, 0);
+
+        res = ubiq_platform_decryption_update(
+              dec, ctbuf, ctlen, &upd.buf, &upd.len);
+        ASSERT_EQ(res, 0);
+
+        res = ubiq_platform_decryption_end(
+              dec, &end.buf, &end.len);
+        ASSERT_EQ(res, 0);
+
+        ptlen = pre.len + upd.len + end.len;
+        ptbuf = malloc(ptlen + 1);
+        ((char *)ptbuf)[ptlen] = '\0';
+
+        memcpy(ptbuf, pre.buf, pre.len);
+        memcpy((char *)ptbuf + pre.len, upd.buf, upd.len);
+        memcpy((char *)ptbuf + pre.len + upd.len, end.buf, end.len);
+
+        free(end.buf);
+        free(upd.buf);
+        free(pre.buf);
+
+        EXPECT_EQ(strcmp((char *)ptbuf, pt), 0);
+        free(ptbuf);
+        free(ctbuf);
     }
 
     res = ubiq_platform_decryption_get_copy_of_usage(dec, &buf, &len);
     EXPECT_EQ(res, 0);
     EXPECT_NE(strcmp(buf, "{\"usage\":[]}"), 0);
-    EXPECT_NE(strstr(buf, "UBIQ_SPECIAL_USER_DEFINED_KEY"), NULL);
-    EXPECT_NE(strstr(buf, "UBIQ_SPECIAL_USER_DEFINED_VALUE"), NULL);
-    EXPECT_NE(strstr(buf, "user_defined"), NULL);
+    EXPECT_NE(strstr(buf, "UBIQ_SPECIAL_USER_DEFINED_KEY"), nullptr);
+    EXPECT_NE(strstr(buf, "UBIQ_SPECIAL_USER_DEFINED_VALUE"), nullptr);
+    EXPECT_NE(strstr(buf, "user_defined"), nullptr);
     free(buf);
-
     ubiq_platform_decryption_destroy(dec);
     ubiq_platform_credentials_destroy(creds);
 }
-#endif
 
 // TEST(c_billing, simple)
 // {

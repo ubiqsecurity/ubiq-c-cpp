@@ -497,22 +497,22 @@ ubiq_platform_decrypt(
 int
 ubiq_platform_decryption_add_user_defined_metadata(
     struct ubiq_platform_decryption * const dec,
-    const char * const jsonString) {
-
-      if (dec == NULL || jsonString == NULL) {
-        return -EINVAL;
-      } 
-      return ubiq_billing_add_user_defined_metadata(dec->billing_ctx, jsonString);
-    }
+    const char * const jsonString)
+{
+    if (dec == NULL || jsonString == NULL) {
+      return -EINVAL;
+    } 
+    return ubiq_billing_add_user_defined_metadata(dec->billing_ctx, jsonString);
+}
 
 
 int
 ubiq_platform_decryption_get_copy_of_usage(
     struct ubiq_platform_decryption * const dec,
-    char ** const buffer, size_t * const buffer_len) {
-
-      if (dec == NULL || buffer == NULL || buffer_len == NULL) {
-        return -EINVAL;
-      }
-      return ubiq_billing_get_copy_of_usage(dec->billing_ctx, buffer, buffer_len);
+    char ** const buffer, size_t * const buffer_len)
+{
+    if (dec == NULL || buffer == NULL || buffer_len == NULL) {
+      return -EINVAL;
     }
+    return ubiq_billing_get_copy_of_usage(dec->billing_ctx, buffer, buffer_len);
+}
