@@ -490,21 +490,21 @@ ubiq_platform_encrypt(
 int
 ubiq_platform_encryption_get_copy_of_usage(
     struct ubiq_platform_encryption * const enc,
-    char ** const buffer, size_t * const buffer_len) {
-
-      if (enc == NULL || buffer == NULL || buffer_len == NULL) {
-        return -EINVAL;
-      }
-      return ubiq_billing_get_copy_of_usage(enc->billing_ctx, buffer, buffer_len);
+    char ** const buffer, size_t * const buffer_len) 
+{
+    if (enc == NULL || buffer == NULL || buffer_len == NULL) {
+      return -EINVAL;
     }
+    return ubiq_billing_get_copy_of_usage(enc->billing_ctx, buffer, buffer_len);
+}
 
 int
 ubiq_platform_encryption_add_user_defined_metadata(
     struct ubiq_platform_encryption * const enc,
-    const char * const jsonString) {
-
-      if (enc == NULL || jsonString == NULL) {
-        return -EINVAL;
-      }
-      return ubiq_billing_add_user_defined_metadata(enc->billing_ctx, jsonString);
+    const char * const jsonString)
+{
+    if (enc == NULL || jsonString == NULL) {
+      return -EINVAL;
     }
+    return ubiq_billing_add_user_defined_metadata(enc->billing_ctx, jsonString);
+}
