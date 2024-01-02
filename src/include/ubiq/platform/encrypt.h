@@ -285,6 +285,11 @@ ubiq_platform_fpe_enc_dec_get_copy_of_usage(
     struct ubiq_platform_fpe_enc_dec_obj * const obj,
     char ** const buffer, size_t * const buffer_len);
 
+UBIQ_PLATFORM_API
+int
+ubiq_platform_fpe_enc_dec_add_user_defined_metadata(
+    struct ubiq_platform_fpe_enc_dec_obj * const obj,
+    const char * const jsonString);
 
 __END_DECLS
 
@@ -517,10 +522,10 @@ namespace ubiq {
             std::string
             get_copy_of_usage(void);
 
-            // UBIQ_PLATFORM_API
-            // virtual
-            // void
-            // add_user_defined_metadata(const std::string & jsonString);
+            UBIQ_PLATFORM_API
+            virtual
+            void
+            add_user_defined_metadata(const std::string & jsonString);
 
           private:
             std::shared_ptr<::ubiq_platform_fpe_enc_dec_obj> _enc;

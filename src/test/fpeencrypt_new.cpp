@@ -1776,3 +1776,60 @@ TEST_F(cpp_fpe_encrypt, get_usage_enc_dec)
     usage2 = _dec.get_copy_of_usage();
     EXPECT_EQ(usage.length(),usage2.length());
 }
+
+
+TEST(c_fpe_encrypt, add_user_defined_metadata)
+{
+    static const char * const pt = ";0123456-789ABCDEF|";
+    static const char * const ffs_name = "ALPHANUM_SSN";
+
+    struct ubiq_platform_credentials * creds;
+    struct ubiq_platform_fpe_enc_dec_obj *enc;
+    char * buf(nullptr);
+    char * ctbuf(nullptr);
+    size_t ctlen;
+    size_t len;
+    size_t len2;
+
+    int res = ubiq_platform_credentials_create(&creds);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_enc_dec_add_user_defined_metadata(NULL, NULL);
+    EXPECT_NE(res, 0);
+
+    char toolong[1050];
+    memset(toolong, 'a', sizeof(toolong));
+    toolong[sizeof(toolong)] = '\0';
+    res = ubiq_platform_fpe_enc_dec_add_user_defined_metadata(enc, toolong);
+    EXPECT_NE(res, 0);
+
+    res = ubiq_platform_fpe_enc_dec_add_user_defined_metadata(enc, "not json");
+    EXPECT_NE(res, 0);
+
+    res = ubiq_platform_fpe_enc_dec_add_user_defined_metadata(enc, "{\"UBIQ_SPECIAL_USER_DEFINED_KEY\" : \"UBIQ_SPECIAL_USER_DEFINED_VALUE\"}");
+    EXPECT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_encrypt_data(enc,
+      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+    EXPECT_EQ(res,0);
+
+    free(buf);
+
+    // Second encrypt will have different usage string
+    res = ubiq_platform_fpe_enc_dec_get_copy_of_usage(enc, &buf, &len);
+    EXPECT_EQ(res,0);
+    EXPECT_NE(strcmp(buf, "{\"usage\":[]}"), 0);
+    EXPECT_NE(strstr(buf, "UBIQ_SPECIAL_USER_DEFINED_KEY"), nullptr);
+    EXPECT_NE(strstr(buf, "UBIQ_SPECIAL_USER_DEFINED_VALUE"), nullptr);
+    EXPECT_NE(strstr(buf, "user_defined"), nullptr);
+    std::cout << "usage: " << buf << std::endl;
+
+    ubiq_platform_fpe_enc_dec_destroy(enc);
+
+    ubiq_platform_credentials_destroy(creds);
+    free(buf);
+    free(ctbuf);
+}
