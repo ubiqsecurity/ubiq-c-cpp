@@ -1825,11 +1825,32 @@ TEST(c_fpe_encrypt, add_user_defined_metadata)
     EXPECT_NE(strstr(buf, "UBIQ_SPECIAL_USER_DEFINED_KEY"), nullptr);
     EXPECT_NE(strstr(buf, "UBIQ_SPECIAL_USER_DEFINED_VALUE"), nullptr);
     EXPECT_NE(strstr(buf, "user_defined"), nullptr);
-    std::cout << "usage: " << buf << std::endl;
-
+    
     ubiq_platform_fpe_enc_dec_destroy(enc);
 
     ubiq_platform_credentials_destroy(creds);
     free(buf);
     free(ctbuf);
+}
+
+TEST_F(cpp_fpe_encrypt, add_user_defined_metadata)
+{
+  std::string pt(";0123456-789ABCDEF|");
+  std::string ffs_name("ALPHANUM_SSN");
+
+  _enc = ubiq::platform::fpe::encryption(_creds);
+
+  ASSERT_THROW(_enc.add_user_defined_metadata(""),std::system_error);
+  ASSERT_THROW(_enc.add_user_defined_metadata("{"),std::system_error);
+  ASSERT_NO_THROW(_enc.add_user_defined_metadata("{\"UBIQ_SPECIAL_USER_DEFINED_KEY\" : \"UBIQ_SPECIAL_USER_DEFINED_VALUE\"}"));
+
+  std::string ct = _enc.encrypt(ffs_name, pt);
+
+  std::string usage = _enc.get_copy_of_usage();
+
+  EXPECT_EQ(usage.find("{\"usage\":[]}"),  std::string::npos);
+  EXPECT_NE(usage.find("UBIQ_SPECIAL_USER_DEFINED_KEY"),  std::string::npos);
+  EXPECT_NE(usage.find("UBIQ_SPECIAL_USER_DEFINED_VALUE"),  std::string::npos);
+  EXPECT_NE(usage.find("user_defined"),  std::string::npos);
+
 }

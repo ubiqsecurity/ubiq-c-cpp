@@ -358,6 +358,11 @@ namespace ubiq {
             std::string
             get_copy_of_usage(void);
 
+            UBIQ_PLATFORM_API
+            virtual
+            void
+            add_user_defined_metadata(const std::string & jsonString);
+
           private:
             std::shared_ptr<::ubiq_platform_fpe_enc_dec_obj> _dec;
           };

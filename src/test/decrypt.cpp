@@ -302,7 +302,7 @@ TEST_F(cpp_decrypt, get_usage)
 
 }
 
-TEST(c_decrypt, user_defined_metadata)
+TEST(c_decrypt, add_user_defined_metadata)
 {
     static const char * const pt = "ABC";
 
@@ -429,7 +429,7 @@ TEST(c_decrypt, user_defined_metadata)
     ubiq_platform_credentials_destroy(creds);
 }
 
-TEST_F(cpp_decrypt, user_defined_metadata)
+TEST_F(cpp_decrypt, add_user_defined_metadata)
 {
     std::string usage;
     std::string pt("ABC");

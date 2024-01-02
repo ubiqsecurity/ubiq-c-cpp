@@ -108,3 +108,13 @@ decryption:: get_copy_of_usage(void) {
 
   return s;
 }
+
+void
+decryption::add_user_defined_metadata(const std::string & jsonString) {
+  int res(0);
+
+  res = ubiq_platform_fpe_enc_dec_add_user_defined_metadata(_dec.get(), jsonString.data());
+  if (res != 0) {
+      throw std::system_error(-res, std::generic_category());
+  }
+}
