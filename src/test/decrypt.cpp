@@ -461,7 +461,47 @@ TEST_F(cpp_decrypt, add_user_defined_metadata)
     EXPECT_NE(usage.find("UBIQ_SPECIAL_USER_DEFINED_KEY"),  std::string::npos);
     EXPECT_NE(usage.find("UBIQ_SPECIAL_USER_DEFINED_VALUE"),  std::string::npos);
     EXPECT_NE(usage.find("user_defined"),  std::string::npos);
+}
 
+// Make sure only one billing record for multiple events
+TEST_F(cpp_decrypt, merged_billing_records)
+{
+    ubiq::platform::configuration cfg(91,92,93,94, "DAYS");
+    std::string usage;
+    std::string pt("ABC");
+    ubiq::platform::encryption _enc = ubiq::platform::encryption(_creds, cfg, 1);
+    _dec = ubiq::platform::decryption(_creds, cfg);
+
+    std::vector<uint8_t> pre = _enc.begin();
+    std::vector<uint8_t> mid = _enc.update(pt.data(), pt.size());
+    std::vector<uint8_t> post = _enc.end();
+
+    usage = _enc.get_copy_of_usage();
+
+    pre = _enc.begin();
+    mid = _enc.update(pt.data(), pt.size());
+    post = _enc.end();
+
+    std::string usage2 = _enc.get_copy_of_usage();
+
+    EXPECT_EQ(usage.length(), usage2.length());
+    EXPECT_NE(usage2.find("\"count\":\"2\""), std::string::npos);
+
+    std::vector<uint8_t> ct(pre);
+    ct.insert(ct.end(), mid.begin(), mid.end());
+    ct.insert(ct.end(), post.begin(), post.end());
+
+    pre = _dec.begin();
+    mid = _dec.update(ct.data(), ct.size());
+    post = _dec.end();
+
+    usage = _dec.get_copy_of_usage();
+    pre = _dec.begin();
+    mid = _dec.update(ct.data(), ct.size());
+    post = _dec.end();
+    usage2 = _dec.get_copy_of_usage();
+    EXPECT_EQ(usage.length(), usage2.length());
+    EXPECT_NE(usage2.find("\"count\":\"2\""), std::string::npos);
 }
 
 
