@@ -187,3 +187,25 @@ TEST_F(cpp_encrypt, add_user_defined_metadata)
     EXPECT_NE(usage.find("user_defined"),  std::string::npos);
 
 }
+
+TEST_F(cpp_encrypt, report_granularity)
+{
+
+    std::string usage;
+    std::string pt("ABC");
+    ubiq::platform::configuration cfg(91,92,93,94, "DAYS");
+    _enc =  ubiq::platform::encryption(_creds, cfg, 1);
+
+    usage = _enc.get_copy_of_usage();
+    EXPECT_EQ(usage.compare("{\"usage\":[]}"), 0);
+
+    std::vector<uint8_t> pre = _enc.begin();
+    std::vector<uint8_t> mid = _enc.update(pt.data(), pt.size());
+    std::vector<uint8_t> post = _enc.end();
+
+    usage = _enc.get_copy_of_usage();
+
+    EXPECT_EQ(usage.find("{\"usage\":[]}"),  std::string::npos);
+    EXPECT_NE(usage.find("00:00:00"),  std::string::npos) << usage;
+}
+
