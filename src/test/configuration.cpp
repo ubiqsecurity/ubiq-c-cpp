@@ -24,7 +24,7 @@ TEST(c_configuration, explicit)
     struct ubiq_platform_configuration * cfg;
     int res;
 
-    res = ubiq_platform_configuration_create_explicit(91,92,93,94, &cfg);
+    res = ubiq_platform_configuration_create_explicit(91,92,93,94, "DAYS", &cfg);
     EXPECT_EQ(res, 0);
     if (res == 0) {
         ASSERT_NE(cfg, nullptr);
@@ -33,6 +33,7 @@ TEST(c_configuration, explicit)
         ASSERT_EQ(ubiq_platform_configuration_get_event_reporting_min_count(cfg), 92);
         ASSERT_EQ(ubiq_platform_configuration_get_event_reporting_flush_interval(cfg), 93);
         ASSERT_EQ(ubiq_platform_configuration_get_event_reporting_trap_exceptions(cfg), 94);
+        ASSERT_EQ(ubiq_platform_configuration_get_event_reporting_timestamp_granularity(cfg), DAYS);
 
         ubiq_platform_configuration_destroy(cfg);
     }
@@ -44,7 +45,7 @@ TEST(c_configuration, diff)
     struct ubiq_platform_configuration * cfg;
     int res;
 
-    res = ubiq_platform_configuration_create_explicit(91,92,93,94, &cfg);
+    res = ubiq_platform_configuration_create_explicit(91,92,93,94, "DAYS", &cfg);
     EXPECT_EQ(res, 0);
     res = ubiq_platform_configuration_create(&cfg_default);
     EXPECT_EQ(res, 0);
@@ -62,6 +63,8 @@ TEST(c_configuration, diff)
           ubiq_platform_configuration_get_event_reporting_flush_interval(cfg_default));
         ASSERT_NE(ubiq_platform_configuration_get_event_reporting_trap_exceptions(cfg),
           ubiq_platform_configuration_get_event_reporting_trap_exceptions(cfg_default));
+        ASSERT_NE(ubiq_platform_configuration_get_event_reporting_timestamp_granularity(cfg),
+          ubiq_platform_configuration_get_event_reporting_timestamp_granularity(cfg_default));
 
         ubiq_platform_configuration_destroy(cfg);
         ubiq_platform_configuration_destroy(cfg_default);
@@ -83,6 +86,7 @@ TEST(c_configuration, load)
         EXPECT_EQ(ubiq_platform_configuration_get_event_reporting_min_count(cfg), 5);
         EXPECT_EQ(ubiq_platform_configuration_get_event_reporting_flush_interval(cfg), 10);
         EXPECT_EQ(ubiq_platform_configuration_get_event_reporting_trap_exceptions(cfg), 0);
+        EXPECT_EQ(ubiq_platform_configuration_get_event_reporting_timestamp_granularity(cfg), NANOS);
 
         ubiq_platform_configuration_destroy(cfg);
     }
@@ -92,7 +96,7 @@ char *
 write_temp_file(
   const std::string & er,
   const std::string & wake_interval_name,
-  int a, int b, int c, int d) {
+  int a, int b, int c, int d, const std::string &timestamp_granularity) {
 
 
     char s[50];
@@ -102,6 +106,7 @@ write_temp_file(
     std::ofstream file1(s);
     file1 << "{ \"" << er << "\" : {" <<
       "\"" << wake_interval_name << "\" : " << a << ","  << 
+      "\"" << "timestamp_granularity" << "\" : \"" << timestamp_granularity <<"\","  << 
       "\"" << "minimum_count" << "\" : " << b <<","  << 
       "\"" << "flush_interval" << "\" : " << c <<","  << 
       "\"" << "trap_exceptions" << "\" : " << ((d == 0) ? "false" : "true") << "}}";
@@ -118,7 +123,7 @@ TEST(c_configuration, tmpFile) {
     struct ubiq_platform_configuration * cfg = NULL;
     int res = 1;
 
-    char * filename = write_temp_file("event_reporting","wake_interval",1,2,3,4);
+    char * filename = write_temp_file("event_reporting","wake_interval",1,2,3,4, "SECONDS");
 
     res = ubiq_platform_configuration_load_configuration(filename, &cfg);
     EXPECT_EQ(res, 0);
@@ -130,6 +135,7 @@ TEST(c_configuration, tmpFile) {
         EXPECT_EQ(ubiq_platform_configuration_get_event_reporting_min_count(cfg), 2);
         EXPECT_EQ(ubiq_platform_configuration_get_event_reporting_flush_interval(cfg), 3);
         EXPECT_EQ(ubiq_platform_configuration_get_event_reporting_trap_exceptions(cfg), 1);
+        EXPECT_EQ(ubiq_platform_configuration_get_event_reporting_timestamp_granularity(cfg), SECONDS);
 
         ubiq_platform_configuration_destroy(cfg);
 
@@ -146,7 +152,7 @@ TEST(c_configuration, tmpFileIncomplete) {
     struct ubiq_platform_configuration * cfg_default = NULL;
     int res = 1;
 
-    char * filename = write_temp_file("event_reporting","wake_interval_bad",1,2,3,0);
+    char * filename = write_temp_file("event_reporting","wake_interval_bad",1,2,3,0, "MINUTES");
 
     res = ubiq_platform_configuration_load_configuration(filename, &cfg);
     EXPECT_EQ(res, 0);
@@ -163,6 +169,7 @@ TEST(c_configuration, tmpFileIncomplete) {
         EXPECT_EQ(ubiq_platform_configuration_get_event_reporting_min_count(cfg), 2);
         EXPECT_EQ(ubiq_platform_configuration_get_event_reporting_flush_interval(cfg), 3);
         EXPECT_EQ(ubiq_platform_configuration_get_event_reporting_trap_exceptions(cfg), 0);
+        EXPECT_EQ(ubiq_platform_configuration_get_event_reporting_timestamp_granularity(cfg), MINUTES);
 
         ubiq_platform_configuration_destroy(cfg);
         ubiq_platform_configuration_destroy(cfg_default);
@@ -177,7 +184,7 @@ TEST(c_configuration, tmpFileIncomplete2) {
     struct ubiq_platform_configuration * cfg_default = NULL;
     int res = 1;
 
-    char * filename = write_temp_file("event_reporting2","wake_interval_bad",1,2,3,0);
+    char * filename = write_temp_file("event_reporting2","wake_interval_bad",1,2,3,0, "DAYS");
 
     res = ubiq_platform_configuration_load_configuration(filename, &cfg);
     EXPECT_EQ(res, 0);
@@ -197,6 +204,8 @@ TEST(c_configuration, tmpFileIncomplete2) {
           ubiq_platform_configuration_get_event_reporting_flush_interval(cfg_default));
         EXPECT_EQ(ubiq_platform_configuration_get_event_reporting_trap_exceptions(cfg),
           ubiq_platform_configuration_get_event_reporting_trap_exceptions(cfg_default));
+        EXPECT_EQ(ubiq_platform_configuration_get_event_reporting_timestamp_granularity(cfg),
+          ubiq_platform_configuration_get_event_reporting_timestamp_granularity(cfg_default));
 
         ubiq_platform_configuration_destroy(cfg);
         ubiq_platform_configuration_destroy(cfg_default);
