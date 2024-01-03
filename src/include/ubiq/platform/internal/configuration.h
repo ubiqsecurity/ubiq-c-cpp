@@ -5,6 +5,17 @@
 
 __BEGIN_DECLS
 
+
+typedef enum reporting_granularity {
+  NANOS = 0,
+  MILLIS,
+  SECONDS,
+  MINUTES,
+  HOURS,
+  HALF_DAYS,
+  DAYS
+} reporting_granularity_t; 
+
 const int
 ubiq_platform_configuration_get_event_reporting_wake_interval(
     const struct ubiq_platform_configuration * const config);
@@ -16,6 +27,9 @@ ubiq_platform_configuration_get_event_reporting_flush_interval(
     const struct ubiq_platform_configuration * const config);
 const int 
 ubiq_platform_configuration_get_event_reporting_trap_exceptions(
+    const struct ubiq_platform_configuration * const config);
+const reporting_granularity_t
+ubiq_platform_configuration_get_event_reporting_timestamp_granularity(
     const struct ubiq_platform_configuration * const config);
 
 __END_DECLS

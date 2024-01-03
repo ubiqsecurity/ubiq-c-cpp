@@ -79,6 +79,7 @@ struct ubiq_billing_ctx {
     int    reporting_minimum_count;
     int    reporting_trap_exceptions; // true means ignore errors
     char * user_defined_metadata; // if not NULL, added to all serialized events
+    reporting_granularity_t reporting_granularity;
 };
 
 // Just the fields that MAY be different between calls.  Right now API_KEY will be the same but
@@ -96,6 +97,7 @@ struct billing_element {
 
 typedef struct billing_walk_closure {
   char * user_defined_metadata;
+  reporting_granularity_t reporting_granularity;
   cJSON * json_array;
 } billing_walk_closure_t;
 
@@ -142,6 +144,7 @@ int
 serialize_billing_element(
   const struct billing_element * const billing_element,
   const char * const user_defined_metadata,
+  const reporting_granularity_t reporting_granularity,
   cJSON ** element
   );
 
@@ -360,6 +363,7 @@ getBillingUsage(
 
       billing_walk_closure.json_array = cJSON_CreateArray();
       billing_walk_closure.user_defined_metadata = NULL;
+      billing_walk_closure.reporting_granularity = ctx->reporting_granularity;
 
       // Async and ctx object could be updated while this is running so take copy of existing value
       if (ctx->user_defined_metadata != NULL) {
@@ -417,7 +421,7 @@ billing_walk_r(const void *nodep, void *__closure)
   cJSON * element = NULL;
 
     billing_element = *(struct billing_element **) nodep;
-    serialize_billing_element(billing_element, billing_walk_closure->user_defined_metadata, &element);
+    serialize_billing_element(billing_element, billing_walk_closure->user_defined_metadata, billing_walk_closure->reporting_granularity, &element);
     cJSON_AddItemToArray(billing_walk_closure->json_array, element);
 
     UBIQ_DEBUG(debug_flag, printf("leaf %s \n \t%p \n",csu, billing_element));
@@ -508,13 +512,47 @@ send_billing_data(
   return res;
 
 }
-  
+
+static void adjust_reporting_granularity(
+  const reporting_granularity_t const reporting_granularity,
+  struct tm * timestamp)
+{
+  // tm does not support anything more granular than seconds.
+  // changing for nano and milli requires more significant changes
+  switch (reporting_granularity) {
+    case DAYS:
+      timestamp->tm_sec = 0;
+      timestamp->tm_min = 0;
+      timestamp->tm_hour = 0;
+      break;
+    case HALF_DAYS:
+      timestamp->tm_sec = 0;
+      timestamp->tm_min = 0;
+      if (timestamp->tm_hour >= 12) {
+        timestamp->tm_hour = 12;
+      } else {
+        timestamp->tm_hour = 0;
+      }
+      break;
+    case HOURS:
+      timestamp->tm_sec = 0;
+      timestamp->tm_min = 0;
+      break;
+    case MINUTES:
+      timestamp->tm_sec = 0;
+      break;
+    default:
+      // Everything else is fine right now
+      break;
+  }
+}
 
 static 
 int
 serialize_billing_element(
   const struct billing_element * const billing_element,
   const char * const user_defined_metadata,
+  const reporting_granularity_t const reporting_granularity,
   cJSON ** element
   )
 {
@@ -551,6 +589,12 @@ serialize_billing_element(
 
   char last_call_date_str[500];
   char first_call_date_str[500];
+  struct tm last = billing_element->last_call_timestamp;
+  struct tm first = billing_element->first_call_timestamp;
+
+  adjust_reporting_granularity(reporting_granularity, &last);
+  adjust_reporting_granularity(reporting_granularity, &first);
+  
   strftime(last_call_date_str, sizeof(last_call_date_str), "%FT%T+00:00", &billing_element->last_call_timestamp);
   strftime(first_call_date_str, sizeof(first_call_date_str), "%FT%T+00:00", &billing_element->first_call_timestamp);
 

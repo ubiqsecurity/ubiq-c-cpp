@@ -65,6 +65,7 @@ ubiq_platform_configuration_create_explicit(
     const int event_reporting_minimum_count,
     const int event_reporting_flush_interval,
     const int event_reporting_trap_exceptions,
+    const char * const event_reporting_timestamp_granularity,
     struct ubiq_platform_configuration ** const config);
 
 /*
@@ -120,7 +121,8 @@ namespace ubiq {
               const int event_reporting_wake_interval,
               const int event_reporting_minimum_count,
               const int event_reporting_flush_interval,
-              const int event_reporting_trap_exceptions);
+              const int event_reporting_trap_exceptions,
+              const std::string & event_reporting_timestamp_granularity);
 
             UBIQ_PLATFORM_API
             configuration(const configuration &) = default;
