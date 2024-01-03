@@ -239,6 +239,9 @@ namespace ubiq {
             UBIQ_PLATFORM_API
             decryption(const credentials & creds);
 
+            UBIQ_PLATFORM_API
+            decryption(const credentials & creds, const configuration & cfg);
+
             decryption(const decryption &) = delete;
             UBIQ_PLATFORM_API
             decryption(decryption &&) = default;

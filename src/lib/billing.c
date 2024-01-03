@@ -595,8 +595,8 @@ serialize_billing_element(
   adjust_reporting_granularity(reporting_granularity, &last);
   adjust_reporting_granularity(reporting_granularity, &first);
   
-  strftime(last_call_date_str, sizeof(last_call_date_str), "%FT%T+00:00", &billing_element->last_call_timestamp);
-  strftime(first_call_date_str, sizeof(first_call_date_str), "%FT%T+00:00", &billing_element->first_call_timestamp);
+  strftime(last_call_date_str, sizeof(last_call_date_str), "%FT%T+00:00", &last);
+  strftime(first_call_date_str, sizeof(first_call_date_str), "%FT%T+00:00", &first);
 
   size_t len = snprintf(NULL, 0, json_fmt, name, dataset_group, billing_element->api_key, billing_element->count, billing_element->key_number, action_type, ubiq_support_product, ubiq_support_version, ubiq_support_user_agent, "V3", last_call_date_str, first_call_date_str, user_defined);
   if ((json_str = malloc(len + 1)) == NULL) {
@@ -681,6 +681,7 @@ ubiq_billing_ctx_create(
       local_ctx->reporting_flush_interval = ubiq_platform_configuration_get_event_reporting_min_count(cfg);
       local_ctx->reporting_minimum_count = ubiq_platform_configuration_get_event_reporting_flush_interval(cfg);
       local_ctx->reporting_trap_exceptions = ubiq_platform_configuration_get_event_reporting_trap_exceptions(cfg);
+      local_ctx->reporting_granularity = ubiq_platform_configuration_get_event_reporting_timestamp_granularity(cfg);
     }
 
     if (res) {

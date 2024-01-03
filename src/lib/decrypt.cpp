@@ -18,6 +18,20 @@ decryption::decryption(const credentials & creds)
     _dec.reset(dec, &ubiq_platform_decryption_destroy);
 }
 
+decryption::decryption(const credentials & creds, const configuration & cfg)
+{
+    struct ubiq_platform_decryption * dec;
+    int res;
+
+    res = ubiq_platform_decryption_create_with_config(&*creds, &*cfg, &dec);
+    if (res != 0) {
+        throw std::system_error(-res, std::generic_category());
+    }
+
+    _dec.reset(dec, &ubiq_platform_decryption_destroy);
+}
+
+
 std::vector<std::uint8_t>
 decryption::begin(void)
 {

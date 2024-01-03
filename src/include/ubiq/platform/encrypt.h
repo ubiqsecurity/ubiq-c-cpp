@@ -332,7 +332,7 @@ namespace ubiq {
 
             UBIQ_PLATFORM_API
             encryption(const credentials & creds, 
-            configuration & cfg,
+            const configuration & cfg,
             unsigned int uses);
 
             encryption(const encryption &) = delete;

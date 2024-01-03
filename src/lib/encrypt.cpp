@@ -18,6 +18,18 @@ encryption::encryption(const credentials & creds, const unsigned int uses)
     _enc.reset(enc, &ubiq_platform_encryption_destroy);
 }
 
+encryption::encryption(const credentials & creds, const configuration & cfg, unsigned int uses)
+{
+    struct ubiq_platform_encryption * enc;
+    int res;
+
+    res = ubiq_platform_encryption_create_with_config(&*creds, &*cfg, uses, &enc);
+    if (res != 0) {
+        throw std::system_error(-res, std::generic_category());
+    }
+
+    _enc.reset(enc, &ubiq_platform_encryption_destroy);
+}
 std::vector<std::uint8_t>
 encryption::begin(void)
 {

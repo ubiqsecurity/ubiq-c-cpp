@@ -67,7 +67,6 @@ find_event_reporting_granularity(const char * const event_reporting_timestamp_gr
   return value;
 }
 
-
 const int
 ubiq_platform_configuration_get_event_reporting_wake_interval(
     const struct ubiq_platform_configuration * const config)
