@@ -819,6 +819,27 @@ catch (const std::exception& e) {
 }
 ubiq::platform::exit();
 ```
+
+# Custom Metadata for Usage Reporting
+There are cases where a developer would like to attach metadata to usage information reported by the application.  Both the structured and unstructured interfaces allow user_defined metadata to be sent with the usage information reported by the libraries.
+
+The *<b>_add_user_defined_metadata</b> function accepts a string in JSON format that will be stored in the database with the usage records.  The string must be less than 1024 characters and be a valid JSON format.  The string must include both the <b>{</b> and <b>}</b> symbols.  The supplied value will be used until the object goes out of scope.  Due to asynchronous processing, changing the value may be immediately reflected in subsequent usage.  If immediate changes to the values are required, it would be safer to create a new encrypt / decrypt object and call the appropriate *<b>_add_user_defined_metadata</b> function with the new values.
+
+Examples are shown below.
+```c
+...
+  res = ubiq_platform_encryption_create(creds, 5, &enc);
+  res = ubiq_platform_encryption_add_user_defined_metadata(enc, "{\"some_key\" : \"some_value\" }");
+  ...
+  // Unstructured Encrypt operations
+```
+```c
+...
+  res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
+  res = ubiq_platform_fpe_enc_dec_add_user_defined_metadata(enc, "{\"some_meaningful_flag\" : true }");
+  ...
+  // FPE Encrypt and Decrypt operations
+```
 ### Encrypt For Search
 
 The same plaintext data will result in different cipher text when encrypted using different data keys.  The Encrypt For Search function will encrypt the same plain text for a given dataset using all previously used data keys.  This will provide a collection of cipher text values that can be used when searching for existing records where the data was encrypted and the specific version of the data key is not known in advance.
