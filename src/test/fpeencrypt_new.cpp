@@ -1653,7 +1653,6 @@ TEST(c_fpe_encrypt, get_usage)
     res = ubiq_platform_fpe_enc_dec_get_copy_of_usage(enc, &buf2, &len);
     EXPECT_EQ(res,0);
     EXPECT_NE(strcmp(buf, buf2), 0);
-    std::cout << "usage: " << buf2 << std::endl;
 
     free(ctbuf);
     free(buf);
@@ -1666,7 +1665,6 @@ TEST(c_fpe_encrypt, get_usage)
     res = ubiq_platform_fpe_enc_dec_get_copy_of_usage(enc, &buf, &len);
     EXPECT_EQ(res,0);
     EXPECT_NE(strcmp(buf, buf2), 0);
-    std::cout << "usage: " << buf << std::endl;
 
     ubiq_platform_fpe_enc_dec_destroy(enc);
 
@@ -1708,7 +1706,6 @@ TEST(c_fpe_encrypt, get_usage_enc_dec)
     res = ubiq_platform_fpe_enc_dec_get_copy_of_usage(enc, &buf2, &len);
     EXPECT_EQ(res,0);
     EXPECT_NE(strcmp(buf, buf2), 0);
-    std::cout << "usage: " << buf2 << std::endl;
 
     free(buf);
 
@@ -1720,7 +1717,6 @@ TEST(c_fpe_encrypt, get_usage_enc_dec)
     res = ubiq_platform_fpe_enc_dec_get_copy_of_usage(enc, &buf, &len);
     EXPECT_EQ(res,0);
     EXPECT_GT(strlen(buf), strlen(buf2));
-    std::cout << "usage: " << buf << std::endl;
 
     ubiq_platform_fpe_enc_dec_destroy(enc);
 
@@ -1738,7 +1734,6 @@ TEST_F(cpp_fpe_encrypt, get_usage)
 
     _enc = ubiq::platform::fpe::encryption(_creds);
     std::string usage = _enc.get_copy_of_usage();
-    std::cout << usage << std::endl;
     EXPECT_EQ(usage.compare("{\"usage\":[]}"), 0);
 
     std::string ct = _enc.encrypt(ffs_name, pt);
@@ -1747,7 +1742,6 @@ TEST_F(cpp_fpe_encrypt, get_usage)
 
     ct = _enc.encrypt(ffs_name, pt);
     std::string usage3 = _enc.get_copy_of_usage();
-    std::cout << usage3 << std::endl;
     EXPECT_NE(usage3.compare(usage2), 0);
 }
 

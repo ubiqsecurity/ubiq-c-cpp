@@ -678,8 +678,8 @@ ubiq_billing_ctx_create(
 
     if (!res && cfg != NULL) {
       local_ctx->reporting_wake_interval = ubiq_platform_configuration_get_event_reporting_wake_interval(cfg);
-      local_ctx->reporting_flush_interval = ubiq_platform_configuration_get_event_reporting_min_count(cfg);
-      local_ctx->reporting_minimum_count = ubiq_platform_configuration_get_event_reporting_flush_interval(cfg);
+      local_ctx->reporting_flush_interval = ubiq_platform_configuration_get_event_reporting_flush_interval(cfg);
+      local_ctx->reporting_minimum_count = ubiq_platform_configuration_get_event_reporting_min_count(cfg);
       local_ctx->reporting_trap_exceptions = ubiq_platform_configuration_get_event_reporting_trap_exceptions(cfg);
       local_ctx->reporting_granularity = ubiq_platform_configuration_get_event_reporting_timestamp_granularity(cfg);
     }
