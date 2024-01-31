@@ -34,12 +34,6 @@ struct ubiq_platform_encryption
             void * buf;
             size_t len;
         } raw, enc;
-
-        // char * fingerprint;
-
-        // struct {
-        //     unsigned int max, cur;
-        // } uses;
     } key;
 
     const struct ubiq_platform_algorithm * algo;
@@ -140,7 +134,6 @@ ubiq_platform_encryption_parse_new_key(
 
     res = ubiq_platform_common_parse_new_key(
         json, srsa,
-        // &e->session, &e->key.fingerprint,
         &e->key.raw.buf, &e->key.raw.len);
 
     if (res == 0) {
@@ -157,18 +150,6 @@ ubiq_platform_encryption_parse_new_key(
             res = -EBADMSG;
         }
     }
-
-    // if (res == 0) {
-    //     /*
-    //      * save the maximum number of uses of the key
-    //      */
-    //     j = cJSON_GetObjectItemCaseSensitive(json, "max_uses");
-    //     if (cJSON_IsNumber(j)) {
-    //         e->key.uses.max = j->valueint;
-    //     } else {
-    //         res = -EBADMSG;
-    //     }
-    // }
 
     if (res == 0) {
         j = cJSON_GetObjectItemCaseSensitive(json, "security_model");
@@ -313,9 +294,6 @@ ubiq_platform_encryption_begin(
     if (enc->ctx) {
         /* encryption already in progress */
         res = -EINPROGRESS;
-    // } else if (enc->key.uses.cur >= enc->key.uses.max) {
-    //     /* key is all used up */
-    //     res = -ENOSPC;
     } else {
         /*
          * good to go, build a header; create the context
@@ -364,8 +342,6 @@ ubiq_platform_encryption_begin(
                     "", "",
                     ENCRYPTION,
                     1, 0 ); // key number not used for unstructured
-
-                // enc->key.uses.cur++;
             }
         } else {
             free(hdr);

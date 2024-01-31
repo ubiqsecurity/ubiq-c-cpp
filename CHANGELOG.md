@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.0.6.0 - 2024-01-04
+## 2.1.0.0 - 2024-01-04
 * Added functions to support user defined metadata in the billing events
 * Added support for different granular levels of timestamps when reporting usage
 
