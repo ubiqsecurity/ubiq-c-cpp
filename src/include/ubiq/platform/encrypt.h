@@ -153,6 +153,17 @@ ubiq_platform_encryption_end(
     struct ubiq_platform_encryption * const enc,
     void ** const ctbuf, size_t * const ctlen);
 
+UBIQ_PLATFORM_API
+int
+ubiq_platform_encryption_add_user_defined_metadata(
+    struct ubiq_platform_encryption * const enc,
+    const char * const jsonString);
+
+UBIQ_PLATFORM_API
+int
+ubiq_platform_encryption_get_copy_of_usage(
+    struct ubiq_platform_encryption * const enc,
+    char ** const buffer, size_t * const buffer_len);
 
 /*
  * *******************************************
@@ -268,6 +279,18 @@ ubiq_platform_fpe_get_last_error(
   char ** const err_msg
 );
 
+UBIQ_PLATFORM_API
+int
+ubiq_platform_fpe_enc_dec_get_copy_of_usage(
+    struct ubiq_platform_fpe_enc_dec_obj * const obj,
+    char ** const buffer, size_t * const buffer_len);
+
+UBIQ_PLATFORM_API
+int
+ubiq_platform_fpe_enc_dec_add_user_defined_metadata(
+    struct ubiq_platform_fpe_enc_dec_obj * const obj,
+    const char * const jsonString);
+
 __END_DECLS
 
 #if defined(__cplusplus)
@@ -309,7 +332,7 @@ namespace ubiq {
 
             UBIQ_PLATFORM_API
             encryption(const credentials & creds, 
-            configuration & cfg,
+            const configuration & cfg,
             unsigned int uses);
 
             encryption(const encryption &) = delete;
@@ -350,6 +373,15 @@ namespace ubiq {
             std::vector<std::uint8_t>
             end(void)
                 override;
+
+            UBIQ_PLATFORM_API
+            std::string
+            get_copy_of_usage(void);
+
+            UBIQ_PLATFORM_API
+            virtual
+            void
+            add_user_defined_metadata(const std::string & jsonString);
 
         private:
             std::shared_ptr<::ubiq_platform_encryption> _enc;
@@ -484,6 +516,16 @@ namespace ubiq {
               const std::vector<std::uint8_t> & tweak,
               const std::string & pt
             ) ;
+
+            UBIQ_PLATFORM_API
+            virtual
+            std::string
+            get_copy_of_usage(void);
+
+            UBIQ_PLATFORM_API
+            virtual
+            void
+            add_user_defined_metadata(const std::string & jsonString);
 
           private:
             std::shared_ptr<::ubiq_platform_fpe_enc_dec_obj> _enc;

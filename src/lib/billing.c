@@ -78,6 +78,8 @@ struct ubiq_billing_ctx {
     int    reporting_flush_interval; // seconds
     int    reporting_minimum_count;
     int    reporting_trap_exceptions; // true means ignore errors
+    char * user_defined_metadata; // if not NULL, added to all serialized events
+    reporting_granularity_t reporting_granularity;
 };
 
 // Just the fields that MAY be different between calls.  Right now API_KEY will be the same but
@@ -92,6 +94,12 @@ struct billing_element {
   struct tm last_call_timestamp;
   struct tm first_call_timestamp;
 };
+
+typedef struct billing_walk_closure {
+  char * user_defined_metadata;
+  reporting_granularity_t reporting_granularity;
+  cJSON * json_array;
+} billing_walk_closure_t;
 
 /**************************************************************************************
  *
@@ -135,6 +143,8 @@ static
 int
 serialize_billing_element(
   const struct billing_element * const billing_element,
+  const char * const user_defined_metadata,
+  const reporting_granularity_t reporting_granularity,
   cJSON ** element
   );
 
@@ -327,12 +337,13 @@ process_billing_task(void * data) {
 
 static
 int
-process_billing_btree(
+getBillingUsage(
   struct ubiq_billing_ctx * ctx,
-  struct ubiq_platform_cache * billing_btree
+  struct ubiq_platform_cache * billing_btree,
+  cJSON * json_usage 
   )
 {
-  static const char * const csu = "process_billing_btree";
+  static const char * const csu = "getBillingJsonArray";
 
   int res = -EINVAL;
   unsigned int element_count = 0;
@@ -345,25 +356,54 @@ process_billing_btree(
     res = ubiq_platform_cache_get_element_count(billing_btree, &element_count);
     UBIQ_DEBUG(debug_flag, printf("%s  element_count(%d)\n", csu, element_count));
     if (!res && element_count > 0) {
-      cJSON * json_array = cJSON_CreateArray();
+      // Array is cleaned up when the json_usage oject is destroyed
+      billing_walk_closure_t billing_walk_closure;
+
+      // Will be freed later with the json_usage element
+
+      billing_walk_closure.json_array = cJSON_CreateArray();
+      billing_walk_closure.user_defined_metadata = NULL;
+      billing_walk_closure.reporting_granularity = ctx->reporting_granularity;
+
+      // Async and ctx object could be updated while this is running so take copy of existing value
+      if (ctx->user_defined_metadata != NULL) {
+        billing_walk_closure.user_defined_metadata = strdup(ctx->user_defined_metadata);
+      }
 
       // Conver the tree to a json array
       UBIQ_DEBUG(debug_flag, printf("start walking (%d)\n", element_count));
-      ubiq_platform_cache_walk_r(billing_btree, billing_walk_r, (void *)json_array);
+      ubiq_platform_cache_walk_r(billing_btree, billing_walk_r, (void *)&billing_walk_closure);
       UBIQ_DEBUG(debug_flag, printf("  done walking\n"));
 
-      cJSON * json_usage = cJSON_CreateObject();
-      cJSON_AddItemToObject(json_usage, "usage", json_array);
-
-      // Could improve by skipping the json array and simply using a long string.
-      send_billing_data(ctx, json_usage);
-
-      cJSON_Delete(json_usage);
-      // cJSON_Delete(json_array);
+      cJSON_AddItemToObject(json_usage, "usage", billing_walk_closure.json_array);
+      if (billing_walk_closure.user_defined_metadata != NULL) {
+        free(billing_walk_closure.user_defined_metadata);
+      }
     }
   }
   return res;
 
+}
+
+static
+int
+process_billing_btree(
+  struct ubiq_billing_ctx * ctx,
+  struct ubiq_platform_cache * billing_btree
+  )
+{
+  static const char * const csu = "process_billing_btree";
+
+  cJSON * json_usage = cJSON_CreateObject();
+
+  int res = getBillingUsage(ctx, billing_btree, json_usage);
+
+  if (res) {
+     send_billing_data(ctx, json_usage);
+  }
+
+  cJSON_Delete(json_usage);
+  return res;
 }
 
 static
@@ -373,14 +413,16 @@ billing_walk_r(const void *nodep, void *__closure)
   int debug_flag = 1;
   static const char * const csu = "billing_walk_r";
 
-  cJSON * json_array = (cJSON*) __closure;
+
+  billing_walk_closure_t * billing_walk_closure = (billing_walk_closure_t *)__closure;
+  // cJSON * json_array = (cJSON*) __closure;
 
   struct billing_element * billing_element;
   cJSON * element = NULL;
 
     billing_element = *(struct billing_element **) nodep;
-    serialize_billing_element(billing_element, &element);
-    cJSON_AddItemToArray(json_array, element);
+    serialize_billing_element(billing_element, billing_walk_closure->user_defined_metadata, billing_walk_closure->reporting_granularity, &element);
+    cJSON_AddItemToArray(billing_walk_closure->json_array, element);
 
     UBIQ_DEBUG(debug_flag, printf("leaf %s \n \t%p \n",csu, billing_element));
     UBIQ_DEBUG(debug_flag, printf("leaf %s \n \tkey(%d) \n",csu, billing_element->key_number));
@@ -470,12 +512,47 @@ send_billing_data(
   return res;
 
 }
-  
+
+static void adjust_reporting_granularity(
+  const reporting_granularity_t const reporting_granularity,
+  struct tm * timestamp)
+{
+  // tm does not support anything more granular than seconds.
+  // changing for nano and milli requires more significant changes
+  switch (reporting_granularity) {
+    case DAYS:
+      timestamp->tm_sec = 0;
+      timestamp->tm_min = 0;
+      timestamp->tm_hour = 0;
+      break;
+    case HALF_DAYS:
+      timestamp->tm_sec = 0;
+      timestamp->tm_min = 0;
+      if (timestamp->tm_hour >= 12) {
+        timestamp->tm_hour = 12;
+      } else {
+        timestamp->tm_hour = 0;
+      }
+      break;
+    case HOURS:
+      timestamp->tm_sec = 0;
+      timestamp->tm_min = 0;
+      break;
+    case MINUTES:
+      timestamp->tm_sec = 0;
+      break;
+    default:
+      // Everything else is fine right now
+      break;
+  }
+}
 
 static 
 int
 serialize_billing_element(
   const struct billing_element * const billing_element,
+  const char * const user_defined_metadata,
+  const reporting_granularity_t const reporting_granularity,
   cJSON ** element
   )
 {
@@ -483,13 +560,19 @@ serialize_billing_element(
 
 
   // TODO - Change user agent into discreet platform and version fields for convenience
-  static const char * const json_fmt = "{\"datasets\":\"%s\", \"dataset_groups\":\"%s\", \"api_key\":\"%s\", \"count\":\"%lu\",  \"key_number\":\"%u\",  \"action\":\"%s\", \"product\":\"%s\", \"product_version\":\"%s\", \"user-agent\":\"%s\", \"api_version\":\"%s\", \"last_call_timestamp\":\"%s\", \"first_call_timestamp\":\"%s\"}";
+  static const char * const json_fmt = "{\"datasets\":\"%s\", \"dataset_groups\":\"%s\", \"api_key\":\"%s\", \"count\":\"%lu\",  \"key_number\":\"%u\",  \"action\":\"%s\", \"product\":\"%s\", \"product_version\":\"%s\", \"user-agent\":\"%s\", \"api_version\":\"%s\", \"last_call_timestamp\":\"%s\", \"first_call_timestamp\":\"%s\"%s}";
+  static const char * const user_defined_fmt = ",\"user_defined\" : %s";
+
   int res = 0;
 
   char * json_str;
   char * name = "";
   char * dataset_group = "";
   char * action_type = "encrypt";
+  // 1024 (max user_defined_metadata) PLUS this size of user_defined_fmt
+  char user_defined[1100];
+
+  user_defined[0] = 0;
 
   if (billing_element->dataset_name != NULL) {
     name = billing_element->dataset_name;
@@ -500,17 +583,26 @@ serialize_billing_element(
   if (billing_element->billing_action == DECRYPTION) {
     action_type = "decrypt";
   }
+  if (user_defined_metadata != NULL) {
+    snprintf(user_defined, sizeof(user_defined), user_defined_fmt, user_defined_metadata);
+  }
 
   char last_call_date_str[500];
   char first_call_date_str[500];
-  strftime(last_call_date_str, sizeof(last_call_date_str), "%FT%T+00:00", &billing_element->last_call_timestamp);
-  strftime(first_call_date_str, sizeof(first_call_date_str), "%FT%T+00:00", &billing_element->first_call_timestamp);
+  struct tm last = billing_element->last_call_timestamp;
+  struct tm first = billing_element->first_call_timestamp;
 
-  size_t len = snprintf(NULL, 0, json_fmt, name, dataset_group, billing_element->api_key, billing_element->count, billing_element->key_number, action_type, ubiq_support_product, ubiq_support_version, ubiq_support_user_agent, "V3", last_call_date_str, first_call_date_str);
+  adjust_reporting_granularity(reporting_granularity, &last);
+  adjust_reporting_granularity(reporting_granularity, &first);
+  
+  strftime(last_call_date_str, sizeof(last_call_date_str), "%FT%T+00:00", &last);
+  strftime(first_call_date_str, sizeof(first_call_date_str), "%FT%T+00:00", &first);
+
+  size_t len = snprintf(NULL, 0, json_fmt, name, dataset_group, billing_element->api_key, billing_element->count, billing_element->key_number, action_type, ubiq_support_product, ubiq_support_version, ubiq_support_user_agent, "V3", last_call_date_str, first_call_date_str, user_defined);
   if ((json_str = malloc(len + 1)) == NULL) {
     res = -ENOMEM;
   } else {
-    snprintf(json_str, len+1, json_fmt, name, dataset_group, billing_element->api_key, billing_element->count, billing_element->key_number, action_type, ubiq_support_product, ubiq_support_version, ubiq_support_user_agent, "V3", last_call_date_str, first_call_date_str);
+    snprintf(json_str, len+1, json_fmt, name, dataset_group, billing_element->api_key, billing_element->count, billing_element->key_number, action_type, ubiq_support_product, ubiq_support_version, ubiq_support_user_agent, "V3", last_call_date_str, first_call_date_str, user_defined);
     UBIQ_DEBUG(debug_flag, printf("%s \n \t%s \n",csu, json_str));
     
     cJSON *e = cJSON_ParseWithLength(json_str, len);
@@ -555,6 +647,8 @@ ubiq_billing_ctx_create(
   local_ctx = calloc(1, sizeof(*local_ctx) + strlen(host_path) + 1 + strlen("/api/v3/tracking/events"));
   if (local_ctx) {
 
+    // Will be allocated separately but will also need to be destroy separately
+    local_ctx->user_defined_metadata = NULL;
     // Just a way to determine if it has been created correctly later
     local_ctx->process_billing_thread = pthread_self();
 
@@ -584,9 +678,10 @@ ubiq_billing_ctx_create(
 
     if (!res && cfg != NULL) {
       local_ctx->reporting_wake_interval = ubiq_platform_configuration_get_event_reporting_wake_interval(cfg);
-      local_ctx->reporting_flush_interval = ubiq_platform_configuration_get_event_reporting_min_count(cfg);
-      local_ctx->reporting_minimum_count = ubiq_platform_configuration_get_event_reporting_flush_interval(cfg);
+      local_ctx->reporting_flush_interval = ubiq_platform_configuration_get_event_reporting_flush_interval(cfg);
+      local_ctx->reporting_minimum_count = ubiq_platform_configuration_get_event_reporting_min_count(cfg);
       local_ctx->reporting_trap_exceptions = ubiq_platform_configuration_get_event_reporting_trap_exceptions(cfg);
+      local_ctx->reporting_granularity = ubiq_platform_configuration_get_event_reporting_timestamp_granularity(cfg);
     }
 
     if (res) {
@@ -624,6 +719,9 @@ ubiq_billing_ctx_destroy(struct ubiq_billing_ctx * const ctx){
     pthread_mutex_destroy(&ctx->billing_lock);
 
     ubiq_platform_cache_destroy(billing_elements_cache);
+    if (ctx->user_defined_metadata) {
+      free(ctx->user_defined_metadata);
+    }
     free(ctx);
   }
 }
@@ -703,3 +801,77 @@ ubiq_billing_add_billing_event(
 
 }
 
+int
+ubiq_billing_add_user_defined_metadata( struct ubiq_billing_ctx * const e,
+                        const char * const jsonString) {
+  int res = 0;
+  int len = 0;
+
+  if (jsonString == NULL || e == NULL) {
+    res = -EINVAL;
+  } else if ((len = strlen(jsonString)) >= 1024) {
+    res = -E2BIG;
+  } else {
+    // Make sure valid json
+    cJSON *json = cJSON_ParseWithLength(jsonString, len);
+    if (json == NULL) {
+      res = -EINVAL;
+    } else {
+      e->user_defined_metadata = cJSON_Print(json);
+      // printf("%s\n", e->user_defined_metadata);
+      cJSON_Delete(json);
+    }
+  }
+  return res;
+}
+
+/** Retuns 0 on success, negative with an error
+ * Buffer will be set to the size of the returned buffer.  Due to
+ * the async nature of the processing, it is possible that the 
+ * buffer size required can change between calls.  The caller is 
+ * responsible for freeing the memory
+*/
+
+int
+ubiq_billing_get_copy_of_usage( struct ubiq_billing_ctx * const e,
+                char ** const buffer, size_t * const buffer_len) {
+  
+  // static const char * const empty_usage = "{\"usage\" : []}";
+  unsigned int element_count = 0;
+  int res = 0;
+  int empty = 0;
+
+  cJSON * json_usage = cJSON_CreateObject();
+
+  *buffer = NULL;
+  *buffer_len = 0;
+  pthread_mutex_lock(&e->billing_lock);
+  UBIQ_DEBUG(debug_flag, printf("%s after lock\n", csu));
+
+  if (e->billing_elements_cache == NULL) {
+    empty = 1;
+  }
+
+  if (ubiq_platform_cache_get_element_count(e->billing_elements_cache, &element_count) == 0 && element_count == 0) {
+    empty = 1;
+  }
+
+  if (empty) {
+    cJSON * json_array = cJSON_CreateArray();
+    cJSON_AddItemToObject(json_usage, "usage", json_array);
+  } else {
+    res = getBillingUsage(e, e->billing_elements_cache, json_usage);
+  }
+  pthread_mutex_unlock(&e->billing_lock);
+
+  if (!res) {
+    *buffer = cJSON_PrintUnformatted(json_usage);
+    if (*buffer != NULL) {
+      *buffer_len = strlen(*buffer);
+    } else {
+      res = -ENOMEM;
+    }
+  }
+  cJSON_Delete(json_usage);
+  return res;
+}

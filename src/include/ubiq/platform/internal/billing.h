@@ -32,6 +32,13 @@ ubiq_billing_add_billing_event(
   unsigned long count,
   unsigned int key_number);
 
+int 
+ubiq_billing_get_copy_of_usage( struct ubiq_billing_ctx * const e,
+                char ** const buffer, size_t * const buffer_len);
+
+int
+ubiq_billing_add_user_defined_metadata( struct ubiq_billing_ctx * const e,
+                        const char * const jsonString);
 
 __END_DECLS
 

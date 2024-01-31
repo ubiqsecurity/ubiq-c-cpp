@@ -2339,3 +2339,28 @@ ubiq_platform_fpe_encrypt_data_for_search(
 
   return res;
 }
+
+
+int
+ubiq_platform_fpe_enc_dec_get_copy_of_usage(
+    struct ubiq_platform_fpe_enc_dec_obj * const obj,
+    char ** const buffer, size_t * const buffer_len) {
+
+      if (obj == NULL || buffer == NULL || buffer_len == NULL) {
+        return -EINVAL;
+      }
+      return ubiq_billing_get_copy_of_usage(obj->billing_ctx, buffer, buffer_len);
+    }
+
+int
+ubiq_platform_fpe_enc_dec_add_user_defined_metadata(
+    struct ubiq_platform_fpe_enc_dec_obj * const obj,
+    const char * const jsonString)
+{
+
+      if (obj == NULL || jsonString == NULL) {
+      return -EINVAL;
+    }
+
+    return ubiq_billing_add_user_defined_metadata(obj->billing_ctx,jsonString);
+}

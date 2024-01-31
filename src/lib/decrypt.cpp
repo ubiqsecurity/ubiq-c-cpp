@@ -18,6 +18,20 @@ decryption::decryption(const credentials & creds)
     _dec.reset(dec, &ubiq_platform_decryption_destroy);
 }
 
+decryption::decryption(const credentials & creds, const configuration & cfg)
+{
+    struct ubiq_platform_decryption * dec;
+    int res;
+
+    res = ubiq_platform_decryption_create_with_config(&*creds, &*cfg, &dec);
+    if (res != 0) {
+        throw std::system_error(-res, std::generic_category());
+    }
+
+    _dec.reset(dec, &ubiq_platform_decryption_destroy);
+}
+
+
 std::vector<std::uint8_t>
 decryption::begin(void)
 {
@@ -98,4 +112,35 @@ ubiq::platform::decrypt(const credentials & creds,
     std::free(ptbuf);
 
     return v;
+}
+
+
+std::string
+decryption::get_copy_of_usage(void)
+{
+    std::string v("");
+    char * buf(nullptr);
+    size_t len(0);
+    int res(0);
+
+    res = ubiq_platform_decryption_get_copy_of_usage(_dec.get(), &buf, &len);
+    if (res != 0) {
+        throw std::system_error(-res, std::generic_category());
+    }
+
+    v.resize(len);
+    std::memcpy((char *)v.data(), buf, len);
+    std::free(buf);
+
+    return v;
+}
+
+void
+decryption::add_user_defined_metadata(const std::string & jsonString)
+{
+    int res = ubiq_platform_decryption_add_user_defined_metadata(_dec.get(), 
+    jsonString.data());
+    if (res != 0) {
+        throw std::system_error(-res, std::generic_category());
+    }
 }
