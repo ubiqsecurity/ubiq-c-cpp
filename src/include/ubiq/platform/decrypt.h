@@ -145,6 +145,18 @@ ubiq_platform_decryption_end(
     struct ubiq_platform_decryption * const dec,
     void ** const ptbuf, size_t * const ptlen);
 
+UBIQ_PLATFORM_API
+int
+ubiq_platform_decryption_add_user_defined_metadata(
+    struct ubiq_platform_decryption * const dec,
+    const char * const jsonString);
+
+UBIQ_PLATFORM_API
+int
+ubiq_platform_decryption_get_copy_of_usage(
+    struct ubiq_platform_decryption * const dec,
+    char ** const buffer, size_t * const buffer_len);
+
 /*
  * *******************************************
  *                  FPE
@@ -227,6 +239,9 @@ namespace ubiq {
             UBIQ_PLATFORM_API
             decryption(const credentials & creds);
 
+            UBIQ_PLATFORM_API
+            decryption(const credentials & creds, const configuration & cfg);
+
             decryption(const decryption &) = delete;
             UBIQ_PLATFORM_API
             decryption(decryption &&) = default;
@@ -265,6 +280,15 @@ namespace ubiq {
             std::vector<std::uint8_t>
             end(void)
                 override;
+
+            UBIQ_PLATFORM_API
+            std::string
+            get_copy_of_usage(void);
+
+            UBIQ_PLATFORM_API
+            virtual
+            void
+            add_user_defined_metadata(const std::string & jsonString);
 
         private:
             std::shared_ptr<::ubiq_platform_decryption> _dec;
@@ -331,6 +355,16 @@ namespace ubiq {
               const std::vector<std::uint8_t> & tweak,
               const std::string & pt
             ) ;
+
+            UBIQ_PLATFORM_API
+            virtual
+            std::string
+            get_copy_of_usage(void);
+
+            UBIQ_PLATFORM_API
+            virtual
+            void
+            add_user_defined_metadata(const std::string & jsonString);
 
           private:
             std::shared_ptr<::ubiq_platform_fpe_enc_dec_obj> _dec;

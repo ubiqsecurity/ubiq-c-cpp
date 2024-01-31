@@ -34,12 +34,6 @@ struct ubiq_platform_encryption
             void * buf;
             size_t len;
         } raw, enc;
-
-        // char * fingerprint;
-
-        struct {
-            unsigned int max, cur;
-        } uses;
     } key;
 
     const struct ubiq_platform_algorithm * algo;
@@ -140,7 +134,6 @@ ubiq_platform_encryption_parse_new_key(
 
     res = ubiq_platform_common_parse_new_key(
         json, srsa,
-        // &e->session, &e->key.fingerprint,
         &e->key.raw.buf, &e->key.raw.len);
 
     if (res == 0) {
@@ -153,18 +146,6 @@ ubiq_platform_encryption_parse_new_key(
         if (cJSON_IsString(j) && j->valuestring != NULL) {
             e->key.enc.len = ubiq_support_base64_decode(
                 &e->key.enc.buf, j->valuestring, strlen(j->valuestring));
-        } else {
-            res = -EBADMSG;
-        }
-    }
-
-    if (res == 0) {
-        /*
-         * save the maximum number of uses of the key
-         */
-        j = cJSON_GetObjectItemCaseSensitive(json, "max_uses");
-        if (cJSON_IsNumber(j)) {
-            e->key.uses.max = j->valueint;
         } else {
             res = -EBADMSG;
         }
@@ -313,9 +294,6 @@ ubiq_platform_encryption_begin(
     if (enc->ctx) {
         /* encryption already in progress */
         res = -EINPROGRESS;
-    } else if (enc->key.uses.cur >= enc->key.uses.max) {
-        /* key is all used up */
-        res = -ENOSPC;
     } else {
         /*
          * good to go, build a header; create the context
@@ -364,8 +342,6 @@ ubiq_platform_encryption_begin(
                     "", "",
                     ENCRYPTION,
                     1, 0 ); // key number not used for unstructured
-
-                enc->key.uses.cur++;
             }
         } else {
             free(hdr);
@@ -485,4 +461,26 @@ ubiq_platform_encrypt(
     free(pre.buf);
 
     return res;
+}
+
+int
+ubiq_platform_encryption_get_copy_of_usage(
+    struct ubiq_platform_encryption * const enc,
+    char ** const buffer, size_t * const buffer_len) 
+{
+    if (enc == NULL || buffer == NULL || buffer_len == NULL) {
+      return -EINVAL;
+    }
+    return ubiq_billing_get_copy_of_usage(enc->billing_ctx, buffer, buffer_len);
+}
+
+int
+ubiq_platform_encryption_add_user_defined_metadata(
+    struct ubiq_platform_encryption * const enc,
+    const char * const jsonString)
+{
+    if (enc == NULL || jsonString == NULL) {
+      return -EINVAL;
+    }
+    return ubiq_billing_add_user_defined_metadata(enc->billing_ctx, jsonString);
 }

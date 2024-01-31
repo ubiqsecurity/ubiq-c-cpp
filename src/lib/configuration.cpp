@@ -35,7 +35,8 @@ configuration::configuration(
   const int event_reporting_wake_interval,
   const int event_reporting_minimum_count,
   const int event_reporting_flush_interval,
-  const int event_reporting_trap_exceptions)
+  const int event_reporting_trap_exceptions,
+  const std::string & event_reporting_timestamp_granularity)
 {
     struct ubiq_platform_configuration * creds;
     int res;
@@ -45,6 +46,7 @@ configuration::configuration(
         event_reporting_minimum_count,
         event_reporting_flush_interval,
         event_reporting_trap_exceptions,
+        event_reporting_timestamp_granularity.data(),
         &creds);
     if (res != 0) {
         throw std::system_error(-res, std::generic_category());

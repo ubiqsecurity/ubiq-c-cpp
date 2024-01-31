@@ -1621,3 +1621,230 @@ TEST(c_fpe_encrypt, new)
     free(ptbuf);
     free(ptbuf2);
 }
+
+TEST(c_fpe_encrypt, get_usage)
+{
+    static const char * const pt = ";0123456-789ABCDEF|";
+    static const char * const ffs_name = "ALPHANUM_SSN";
+
+    struct ubiq_platform_credentials * creds;
+    struct ubiq_platform_fpe_enc_dec_obj *enc;
+    char * buf(nullptr);
+    char * buf2(nullptr);
+    char * ctbuf(nullptr);
+    size_t ctlen;
+    size_t len;
+    size_t len2;
+
+    int res = ubiq_platform_credentials_create(&creds);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_enc_dec_get_copy_of_usage(enc, &buf, &len);
+    EXPECT_EQ(res,0);
+    EXPECT_EQ(strcmp(buf, "{\"usage\":[]}"), 0);
+
+    res = ubiq_platform_fpe_encrypt_data(enc,
+      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+    EXPECT_EQ(res,0);
+
+    res = ubiq_platform_fpe_enc_dec_get_copy_of_usage(enc, &buf2, &len);
+    EXPECT_EQ(res,0);
+    EXPECT_NE(strcmp(buf, buf2), 0);
+
+    free(ctbuf);
+    free(buf);
+
+    res = ubiq_platform_fpe_encrypt_data(enc,
+      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+    EXPECT_EQ(res,0);
+
+    // Second encrypt will have different usage string
+    res = ubiq_platform_fpe_enc_dec_get_copy_of_usage(enc, &buf, &len);
+    EXPECT_EQ(res,0);
+    EXPECT_NE(strcmp(buf, buf2), 0);
+
+    ubiq_platform_fpe_enc_dec_destroy(enc);
+
+    ubiq_platform_credentials_destroy(creds);
+    free(buf);
+    free(buf2);
+    free(ctbuf);
+}
+
+TEST(c_fpe_encrypt, get_usage_enc_dec)
+{
+    static const char * const pt = ";0123456-789ABCDEF|";
+    static const char * const ffs_name = "ALPHANUM_SSN";
+
+    struct ubiq_platform_credentials * creds;
+    struct ubiq_platform_fpe_enc_dec_obj *enc;
+    char * buf(nullptr);
+    char * buf2(nullptr);
+    char * ctbuf(nullptr);
+    char * ptbuf(nullptr);
+    size_t ctlen;
+    size_t len;
+    size_t len2;
+
+    int res = ubiq_platform_credentials_create(&creds);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_enc_dec_get_copy_of_usage(enc, &buf, &len);
+    EXPECT_EQ(res,0);
+    EXPECT_EQ(strcmp(buf, "{\"usage\":[]}"), 0);
+
+    res = ubiq_platform_fpe_encrypt_data(enc,
+      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+    EXPECT_EQ(res,0);
+
+    res = ubiq_platform_fpe_enc_dec_get_copy_of_usage(enc, &buf2, &len);
+    EXPECT_EQ(res,0);
+    EXPECT_NE(strcmp(buf, buf2), 0);
+
+    free(buf);
+
+    res = ubiq_platform_fpe_decrypt_data(enc,
+      ffs_name, NULL, 0, ctbuf, ctlen, &ptbuf, &len);
+    EXPECT_EQ(res,0);
+
+    // Second encrypt will have different usage string
+    res = ubiq_platform_fpe_enc_dec_get_copy_of_usage(enc, &buf, &len);
+    EXPECT_EQ(res,0);
+    EXPECT_GT(strlen(buf), strlen(buf2));
+
+    ubiq_platform_fpe_enc_dec_destroy(enc);
+
+    ubiq_platform_credentials_destroy(creds);
+    free(buf);
+    free(buf2);
+    free(ctbuf);
+    free(ptbuf);
+}
+
+TEST_F(cpp_fpe_encrypt, get_usage)
+{
+    static const char * const pt = ";0123456-789ABCDEF|";
+    static const char * const ffs_name = "ALPHANUM_SSN";
+
+    _enc = ubiq::platform::fpe::encryption(_creds);
+    std::string usage = _enc.get_copy_of_usage();
+    EXPECT_EQ(usage.compare("{\"usage\":[]}"), 0);
+
+    std::string ct = _enc.encrypt(ffs_name, pt);
+    std::string usage2 = _enc.get_copy_of_usage();
+    EXPECT_NE(usage.compare(usage2), 0);
+
+    ct = _enc.encrypt(ffs_name, pt);
+    std::string usage3 = _enc.get_copy_of_usage();
+    EXPECT_NE(usage3.compare(usage2), 0);
+}
+
+
+TEST_F(cpp_fpe_encrypt, get_usage_enc_dec)
+{
+    static const char * const pt = ";0123456-789ABCDEF|";
+    static const char * const dataset_name = "ALPHANUM_SSN";
+
+    _enc = ubiq::platform::fpe::encryption(_creds);
+    _dec = ubiq::platform::fpe::decryption(_creds);
+
+    std::string usage = _enc.get_copy_of_usage();
+    EXPECT_EQ(usage.compare("{\"usage\":[]}"), 0);
+
+    std::string usage2 = _dec.get_copy_of_usage();
+    EXPECT_EQ(usage.compare(usage2), 0);
+
+    std::string ct = _enc.encrypt(dataset_name, pt);
+    std::string ptbuf = _dec.decrypt(dataset_name, ct);
+
+    // Encrypt and Decrypt usage strings should be same length
+    usage = _enc.get_copy_of_usage();
+    EXPECT_GT(usage.length(),usage2.length());
+
+    usage2 = _dec.get_copy_of_usage();
+    EXPECT_EQ(usage.length(),usage2.length());
+}
+
+
+TEST(c_fpe_encrypt, add_user_defined_metadata)
+{
+    static const char * const pt = ";0123456-789ABCDEF|";
+    static const char * const ffs_name = "ALPHANUM_SSN";
+
+    struct ubiq_platform_credentials * creds;
+    struct ubiq_platform_fpe_enc_dec_obj *enc;
+    char * buf(nullptr);
+    char * ctbuf(nullptr);
+    size_t ctlen;
+    size_t len;
+    size_t len2;
+
+    int res = ubiq_platform_credentials_create(&creds);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
+    ASSERT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_enc_dec_add_user_defined_metadata(NULL, NULL);
+    EXPECT_NE(res, 0);
+
+    char toolong[1050];
+    memset(toolong, 'a', sizeof(toolong));
+    toolong[sizeof(toolong)] = '\0';
+    res = ubiq_platform_fpe_enc_dec_add_user_defined_metadata(enc, toolong);
+    EXPECT_NE(res, 0);
+
+    res = ubiq_platform_fpe_enc_dec_add_user_defined_metadata(enc, "not json");
+    EXPECT_NE(res, 0);
+
+    res = ubiq_platform_fpe_enc_dec_add_user_defined_metadata(enc, "{\"UBIQ_SPECIAL_USER_DEFINED_KEY\" : \"UBIQ_SPECIAL_USER_DEFINED_VALUE\"}");
+    EXPECT_EQ(res, 0);
+
+    res = ubiq_platform_fpe_encrypt_data(enc,
+      ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+    EXPECT_EQ(res,0);
+
+    free(buf);
+
+    // Second encrypt will have different usage string
+    res = ubiq_platform_fpe_enc_dec_get_copy_of_usage(enc, &buf, &len);
+    EXPECT_EQ(res,0);
+    EXPECT_NE(strcmp(buf, "{\"usage\":[]}"), 0);
+    EXPECT_NE(strstr(buf, "UBIQ_SPECIAL_USER_DEFINED_KEY"), nullptr);
+    EXPECT_NE(strstr(buf, "UBIQ_SPECIAL_USER_DEFINED_VALUE"), nullptr);
+    EXPECT_NE(strstr(buf, "user_defined"), nullptr);
+    
+    ubiq_platform_fpe_enc_dec_destroy(enc);
+
+    ubiq_platform_credentials_destroy(creds);
+    free(buf);
+    free(ctbuf);
+}
+
+TEST_F(cpp_fpe_encrypt, add_user_defined_metadata)
+{
+  std::string pt(";0123456-789ABCDEF|");
+  std::string ffs_name("ALPHANUM_SSN");
+
+  _enc = ubiq::platform::fpe::encryption(_creds);
+
+  ASSERT_THROW(_enc.add_user_defined_metadata(""),std::system_error);
+  ASSERT_THROW(_enc.add_user_defined_metadata("{"),std::system_error);
+  ASSERT_NO_THROW(_enc.add_user_defined_metadata("{\"UBIQ_SPECIAL_USER_DEFINED_KEY\" : \"UBIQ_SPECIAL_USER_DEFINED_VALUE\"}"));
+
+  std::string ct = _enc.encrypt(ffs_name, pt);
+
+  std::string usage = _enc.get_copy_of_usage();
+
+  EXPECT_EQ(usage.find("{\"usage\":[]}"),  std::string::npos);
+  EXPECT_NE(usage.find("UBIQ_SPECIAL_USER_DEFINED_KEY"),  std::string::npos);
+  EXPECT_NE(usage.find("UBIQ_SPECIAL_USER_DEFINED_VALUE"),  std::string::npos);
+  EXPECT_NE(usage.find("user_defined"),  std::string::npos);
+
+}

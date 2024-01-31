@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.1.0.0 - 2024-01-04
+* Added functions to support user defined metadata in the billing events
+* Added support for different granular levels of timestamps when reporting usage
+
 ## 2.0.5.0 - 2023-09-17
 * fix typo in README
 * Changed google test submodule version to support debian 12 (bookworm)

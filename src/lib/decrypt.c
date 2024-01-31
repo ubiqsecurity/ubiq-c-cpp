@@ -24,16 +24,12 @@ struct ubiq_platform_decryption
 
     const char * srsa;
 
-    // char * session;
-
     struct {
         struct {
             void * buf;
             size_t len;
         } raw, enc;
 
-        // char * fingerprint;
-        unsigned int uses;
     } key;
 
     const struct ubiq_platform_algorithm * algo;
@@ -133,14 +129,6 @@ ubiq_platform_decryption_reset(
 
         d->key.raw.buf = d->key.enc.buf = NULL;
         d->key.raw.len = d->key.raw.len = 0;
-
-        // free(d->key.fingerprint);
-        // d->key.fingerprint = NULL;
-
-        // free(d->session);
-        // d->session = NULL;
-
-        d->key.uses = 0;
 
         d->algo = NULL;
         if (d->ctx) {
@@ -367,7 +355,6 @@ ubiq_platform_decryption_update(
                                 DECRYPTION,
                                 1, 0 ); // key number not used for unstructured
 
-                            dec->key.uses++;
                         }
                     }
                 }
@@ -492,4 +479,27 @@ ubiq_platform_decrypt(
     free(pre.buf);
 
     return res;
+}
+
+int
+ubiq_platform_decryption_add_user_defined_metadata(
+    struct ubiq_platform_decryption * const dec,
+    const char * const jsonString)
+{
+    if (dec == NULL || jsonString == NULL) {
+      return -EINVAL;
+    } 
+    return ubiq_billing_add_user_defined_metadata(dec->billing_ctx, jsonString);
+}
+
+
+int
+ubiq_platform_decryption_get_copy_of_usage(
+    struct ubiq_platform_decryption * const dec,
+    char ** const buffer, size_t * const buffer_len)
+{
+    if (dec == NULL || buffer == NULL || buffer_len == NULL) {
+      return -EINVAL;
+    }
+    return ubiq_billing_get_copy_of_usage(dec->billing_ctx, buffer, buffer_len);
 }
