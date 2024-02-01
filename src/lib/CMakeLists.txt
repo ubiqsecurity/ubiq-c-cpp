@@ -28,7 +28,6 @@ add_library(
   decrypt.c
   encrypt.c
   ff1.c
-  ff3_1.c
   ffx.c
   fpe.c
   hashtable.c
