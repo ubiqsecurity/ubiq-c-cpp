@@ -19,6 +19,7 @@ add_library(
   OBJECT
 
   algorithm.c
+  bn.c
   billing.c
   cache.c
   common.c
@@ -26,6 +27,9 @@ add_library(
   configuration.c
   decrypt.c
   encrypt.c
+  ff1.c
+  ff3_1.c
+  ffx.c
   fpe.c
   hashtable.c
   init.c
@@ -74,7 +78,6 @@ target_include_directories(
   c_objects
   PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/../include
-  ${CMAKE_CURRENT_SOURCE_DIR}/../ext/ubiq-fpe-c/src/include
   ${CMAKE_CURRENT_SOURCE_DIR}/../ext)
 set_target_properties(
   c_objects
