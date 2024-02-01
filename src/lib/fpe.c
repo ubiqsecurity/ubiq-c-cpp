@@ -8,10 +8,10 @@
 #include "ubiq/platform/internal/parsing.h"
 #include "ubiq/platform/internal/billing.h"
 #include "ubiq/platform/internal/cache.h"
-#include <ubiq/fpe/ff1.h>
-#include <ubiq/fpe/internal/ffx.h>
+#include <ubiq/platform/internal/ff1.h>
+#include <ubiq/platform/internal/ffx.h>
 
-#include "ubiq/fpe/internal/bn.h"
+#include "ubiq/platform/internal/bn.h"
 
 #include <errno.h>
 #include <limits.h>
