@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.1.1.0 - 2024-02-01
+* Incorporated files from ubiq-fpe-c repo directly into this repo
+* Removed ff3-1 related files
+
 ## 2.1.0.0 - 2024-01-04
 * Added functions to support user defined metadata in the billing events
 * Added support for different granular levels of timestamps when reporting usage

@@ -12,7 +12,6 @@ add_executable(
   decrypt.cpp
   encrypt.cpp
   ff1.cpp
-  ff3_1.cpp
   ffx.cpp
   fpedecrypt.cpp
   fpeencrypt.cpp
