@@ -65,7 +65,7 @@ if(WIN32)
 else()
   target_link_libraries(
     ubiqclient
-    curl m crypto gmp)
+    curl m crypto gmp unistring)
 endif()
 strip_target(ubiqclient)
 install(
@@ -118,7 +118,7 @@ if(WIN32)
 else()
   target_link_libraries(
     ubiqclient++
-    curl m crypto gmp)
+    curl m crypto gmp unistring)
 endif()
 strip_target(ubiqclient++)
 install(
