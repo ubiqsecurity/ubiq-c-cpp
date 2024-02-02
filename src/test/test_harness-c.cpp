@@ -10,8 +10,8 @@
 #include <map>
 #include <chrono>
 #include <string.h>
-
-
+#include <sys/stat.h>
+#include <dirent.h>
 
 
 class PerfCounts {
@@ -70,105 +70,134 @@ int main(const int argc, char * const argv[])
           std::exit(EXIT_FAILURE);
       }
 
-      ubiq_load_datafile(options.infile, data);
-
       res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
 
-      for (std::list<Data_rec>::iterator dit=data.begin(); dit != data.end(); ++dit) {
-        auto itr = perf_values.find(dit->dataset_name);
-        if (itr == perf_values.end()) {
-          try {
-            len = buflen;
-            res = ubiq_platform_fpe_encrypt_data_prealloc(enc, dit->dataset_name.c_str(), NULL, 0, 
-              dit->plain_text.c_str(), dit->plain_text.length(),
-              ct_buf, &len);
-            
-            // printf("Encrypt Init:\n\tpt(%s)\n\tct(%s)\n\t len(%d) res(%d)\n", dit->plain_text.c_str(), ct_buf, len, res);
-          } catch (const std::exception& e) {
-            exit_value = EXIT_FAILURE;
-            std::cerr << "Error: " << e.what() << std::endl;
-            std::cerr << "     dataset: '" << dit->dataset_name << "'  plaintext: '"<< dit->plain_text << "'" << std::endl;
-          }
-          try {
-            len = buflen;
-            res = ubiq_platform_fpe_decrypt_data_prealloc(enc, dit->dataset_name.c_str(), NULL, 0, 
-              dit->cipher_text.c_str(), dit->cipher_text.length(),
-              pt_buf, &len);
+      std::list<std::string> files = std::list<std::string>();
 
-            // printf("Decrypt Init:\n\tct(%s)\n\tpt(%s)\n\t len(%d) res(%d)\n", dit->cipher_text.c_str(), pt_buf, len, res);
+      struct stat s;
+      int t = stat(options.infile.c_str(), &s);
 
-          } catch (const std::exception& e) {
-            exit_value = EXIT_FAILURE;
-            std::cerr << "Error: " << e.what() << std::endl;
-            std::cerr << "     dataset: '" << dit->dataset_name << "'  plaintext: '"<< dit->plain_text << "'" << std::endl;
-          }
-          perf_values[dit->dataset_name] = PerfCounts();
-          itr = perf_values.find(dit->dataset_name);
-        }
-
+      if (t == 0 && s.st_mode & S_IFREG) {
+        files.push_back(options.infile);
+      } else if (t == 0 && s.st_mode & S_IFDIR) {
+        DIR *d;
+        struct dirent *dir;
+        d = opendir(options.infile.c_str());
         
-        try {
-          len = buflen;
-          len2 = buflen;
-
-          // printf("Data :\n\tpt(%s)\n\tct(%s)\n", dit->plain_text.c_str(), dit->cipher_text.c_str());
-
-          auto start = std::chrono::steady_clock::now();
-
-    
-
-          res = ubiq_platform_fpe_encrypt_data_prealloc(enc, dit->dataset_name.c_str(), NULL, 0, 
-              dit->plain_text.c_str(), dit->cipher_text.length(),
-              ct_buf, &len);
-
-          auto encrypt = std::chrono::steady_clock::now();
-
-          res = ubiq_platform_fpe_decrypt_data_prealloc(enc, dit->dataset_name.c_str(), NULL, 0, 
-            dit->cipher_text.c_str(), dit->cipher_text.length(),
-            pt_buf, &len2);
-
-          auto decrypt = std::chrono::steady_clock::now();
-
-            // printf("Encrypt :\n\tct(%s)\n\tlen(%d) res(%d)\n", ct_buf, len, res);
-            // printf("Decrypt :\n\tpt(%s)\n\tlen(%d) res(%d)\n", pt_buf, len2, res);
-
-          if (strcmp(ct_buf, dit->cipher_text.c_str()) || strcmp(pt_buf, dit->plain_text.c_str())) {
-            errors.push_back(*dit);
-          }
-
-          itr->second.encrypt_duration += std::chrono::duration<double, std::nano>(encrypt - start).count();
-          itr->second.decrypt_duration += std::chrono::duration<double, std::nano>(decrypt - encrypt).count();
-          itr->second.recordCount ++;
-        } catch (const std::exception& e) {
-          errors.push_back(*dit);
+        if (d) {
+            while ((dir = readdir(d)) != NULL)
+            {
+                //Condition to check regular file.
+                if(dir->d_type==DT_REG){
+                  std::string path = options.infile;
+                  path += "/" + std::string(dir->d_name);
+                  files.push_back(path);
+                }
+            }
+            closedir(d);
         }
       }
 
+
+      long recordCount = 0;
+      for (auto const & file : files) {
+        std::list<Data_rec> data;
+
+        ubiq_load_datafile(file, data);
+
+        recordCount += data.size();
+
+        for (std::list<Data_rec>::iterator dit=data.begin(); dit != data.end(); ++dit) {
+          auto itr = perf_values.find(dit->dataset_name);
+          if (itr == perf_values.end()) {
+            try {
+              len = buflen;
+              res = ubiq_platform_fpe_encrypt_data_prealloc(enc, dit->dataset_name.c_str(), NULL, 0, 
+                dit->plain_text.c_str(), dit->plain_text.length(),
+                ct_buf, &len);
+              
+              // printf("Encrypt Init:\n\tpt(%s)\n\tct(%s)\n\t len(%d) res(%d)\n", dit->plain_text.c_str(), ct_buf, len, res);
+            } catch (const std::exception& e) {
+              exit_value = EXIT_FAILURE;
+              std::cerr << "Error: " << e.what() << std::endl;
+              std::cerr << "     dataset: '" << dit->dataset_name << "'  plaintext: '"<< dit->plain_text << "'" << std::endl;
+            }
+            try {
+              len = buflen;
+              res = ubiq_platform_fpe_decrypt_data_prealloc(enc, dit->dataset_name.c_str(), NULL, 0, 
+                dit->cipher_text.c_str(), dit->cipher_text.length(),
+                pt_buf, &len);
+
+              // printf("Decrypt Init:\n\tct(%s)\n\tpt(%s)\n\t len(%d) res(%d)\n", dit->cipher_text.c_str(), pt_buf, len, res);
+
+            } catch (const std::exception& e) {
+              exit_value = EXIT_FAILURE;
+              std::cerr << "Error: " << e.what() << std::endl;
+              std::cerr << "     dataset: '" << dit->dataset_name << "'  plaintext: '"<< dit->plain_text << "'" << std::endl;
+            }
+            perf_values[dit->dataset_name] = PerfCounts();
+            itr = perf_values.find(dit->dataset_name);
+          }
+
+          
+          try {
+            len = buflen;
+            len2 = buflen;
+
+            auto start = std::chrono::steady_clock::now();
+
+            res = ubiq_platform_fpe_encrypt_data_prealloc(enc, dit->dataset_name.c_str(), NULL, 0, 
+                dit->plain_text.c_str(), dit->cipher_text.length(),
+                ct_buf, &len);
+
+            auto encrypt = std::chrono::steady_clock::now();
+
+            res = ubiq_platform_fpe_decrypt_data_prealloc(enc, dit->dataset_name.c_str(), NULL, 0, 
+              dit->cipher_text.c_str(), dit->cipher_text.length(),
+              pt_buf, &len2);
+
+            auto decrypt = std::chrono::steady_clock::now();
+
+              // printf("Encrypt :\n\tct(%s)\n\tlen(%d) res(%d)\n", ct_buf, len, res);
+              // printf("Decrypt :\n\tpt(%s)\n\tlen(%d) res(%d)\n", pt_buf, len2, res);
+
+            if (strcmp(ct_buf, dit->cipher_text.c_str()) || strcmp(pt_buf, dit->plain_text.c_str())) {
+              errors.push_back(*dit);
+            }
+
+            itr->second.encrypt_duration += std::chrono::duration<double, std::nano>(encrypt - start).count();
+            itr->second.decrypt_duration += std::chrono::duration<double, std::nano>(decrypt - encrypt).count();
+            itr->second.recordCount ++;
+          } catch (const std::exception& e) {
+            errors.push_back(*dit);
+          }
+        }
+      }
 
       if (errors.size() == 0) {
           long encryptTotal = 0;
           long decryptTotal = 0;
 
           std::cout << "All data validated" << std::endl;
-          std::cout << "Encrypt records count: " << data.size() << ".  Times in (microseconds)" << std::endl;
+          std::cout << "Encrypt records count: " << recordCount << ".  Times in (microseconds)" << std::endl;
 
           for (auto itr = perf_values.begin(); itr != perf_values.end(); ++itr) {
             std::cout << "\tDataset: " << itr->first << ", record count: " << itr->second.recordCount << ", Average: " << itr->second.encrypt_duration / 1000 / itr->second.recordCount << ", Total: " << itr->second.encrypt_duration / 1000 << std::endl;
             encryptTotal += itr->second.encrypt_duration;
           }
             encryptTotal /= 1000;
-          std::cout << "\t  Total: Average: " << encryptTotal / data.size() << ", Total: " << encryptTotal << std::endl;
+          std::cout << "\t  Total: Average: " << encryptTotal / recordCount << ", Total: " << encryptTotal << std::endl;
 
-          std::cout << "\ndecrypt records count: " << data.size() << ".  Times in (microseconds)" << std::endl;
+          std::cout << "\ndecrypt records count: " << recordCount << ".  Times in (microseconds)" << std::endl;
           for (auto itr = perf_values.begin(); itr != perf_values.end(); ++itr) {
             std::cout << "\tDataset: " << itr->first << ", record count: " << itr->second.recordCount << ", Average: " << itr->second.decrypt_duration / 1000 / itr->second.recordCount << ", Total: " << itr->second.decrypt_duration / 1000 << std::endl;
             decryptTotal += itr->second.decrypt_duration;
           }
           decryptTotal /= 1000;
-          std::cout << "\t  Total: Average: " << decryptTotal / data.size() << ", Total: " << decryptTotal << std::endl;
+          std::cout << "\t  Total: Average: " << decryptTotal / recordCount << ", Total: " << decryptTotal << std::endl;
 
           if (options.max_avg_encrypt > 0) {
-            if (options.max_avg_encrypt <= encryptTotal / data.size()) {
+            if (options.max_avg_encrypt <= encryptTotal / recordCount) {
               std::cerr << "FAILED: Exceeded maximum allowed average encrypt threshold of " << options.max_avg_encrypt << " microseconds" << std::endl;
               exit_value = EXIT_FAILURE;
             } else {
@@ -179,7 +208,7 @@ int main(const int argc, char * const argv[])
           }
 
           if (options.max_avg_decrypt > 0) {
-            if (options.max_avg_decrypt <= decryptTotal / data.size()) {
+            if (options.max_avg_decrypt <= decryptTotal / recordCount) {
               std::cerr << "FAILED: Exceeded maximum allowed average decrypt threshold of " << options.max_avg_decrypt << " microseconds" << std::endl;
               exit_value = EXIT_FAILURE;
             } else {
