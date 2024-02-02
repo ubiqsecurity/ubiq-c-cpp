@@ -45,7 +45,7 @@ ubiq_getopt(
     Options & options);
 
 int ubiq_load_datafile(
-  std::string & infile,
+  const std::string & infile,
   std::list<Data_rec> & data
 );
 
