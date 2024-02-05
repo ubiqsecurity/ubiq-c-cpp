@@ -46,8 +46,6 @@ install(
               WORLD_READ
   COMPONENT runtime)
 
-find_library(FPE_LIB name ubiqfpe HINTS ${CMAKE_BINARY_DIR}/fpe/src)
-
 # c shared library
 add_library(
   ubiqclient
@@ -67,7 +65,7 @@ if(WIN32)
 else()
   target_link_libraries(
     ubiqclient
-    curl crypto gmp ${FPE_LIB})
+    curl m crypto gmp unistring)
 endif()
 strip_target(ubiqclient)
 install(
@@ -120,7 +118,7 @@ if(WIN32)
 else()
   target_link_libraries(
     ubiqclient++
-    curl crypto gmp ${FPE_LIB})
+    curl m crypto gmp unistring)
 endif()
 strip_target(ubiqclient++)
 install(
@@ -158,16 +156,6 @@ install(
                         GROUP_READ GROUP_EXECUTE
                         WORLD_READ WORLD_EXECUTE
   COMPONENT development)
-
-file(GLOB FPE_SO ${CMAKE_BINARY_DIR}/fpe/src/libubiqfpe.so*)
-
-install(
-  FILES ${CMAKE_BINARY_DIR}/fpe/src/libubiqfpe.a ${FPE_SO}
-  DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE
-              GROUP_READ GROUP_EXECUTE
-              WORLD_READ WORLD_EXECUTE
-  COMPONENT runtime)
 
 if(EXISTS "/etc/redhat-release")
 
