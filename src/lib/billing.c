@@ -397,8 +397,9 @@ process_billing_btree(
   cJSON * json_usage = cJSON_CreateObject();
 
   int res = getBillingUsage(ctx, billing_btree, json_usage);
+  UBIQ_DEBUG(debug_flag, printf("%s RES(%d) of getBillingUsage\n", csu, res));
 
-  if (res) {
+  if (!res) {
      send_billing_data(ctx, json_usage);
   }
 
@@ -836,6 +837,7 @@ int
 ubiq_billing_get_copy_of_usage( struct ubiq_billing_ctx * const e,
                 char ** const buffer, size_t * const buffer_len) {
   
+  const char * csu = "ubiq_billing_get_copy_of_usage";
   // static const char * const empty_usage = "{\"usage\" : []}";
   unsigned int element_count = 0;
   int res = 0;
