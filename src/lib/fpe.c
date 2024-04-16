@@ -27,7 +27,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <uniwidth.h>
-
+#include <wchar.h>
 #include <locale.h>
 
 #include "cJSON/cJSON.h"
@@ -142,6 +142,8 @@ struct ffs {
   uint32_t * u32_input_character_set; // Will be set if any of char sets are multi-byte utf8
   uint32_t * u32_output_character_set;  // Will be set if any of char sets are multi-byte utf8
   uint32_t * u32_passthrough_character_set;// Will be set if any of char sets are multi-byte utf8
+  uint32_t prefix_passthrough_length;
+  uint32_t suffix_passthrough_length;
   int msb_encoding_bits;
   struct {
           void * buf;
@@ -413,6 +415,19 @@ save_rest_error(
   return -rc;
 }
 
+static int get_json_array(
+  cJSON * ffs_data,
+  char * field_name,
+  cJSON **  destination)
+{
+  *destination = NULL;
+  int res = 0;
+  cJSON * j = cJSON_GetObjectItemCaseSensitive(ffs_data, field_name);
+  if (cJSON_IsArray(j)) {
+    *destination = j;
+  }
+  return res;
+}
 
 static int get_json_string(
   cJSON * ffs_data,
@@ -440,6 +455,50 @@ static int get_json_int(
   const cJSON * j = cJSON_GetObjectItemCaseSensitive(ffs_data, field_name);
   if (cJSON_IsNumber(j)) {
     *destination = j->valueint;
+  }
+  return res;
+}
+
+// [{ priority: 1, type: 'passthrough', value: ' abc' }, { priority: 2, type: 'prefix', value: 1 }, { priority: 3, type: 'suffix', value: 3 }]
+
+static int parse_passthrough_rules(
+  cJSON * ffs_data,
+  struct ffs * e) 
+{
+  static const char * const csu = "parse_passthrough_rules";
+  int debug_flag = 0;
+  int res = 0;
+  UBIQ_DEBUG(debug_flag, printf("%s %s\n",csu, "started"));
+
+  const cJSON * passthrough_rules = cJSON_GetObjectItemCaseSensitive(ffs_data, "passthrough_rules");
+
+  if (cJSON_IsArray(passthrough_rules)) {
+  UBIQ_DEBUG(debug_flag, printf("%s %s\n",csu, "passthrough_rules is array"));
+    char * value = NULL;
+    cJSON * rule;
+    cJSON_ArrayForEach(rule, passthrough_rules) {
+      int ret = get_json_string(rule, "type", &value);
+      UBIQ_DEBUG(debug_flag, printf("%s type(%s)\t ret(%d)\n",csu, value, ret));
+      if (!ret && value) {
+        if (strcmp(value, "passthrough") == 0) {
+          ret = get_json_string(rule, "value", &e->passthrough_character_set);
+          UBIQ_DEBUG(debug_flag, printf("%s e->passthrough_character_set(%s) \t ret(%d)\n",csu, e->passthrough_character_set, ret));
+        } else if (strcmp(value, "prefix") == 0) {
+          ret = get_json_int(rule, "value", &e->prefix_passthrough_length);
+          UBIQ_DEBUG(debug_flag, printf("%s e->prefix_passthrough_length(%d) \t ret(%d)\n",csu, e->prefix_passthrough_length, ret));
+        } else if (strcmp(value, "suffix") == 0) {
+          ret = get_json_int(rule, "value", &e->suffix_passthrough_length);
+          UBIQ_DEBUG(debug_flag, printf("%s e->suffix_passthrough_length(%d) \t ret(%d)\n",csu, e->suffix_passthrough_length, ret));
+        } else {
+          UBIQ_DEBUG(debug_flag, printf("%s ignored\n",csu));
+        }
+        // Ignoring other types and priority right now.  Those are for 
+        if (ret != 0) {
+          res = ret;
+        }
+      }
+      free (value);
+    }
   }
   return res;
 }
@@ -512,7 +571,18 @@ ffs_create(
   if (!res) {res = get_json_string(ffs_data, "regex", &e->regex);}
   if (!res) {res = get_json_string(ffs_data, "input_character_set", &e->input_character_set);}
   if (!res) {res = get_json_string(ffs_data, "output_character_set", &e->output_character_set);}
-  if (!res) {res = get_json_string(ffs_data, "passthrough", &e->passthrough_character_set);}
+
+  if (!res) {
+      UBIQ_DEBUG(debug_flag, printf("%s prepare to parse passthrough_rules\n",csu));
+
+    res = parse_passthrough_rules(ffs_data, e);
+
+    // If e->passthrough_characterset is NULL, then assume no passthrough rules
+    // so get passthrough characterset directly
+    if (e->passthrough_character_set == NULL) {
+      if (!res) {res = get_json_string(ffs_data, "passthrough", &e->passthrough_character_set);}
+    }
+  }
 
   // Test the input_character_set, output_character_set, passthrough characterset
   // to see if they are UTF8 multibyte strings or simply contain single byte characters.
@@ -521,11 +591,18 @@ ffs_create(
   if (!res && (strlen(e->input_character_set) != u8_mbsnlen(e->input_character_set, strlen(e->input_character_set))) ||
       (strlen(e->output_character_set) != u8_mbsnlen(e->output_character_set, strlen(e->output_character_set))) ||
       (strlen(e->passthrough_character_set) != u8_mbsnlen(e->passthrough_character_set, strlen(e->passthrough_character_set)))) {
-      UBIQ_DEBUG(debug_flag, printf("%s %s\n",csu, "Multibyte UTF8 found"));
-        res = convert_utf8_to_utf32(e->input_character_set, &e->u32_input_character_set);
-        if (!res) {res = convert_utf8_to_utf32(e->output_character_set, &e->u32_output_character_set);}
-        if (!res) {res = convert_utf8_to_utf32(e->passthrough_character_set, &e->u32_passthrough_character_set);}
+        UBIQ_DEBUG(debug_flag, printf("%s %s\n",csu, "Multibyte UTF8 found"));
+        // At this point, we know we are dealing with WCHAR, so can set the local
+        setlocale(LC_ALL, "C.UTF-8");
 
+        res = convert_utf8_to_utf32(e->input_character_set, &e->u32_input_character_set);
+        UBIQ_DEBUG(debug_flag, printf("%s \t res(%d) \t ffs->u32_input_character_set(%S) \n", csu, res, e->u32_input_character_set));
+        if (!res) {res = convert_utf8_to_utf32(e->output_character_set, &e->u32_output_character_set);}
+        UBIQ_DEBUG(debug_flag, printf("%s \t res(%d) \t ffs->u32_output_character_set(%S) \n", csu, res, e->u32_output_character_set));
+        if (!res) {res = convert_utf8_to_utf32(e->passthrough_character_set, &e->u32_passthrough_character_set);}
+        UBIQ_DEBUG(debug_flag, printf("%s \t res(%d) \t ffs->u32_passthrough_character_set(%S) \n", csu, res, e->u32_passthrough_character_set));
+
+        // ???? TODO - FIXME Why aren't we freeing this?
         //free(e->input_character_set);
         free(e->output_character_set);
         free(e->passthrough_character_set);
@@ -557,7 +634,6 @@ ffs_create(
   UBIQ_DEBUG(debug_flag, printf("%s ffs->input_character_set(%s)\n", csu, e->input_character_set));
   UBIQ_DEBUG(debug_flag, printf("%s ffs->u32_input_character_set(%S)\n", csu, e->u32_input_character_set));
 
-
   if (!res) {
     *ffs = e;
   } else {
@@ -581,40 +657,7 @@ parsed_destroy(
 }
 
 
-static
-int parsed_create(
-  struct parsed_data ** const parsed,
-  const ffs_character_types char_types,
-  const size_t buf_len
-)
-{
-  static const char * const csu = "parsed_create";
-  struct parsed_data *p;
 
-  size_t element_size = sizeof(char);
-  if (char_types == UINT32) {
-    element_size = sizeof(uint32_t);
-  }
-
-  int res = -ENOMEM;
-  p = calloc(1, sizeof(*p));
-  if (p) {
-    p->trimmed_buf.buf = calloc(buf_len + 1, element_size);
-    p->trimmed_buf.len = buf_len;
-
-    p->formatted_dest_buf.buf = calloc(buf_len + 1, element_size);
-    p->formatted_dest_buf.len = buf_len;
-  
-    if (p->trimmed_buf.buf && p->formatted_dest_buf.buf) {
-      res = 0;
-    } else {
-      parsed_destroy(p);
-      p = NULL;
-    }
-  }
-  *parsed = p;
-  return res;
-}
 
 static
 int char_parse_data_prealloc(
@@ -623,7 +666,8 @@ int char_parse_data_prealloc(
   const char * const source_string,
   const size_t source_len,
   struct data * const trimmed_buf,
-  struct data * const formatted_dest_buf
+  struct data * const formatted_dest_buf,
+  size_t * const copy_back_start
 )
 {
   static const char * const csu = "char_parse_data_prealloc";
@@ -653,45 +697,85 @@ int char_parse_data_prealloc(
       (char *)formatted_dest_buf->buf, &formatted_dest_buf->len);
   }
 
-  return res;
-} // char_parse_data
+  // Keep track of where in the formatted output, the destination data needs to 
+  // go.  This includes bypassing any passthrough or prefix characters
+  char * ptr = strchr((char *)formatted_dest_buf->buf, dest_zeroth_char);
+  *copy_back_start = (ptr - (char *)formatted_dest_buf->buf);
 
-
-static
-int char_parse_data(
-  const struct ffs * ffs,
-  const conversion_direction_type conversion_direction, // input to output, or output to input
-  const char * const source_string,
-  const size_t source_len,
-  struct parsed_data * const parsed
-)
-{
-  static const char * const csu = "char_parse_data";
-  int res = 0;
-
-  char dest_zeroth_char;
-  char * src_char_set = NULL;
-  if (conversion_direction == PARSE_INPUT_TO_OUTPUT) {// input to output
-    src_char_set = ffs->input_character_set;
-    dest_zeroth_char = ffs->output_character_set[0];
-  } else if (conversion_direction == PARSE_OUTPUT_TO_INPUT) {
-    src_char_set = ffs->output_character_set;
-    dest_zeroth_char = ffs->input_character_set[0];
-  } else {
-    res = -EINVAL;
-  }
-
+  // Remove prefix / suffix characters from trimmed_buf
   if (!res) {
-    res = char_parsing_decompose_string(
-      source_string, src_char_set, ffs->passthrough_character_set,
-      dest_zeroth_char,
-      (char *)parsed->trimmed_buf.buf, &parsed->trimmed_buf.len,
-      (char *) parsed->formatted_dest_buf.buf,  &parsed->formatted_dest_buf.len);
+    // trimmed_buf.len does not include null terminator
+    if (ffs->prefix_passthrough_length > 0) {
+      *copy_back_start += ffs->prefix_passthrough_length;
+      UBIQ_DEBUG(debug_flag, printf("%s prefix_passthrough_length(%d)\n",csu, ffs->prefix_passthrough_length));
+
+      memmove(trimmed_buf->buf, trimmed_buf->buf + ffs->prefix_passthrough_length, trimmed_buf->len - ffs->prefix_passthrough_length);
+      if (trimmed_buf->len < ffs->prefix_passthrough_length) {
+        trimmed_buf->len = 0;
+        res = -EINVAL;
+      } else {
+        trimmed_buf->len = trimmed_buf->len - ffs->prefix_passthrough_length;
+      }
+      ((char *)trimmed_buf->buf)[trimmed_buf->len] = '\0';
+
+      UBIQ_DEBUG(debug_flag, printf("%s after memmove(%s) \t len(%d) \t res(%d)\n",csu, trimmed_buf->buf, trimmed_buf->len, res));
+
+      // Copy characters from source string for the prefix passthrough characters
+      if (!res) {
+        int i = 0;
+        char * c = (char *)formatted_dest_buf->buf;
+        const char * s = source_string;
+        // Make sure we don't pass the end of the source string
+        while (i < ffs->prefix_passthrough_length && *s != '\0') {
+          // If the source is NOT a passthrough character, then it is part of the prefix count
+          // Copy over and increment 
+          if (ffs->passthrough_character_set == NULL || !strchr(ffs->passthrough_character_set, *s)) {
+            *c++ = *s++;
+            i++;
+          } else {
+            // Just move to next character
+            *c++;
+            *s++;
+          }
+        } // Loop over all prefix characters
+      }
+    } // Prefix > 0
+
+    // Remove suffix - adjust length and add null terminator
+    if (!res && ffs->suffix_passthrough_length > 0) {
+      // Unsigned int arithmetic
+      if (trimmed_buf->len < ffs->suffix_passthrough_length) {
+        trimmed_buf->len = 0;
+        res = -EINVAL;
+      } else {
+        trimmed_buf->len = trimmed_buf->len - ffs->suffix_passthrough_length;
+      }
+      ((char *)trimmed_buf->buf)[trimmed_buf->len] = '\0';
+
+      UBIQ_DEBUG(debug_flag, printf("%s after suffix_passthrough_length(%s) \t len(%d) \t res(%d)\n",csu, trimmed_buf->buf, trimmed_buf->len, res));
+
+      if (!res) {
+        // Move from end of string back to front, copying non passthrough characters
+        int i = ffs->suffix_passthrough_length;
+        char * c = (char *)formatted_dest_buf->buf + formatted_dest_buf->len - 1;
+        const char * s = source_string + source_len - 1;
+
+        while (i > 0 && s > source_string) {
+          if (ffs->passthrough_character_set == NULL || !strchr(ffs->passthrough_character_set, *s)) {
+            *c-- = *s--;
+            i--;
+          } else {
+            // Just move to next character
+            *c--;
+            *s--;
+          }
+        }
+      }
+    } // Remove suffix and copy characters from end of string to beginning
   }
 
   return res;
-} // char_parse_data
-
+} // char_parse_data_prealloc
 
 static
 int u32_parse_data_prealloc(
@@ -700,10 +784,14 @@ int u32_parse_data_prealloc(
   const uint32_t * const source_string,
   const size_t source_len,
   struct data * const trimmed_buf,
-  struct data * const formatted_dest_buf)
+  struct data * const formatted_dest_buf,
+  size_t * const copy_back_start)
 {
   static const char * const csu = "u32_parse_data_prealloc";
+  static int debug_flag = 0;
   int res = 0;
+
+  UBIQ_DEBUG(debug_flag, printf("%s start \t source_string(%S) source_len(%d) trimmed_buf->len(%d) formatted_dest_buf->len(%d)\n",csu, source_string, source_len, trimmed_buf->len, formatted_dest_buf->len));
 
   uint32_t dest_zeroth_char;
   uint32_t * src_char_set = NULL;
@@ -716,6 +804,8 @@ int u32_parse_data_prealloc(
   } else {
     res = -EINVAL;
   }
+
+  UBIQ_DEBUG(debug_flag, printf("%s before u32_parsing_decompose_string res(%d)\n", csu, res));
 
   if (!res) {
     res = u32_parsing_decompose_string(
@@ -725,44 +815,88 @@ int u32_parse_data_prealloc(
       formatted_dest_buf->buf,  &formatted_dest_buf->len);
   }
 
-  return res;
-} // u32_parse_data
+  // Keep track of where in the formatted output, the destination data needs to 
+  // go.  This includes bypassing any passthrough or prefix characters
+  uint32_t * ptr = u32_strchr((uint32_t *)formatted_dest_buf->buf, dest_zeroth_char);
+  *copy_back_start = (ptr - (uint32_t *)formatted_dest_buf->buf);
 
-
-static
-int u32_parse_data(
-  const struct ffs * ffs,
-  const conversion_direction_type conversion_direction, // input to output, or output to input
-  const uint32_t * const source_string,
-  const size_t source_len,
-  struct parsed_data * const parsed
-)
-{
-  static const char * const csu = "u32_parse_data";
-  int res = 0;
-
-  uint32_t dest_zeroth_char;
-  uint32_t * src_char_set = NULL;
-  if (conversion_direction == PARSE_INPUT_TO_OUTPUT) {// input to output
-    src_char_set = ffs->u32_input_character_set;
-    dest_zeroth_char = ffs->u32_output_character_set[0];
-  } else if (conversion_direction == PARSE_OUTPUT_TO_INPUT) {
-    src_char_set = ffs->u32_output_character_set;
-    dest_zeroth_char = ffs->u32_input_character_set[0];
-  } else {
-    res = -EINVAL;
-  }
-
+  // Remove prefix / suffix characters from trimmed_buf
   if (!res) {
-    res = u32_parsing_decompose_string(
-      source_string, src_char_set, ffs->u32_passthrough_character_set,
-      dest_zeroth_char,
-      parsed->trimmed_buf.buf, &parsed->trimmed_buf.len,
-      parsed->formatted_dest_buf.buf,  &parsed->formatted_dest_buf.len);
+    // trimmed_buf.len does not include null terminator
+    if (ffs->prefix_passthrough_length > 0) {
+      *copy_back_start += ffs->prefix_passthrough_length;
+      UBIQ_DEBUG(debug_flag, printf("%s prefix_passthrough_length(%d)\n",csu, ffs->prefix_passthrough_length));
+
+      memmove(trimmed_buf->buf, trimmed_buf->buf + ffs->prefix_passthrough_length * sizeof(uint32_t), sizeof(uint32_t) * (trimmed_buf->len - ffs->prefix_passthrough_length));
+      if (trimmed_buf->len < ffs->prefix_passthrough_length) {
+        trimmed_buf->len = 0;
+        res = -EINVAL;
+      } else {
+        trimmed_buf->len = trimmed_buf->len - ffs->prefix_passthrough_length;
+      }
+      ((uint32_t *)trimmed_buf->buf)[trimmed_buf->len] = '\0';
+
+      UBIQ_DEBUG(debug_flag, printf("%s after memmove(%s) \t len(%d) \t res(%d)\n",csu, trimmed_buf->buf, trimmed_buf->len, res));
+
+      // Copy characters from source string for the prefix passthrough characters
+      if (!res) {
+        int i = 0;
+        uint32_t * c = (uint32_t *)formatted_dest_buf->buf;
+        const uint32_t * s = source_string;
+        // Make sure we don't pass the end of the source string
+        while (i < ffs->prefix_passthrough_length && *s != '\0') {
+          // If the source is NOT a passthrough character, then it is part of the prefix count
+          // Copy over and increment 
+          if (ffs->u32_passthrough_character_set == NULL || !u32_strchr(ffs->u32_passthrough_character_set, *s)) {
+            *c++ = *s++;
+            i++;
+          } else {
+            // Just move to next character
+            *c++;
+            *s++;
+          }
+        } // Loop over all prefix characters
+      }
+    } // Prefix > 0
+
+    // Remove suffix - adjust length and add null terminator
+    if (!res && ffs->suffix_passthrough_length > 0) {
+      // Unsigned int arithmetic
+      if (trimmed_buf->len < ffs->suffix_passthrough_length) {
+        trimmed_buf->len = 0;
+        res = -EINVAL;
+      } else {
+        trimmed_buf->len = trimmed_buf->len - ffs->suffix_passthrough_length;
+      }
+      ((uint32_t *)trimmed_buf->buf)[trimmed_buf->len] = '\0';
+
+      UBIQ_DEBUG(debug_flag, printf("%s after suffix_passthrough_length(%s) \t len(%d) \t res(%d)\n",csu, trimmed_buf->buf, trimmed_buf->len, res));
+
+      if (!res) {
+        // Move from end of string back to front, copying non passthrough characters
+        int i = ffs->suffix_passthrough_length;
+        uint32_t * c = ((uint32_t *)formatted_dest_buf->buf) + formatted_dest_buf->len - 1;
+        const uint32_t * s = source_string + source_len - 1;
+
+        while (i > 0 && s > source_string) {
+          if (ffs->u32_passthrough_character_set == NULL || !u32_strchr(ffs->u32_passthrough_character_set, *s)) {
+            *c-- = *s--;
+            i--;
+          } else {
+            // Just move to next character
+            *c--;
+            *s--;
+          }
+        }
+      }
+    } // Remove suffix and copy characters from end of string to beginning
   }
 
+  UBIQ_DEBUG(debug_flag, printf("%s end res(%d)\n", csu, res));
+
   return res;
-} // u32_parse_data
+} // u32_parse_data_prealloc
+
 
 
 static
@@ -1138,6 +1272,7 @@ int u32_finalize_output_string_prealloc(
   const uint32_t * const data,
   const size_t data_len,
   const uint32_t zero_char,
+  const size_t copy_back_start,
   struct data * const formatted_dest_buf
 )
 {
@@ -1145,56 +1280,27 @@ int u32_finalize_output_string_prealloc(
   int debug_flag = 0;
   // To save a couple cycles - Use the parsed formatted destination buffer
 
-  UBIQ_DEBUG(debug_flag, printf("%s data(%s) data_len(%d) zero_char(%c)\n", csu, data, data_len, zero_char));
+  UBIQ_DEBUG(debug_flag, printf("%s data(%S) data_len(%d) formatted_dest_buf->len(%d) zero_char(%d)\n", csu, data, data_len, formatted_dest_buf->len, zero_char));
   int res = 0;
 
+  // Data_len <= formatted_dest_buf.len
+  
   size_t src_idx=0;
-  for (size_t i = 0; i < formatted_dest_buf->len; i++) {
-    if (((uint32_t *)formatted_dest_buf->buf)[i] == zero_char) {
-      ((uint32_t *)formatted_dest_buf->buf)[i] = data[src_idx++];
+  size_t dest_idx=copy_back_start; // Start at index after any prefix and leading passthrough characters
+
+  while (src_idx < data_len && dest_idx < formatted_dest_buf->len) {
+  UBIQ_DEBUG(debug_flag, printf("%s char(%d) \n", csu, (uint32_t)((uint32_t *)formatted_dest_buf->buf)[dest_idx]));
+    if (((uint32_t *)formatted_dest_buf->buf)[dest_idx] == zero_char) {
+      ((uint32_t *)formatted_dest_buf->buf)[dest_idx] = data[src_idx++];
     }
+    dest_idx++;
   }
-  UBIQ_DEBUG(debug_flag, printf("%s formatted_dest_buf->buf(%s)\n", csu, formatted_dest_buf->buf));
+
+  UBIQ_DEBUG(debug_flag, printf("%s dest_idx(%d) src_idx(%d) formatted_dest_buf->buf(%S)\n", csu, dest_idx, src_idx, formatted_dest_buf->buf));
 
   return res;
 }
 
-static
-int u32_finalize_output_string(
-  struct parsed_data * parsed,
-  const size_t original_data_len,
-  const uint32_t * const data,
-  const size_t data_len,
-  const uint32_t zero_char,
-  uint32_t ** finalized_data,
-  size_t * finalized_data_len
-)
-{
-  static const char * const csu = "u32_finalize_output_string";
-  int debug_flag = 0;
-  // To save a couple cycles - Use the parsed formatted destination buffer
-
-  UBIQ_DEBUG(debug_flag, printf("%s data(%s) data_len(%d) zero_char(%c)\n", csu, data, data_len, zero_char));
-  int res = 0;
-
-  size_t src_idx=0;
-  for (size_t i = 0; i < parsed->formatted_dest_buf.len; i++) {
-    if (((uint32_t *)parsed->formatted_dest_buf.buf)[i] == zero_char) {
-      ((uint32_t *)parsed->formatted_dest_buf.buf)[i] = data[src_idx++];
-    }
-  }
-  UBIQ_DEBUG(debug_flag, printf("%s parsed->formatted_dest_buf.buf(%s)\n", csu, parsed->formatted_dest_buf.buf));
-
-  if (!res) {
-    // Like a C++ move
-    *finalized_data = (uint32_t *)parsed->formatted_dest_buf.buf;
-    *finalized_data_len = parsed->formatted_dest_buf.len;
-    parsed->formatted_dest_buf.buf = NULL;
-    parsed->formatted_dest_buf.len = 0;
-  }
-
-  return res;
-}
 
 static
 int char_finalize_output_string_prealloc(
@@ -1202,6 +1308,7 @@ int char_finalize_output_string_prealloc(
   const char * const data,
   const size_t data_len,
   const char zero_char,
+  const size_t copy_back_start,
   struct data * const formatted_dest_buf
 )
 {
@@ -1209,59 +1316,19 @@ int char_finalize_output_string_prealloc(
   int debug_flag = 0;
   // To save a couple cycles - Use the parsed formatted destination buffer
 
-  UBIQ_DEBUG(debug_flag, printf("%s data(%s) data_len(%d) zero_char(%c)\n", csu, data, data_len, zero_char));
+  UBIQ_DEBUG(debug_flag, printf("%s data(%s) data_len(%d) zero_char(%c) copy_back_start(%d)\n", csu, data, data_len, zero_char, copy_back_start));
   int res = 0;
 
   size_t src_idx=0;
-  size_t i;
-  for (i = 0; i < formatted_dest_buf->len; i++) {
-    if (((char *)formatted_dest_buf->buf)[i] == zero_char) {
-      ((char *)formatted_dest_buf->buf)[i] = data[src_idx++];
+  size_t dest_idx = copy_back_start;
+
+  while (src_idx < data_len && dest_idx < formatted_dest_buf->len) {
+    if (((char *)formatted_dest_buf->buf)[dest_idx] == zero_char) {
+      ((char *)formatted_dest_buf->buf)[dest_idx] = data[src_idx++];
     }
-  }
-  if (i < formatted_dest_buf->len) {
-    ((char *)formatted_dest_buf->buf)[i] = 0;
+    dest_idx++;
   }
   UBIQ_DEBUG(debug_flag, printf("%s formatted_dest_buf.buf(%s)\n", csu, formatted_dest_buf->buf));
-
-  return res;
-}
-
-
-
-static
-int char_finalize_output_string(
-  struct parsed_data * parsed,
-  const size_t original_data_len,
-  const char * const data,
-  const size_t data_len,
-  const char zero_char,
-  char ** finalized_data,
-  size_t * finalized_data_len
-)
-{
-  static const char * const csu = "char_finalize_output_string";
-  int debug_flag = 0;
-  // To save a couple cycles - Use the parsed formatted destination buffer
-
-  UBIQ_DEBUG(debug_flag, printf("%s data(%s) data_len(%d) zero_char(%c)\n", csu, data, data_len, zero_char));
-  int res = 0;
-
-  size_t src_idx=0;
-  for (size_t i = 0; i < parsed->formatted_dest_buf.len; i++) {
-    if (((char *)parsed->formatted_dest_buf.buf)[i] == zero_char) {
-      ((char *)parsed->formatted_dest_buf.buf)[i] = data[src_idx++];
-    }
-  }
-  UBIQ_DEBUG(debug_flag, printf("%s parsed->formatted_dest_buf.buf(%s)\n", csu, parsed->formatted_dest_buf.buf));
-
-  if (!res) {
-    // Like a C++ move
-    *finalized_data = (char *)parsed->formatted_dest_buf.buf;
-    *finalized_data_len = parsed->formatted_dest_buf.len;
-    parsed->formatted_dest_buf.buf = NULL;
-    parsed->formatted_dest_buf.len = 0;
-  }
 
   return res;
 }
@@ -1279,6 +1346,7 @@ int char_fpe_encrypt_data_prealloc(
   static const char * const csu = "char_fpe_encrypt_data_prealloc";
   int debug_flag = 0;
   int res = 0;
+  size_t copy_back_start = 0;
   // struct parsed_data * parsed = NULL;
   char * ct = NULL;
 
@@ -1304,8 +1372,10 @@ int char_fpe_encrypt_data_prealloc(
   if (!res ) { res = CAPTURE_ERROR(enc, alloc(ptlen + 1, sizeof(char), (void **)&ct), "Memory Allocation Error");}
   UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) ct allocated\n",csu, "alloc", res));
 
-  if (!res) { res = CAPTURE_ERROR(enc, char_parse_data_prealloc(ffs_definition, PARSE_INPUT_TO_OUTPUT, ptbuf, ptlen, &trimmed_buf, &formatted_dest_buf ), "Invalid input string character(s)");}
-  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) trimmed(%s) formatted(%s)\n",csu, "char_parse_data", res, trimmed_buf.buf, formatted_dest_buf.buf));
+  // Copy back start is after all initial passthrough characters and after an prefix characters.
+  // This is the starting location for the first CT when copying back,
+  if (!res) { res = CAPTURE_ERROR(enc, char_parse_data_prealloc(ffs_definition, PARSE_INPUT_TO_OUTPUT, ptbuf, ptlen, &trimmed_buf, &formatted_dest_buf, &copy_back_start ), "Invalid input string character(s)");}
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) trimmed(%s) formatted(%s) copy_back_start(%d)\n",csu, "char_parse_data_prealloc", res, trimmed_buf.buf, formatted_dest_buf.buf, copy_back_start));
 
   if (!res && (trimmed_buf.len < ffs_definition->min_input_length || trimmed_buf.len > ffs_definition->max_input_length)) {
       res = CAPTURE_ERROR(enc, -EINVAL, "Input length does not match FFS parameters");
@@ -1314,66 +1384,16 @@ int char_fpe_encrypt_data_prealloc(
   if (!res) { res = CAPTURE_ERROR(enc, ff1_encrypt(ctx, ct, trimmed_buf.buf, tweak, tweaklen), "Unable to encrypt data");}
   UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) ct(%s)\n",csu, "ff1_encrypt", res, ct));
 
-
   if (!res) { res = CAPTURE_ERROR(enc, str_convert_radix(ct, ffs_definition->input_character_set, ffs_definition->output_character_set, ct), "Unable to convert to output character set");}
   UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) ct(%s)\n",csu, "str_convert_radix", res, ct));
 
   if (!res) {res = CAPTURE_ERROR(enc, encode_keynum(ffs_definition, key_number, ct), "Unable to encode key number to cipher text");}
   UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i)\n",csu, "encode_keynum", res));
 
-
-  if (!res) {res = CAPTURE_ERROR(enc, char_finalize_output_string_prealloc( ptlen, ct, strlen(ct), ffs_definition->output_character_set[0],  &formatted_dest_buf), "Unable to produce cipher text string");}
-  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i)\n",csu, "char_finalize_output_string_prealloc", res));
+  if (!res) {res = CAPTURE_ERROR(enc, char_finalize_output_string_prealloc( ptlen, ct, strlen(ct), ffs_definition->output_character_set[0], copy_back_start, &formatted_dest_buf), "Unable to produce cipher text string");}
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) \t ctbuf(%s) \t formatted_dest_buf(%s)\n",csu, "char_finalize_output_string_prealloc", res, ctbuf, formatted_dest_buf.buf));
 
   free(trimmed_buf.buf);
-  free(ct);
-
-  return res;
-}
-
-
-static
-int char_fpe_encrypt_data(
-  struct ubiq_platform_fpe_enc_dec_obj * const enc,
-  const struct ffs * const ffs_definition,
-  struct ff1_ctx * const ctx,
-  const int key_number,
-  const uint8_t * const tweak, const size_t tweaklen,
-  const char * const ptbuf, const size_t ptlen,
-  char ** const ctbuf, size_t * const ctlen)
-{
-  static const char * const csu = "char_fpe_encrypt_data";
-  int debug_flag = 0;
-  int res = 0;
-  struct parsed_data * parsed = NULL;
-  char * ct = NULL;
-
-  if (!res) { res = CAPTURE_ERROR(enc, parsed_create(&parsed, UINT8, ptlen),  "Memory Allocation Error"); }
-  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i)\n",csu, "parsed_create", res));
-
-  if (!res) { res = CAPTURE_ERROR(enc, char_parse_data(ffs_definition, PARSE_INPUT_TO_OUTPUT, ptbuf, ptlen, parsed ), "Invalid input string character(s)");}
-  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i)\n",csu, "char_parse_data", res));
-
-  if (!res && (parsed->trimmed_buf.len < ffs_definition->min_input_length || parsed->trimmed_buf.len > ffs_definition->max_input_length)) {
-      res = CAPTURE_ERROR(enc, -EINVAL, "Input length does not match FFS parameters");
-  }
-
-  if (!res ) { res = CAPTURE_ERROR(enc, alloc(ptlen + 1, sizeof(char), (void **)&ct), "Memory Allocation Error");}
-  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) buf(%s)\n",csu, "alloc", res, parsed->trimmed_buf.buf));
-
-  if (!res) { res = CAPTURE_ERROR(enc, ff1_encrypt(ctx, ct, parsed->trimmed_buf.buf, tweak, tweaklen), "Unable to encrypt data");}
-  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) ct(%s)\n",csu, "ff1_encrypt", res, ct));
-
-  if (!res) { res = CAPTURE_ERROR(enc, str_convert_radix(ct, ffs_definition->input_character_set, ffs_definition->output_character_set, ct), "Unable to convert to output character set");}
-  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) ct(%s)\n",csu, "str_convert_radix", res, ct));
-
-  if (!res) {res = CAPTURE_ERROR(enc, encode_keynum(ffs_definition, key_number, ct), "Unable to encode key number to cipher text");}
-  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i)\n",csu, "encode_keynum", res));
-
-  if (!res) {res = CAPTURE_ERROR(enc, char_finalize_output_string(parsed, ptlen, ct, strlen(ct), ffs_definition->output_character_set[0], ctbuf, ctlen), "Unable to produce cipher text string");}
-  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i)\n",csu, "char_finalize_output_string", res));
-
-  parsed_destroy(parsed);
   free(ct);
 
   return res;
@@ -1392,6 +1412,7 @@ int u32_fpe_encrypt_data_prealloc(
   static const char * const csu = "u32_fpe_encrypt_data_prealloc";
   int debug_flag = 0;
   int res = 0;
+  size_t copy_back_start = 0;
   char * u8_ct = NULL;
   char * ctbuf_tmp = NULL;
   uint32_t * u32_ct = NULL;
@@ -1402,8 +1423,6 @@ int u32_fpe_encrypt_data_prealloc(
   // Need to allocate both of these to be u32 length
   struct data trimmed_buf = {NULL, 0};
   struct data formatted_dest_buf = {NULL, 0};
-
-  setlocale(LC_ALL, "C.UTF-8");
 
   if (!res) { res = CAPTURE_ERROR(enc, convert_utf8_to_utf32(ptbuf, &u32_ptbuf),  "Unable to convert UTF8 string"); }
   UBIQ_DEBUG(debug_flag, printf("%s \n \t%s ptbuf(%s) u32_pt(%S) res(%i)\n",csu, "convert_utf8_to_utf32", ptbuf, u32_ptbuf, res));
@@ -1417,8 +1436,9 @@ int u32_fpe_encrypt_data_prealloc(
   trimmed_buf.len = len + 1;
 
   // Uint32 processing
-  if (!res) { res = CAPTURE_ERROR(enc, u32_parse_data_prealloc(ffs_definition, PARSE_INPUT_TO_OUTPUT, u32_ptbuf, len, &trimmed_buf, &formatted_dest_buf ), "Invalid input string character(s)");}
-  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i)\n",csu, "char_parse_data", res));
+  if (!res) { res = CAPTURE_ERROR(enc, u32_parse_data_prealloc(ffs_definition, PARSE_INPUT_TO_OUTPUT, u32_ptbuf, len, &trimmed_buf, &formatted_dest_buf, &copy_back_start  ), "Invalid input string character(s)");}
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) trimmed(%S) formatted(%S) copy_back_start(%d)\n",csu, "u32_parse_data_prealloc", res, trimmed_buf.buf, formatted_dest_buf.buf, copy_back_start ));
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i)\n",csu, "u32_parse_data_prealloc", res));
 
   if (!res && (trimmed_buf.len < ffs_definition->min_input_length || trimmed_buf.len > ffs_definition->max_input_length)) {
       res = CAPTURE_ERROR(enc, -EINVAL, "Input length does not match FFS parameters");
@@ -1442,8 +1462,8 @@ int u32_fpe_encrypt_data_prealloc(
   if (!res) {res = CAPTURE_ERROR(enc, u32_encode_keynum(ffs_definition, key_number, u32_ct), "Unable to encode key number to cipher text");}
   UBIQ_DEBUG(debug_flag, printf("%s \n \t %s res(%i) u32_ct(%S)\n",csu, "u32_encode_keynum", res, u32_ct));
 
-  if (!res) {res = CAPTURE_ERROR(enc, u32_finalize_output_string_prealloc(ptlen, u32_ct, u32_strlen(u32_ct), ffs_definition->u32_output_character_set[0], &formatted_dest_buf), "Unable to produce cipher text string");}
-  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i)\n",csu, "char_finalize_output_string", res));
+  if (!res) {res = CAPTURE_ERROR(enc, u32_finalize_output_string_prealloc(ptlen, u32_ct, u32_strlen(u32_ct), ffs_definition->u32_output_character_set[0], copy_back_start, &formatted_dest_buf), "Unable to produce cipher text string");}
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i)\n",csu, "u32_finalize_output_string_prealloc", res));
 
   if (!res) { res = CAPTURE_ERROR(enc, convert_utf32_to_utf8( formatted_dest_buf.buf, (uint8_t **)&ctbuf_tmp),  "Unable to convert UTF8 string"); }
   UBIQ_DEBUG(debug_flag, printf("%s \n \t %s res(%i) ctbuf(%s)\n",csu, "convert_utf32_to_utf8", res, ctbuf_tmp));
@@ -1484,6 +1504,7 @@ int char_fpe_decrypt_data_prealloc(
   static const char * const csu = "char_fpe_decrypt_data_prealloc";
   int debug_flag = 0;
   int res = 0;
+  size_t copy_back_start = 0;
   struct ff1_ctx * ctx = NULL;
   char * pt = NULL;
 
@@ -1509,8 +1530,8 @@ int char_fpe_decrypt_data_prealloc(
   // if (!res) { res = CAPTURE_ERROR(enc, parsed_create(&parsed, UINT8, ctlen),  "Memory Allocation Error"); }
   // UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i)\n",csu, "parsed_create", res));
 
-  if (!res) { res = CAPTURE_ERROR(enc, char_parse_data_prealloc(ffs_definition, PARSE_OUTPUT_TO_INPUT, ctbuf, ctlen, &trimmed_buf, &formatted_dest_buf ), "Invalid input string character(s)");}
-  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) trimmed(%s) formatted(%s)\n",csu, "char_parse_data", res, trimmed_buf.buf, formatted_dest_buf.buf));
+  if (!res) { res = CAPTURE_ERROR(enc, char_parse_data_prealloc(ffs_definition, PARSE_OUTPUT_TO_INPUT, ctbuf, ctlen, &trimmed_buf, &formatted_dest_buf, &copy_back_start ), "Invalid input string character(s)");}
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) trimmed(%s) formatted(%s)\n",csu, "char_parse_data_prealloc", res, trimmed_buf.buf, formatted_dest_buf.buf));
 
   if (!res && (trimmed_buf.len < ffs_definition->min_input_length || trimmed_buf.len > ffs_definition->max_input_length)) {
       res = CAPTURE_ERROR(enc, -EINVAL, "Input length does not match FFS parameters");
@@ -1532,8 +1553,7 @@ int char_fpe_decrypt_data_prealloc(
   if (!res) { res = CAPTURE_ERROR(enc, ff1_decrypt(ctx, pt, trimmed_buf.buf, tweak, tweaklen), "Unable to decrypt data");}
   UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) (%s)\n",csu, "ff1_decrypt", res, pt));
 
-  // char_finalize_output_string
-  if (!res) {res = CAPTURE_ERROR(enc, char_finalize_output_string_prealloc(ctlen, pt, strlen(pt), ffs_definition->input_character_set[0], &formatted_dest_buf), "Unable to produce plain text string");}
+  if (!res) {res = CAPTURE_ERROR(enc, char_finalize_output_string_prealloc(ctlen, pt, strlen(pt), ffs_definition->input_character_set[0], copy_back_start, &formatted_dest_buf), "Unable to produce plain text string");}
   UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) ptbuf(%s)\n",csu, "char_finalize_output_string", res, ptbuf));
 
   free(trimmed_buf.buf);
@@ -1554,6 +1574,7 @@ int u32_fpe_decrypt_data_prealloc(
   static const char * const csu = "u32_fpe_decrypt_data_prealloc";
   int debug_flag = 0;
   int res = 0;
+  size_t copy_back_start = 0;
   struct ff1_ctx * ctx = NULL;
   char * pt = NULL;
 
@@ -1572,8 +1593,6 @@ int u32_fpe_decrypt_data_prealloc(
 
   char * ptbuf_tmp = NULL;
 
-  setlocale(LC_ALL, "C.UTF-8");
-
   if (!res) { res = CAPTURE_ERROR(enc, convert_utf8_to_utf32(ctbuf, &u32_ctbuf),  "Unable to convert UTF8 string"); }
   UBIQ_DEBUG(debug_flag, printf("%s \n \t%s ctbuf(%s) u32_ctbuf(%S) res(%i)\n",csu, "convert_utf8_to_utf32", ctbuf, u32_ctbuf, res));
 
@@ -1586,12 +1605,15 @@ int u32_fpe_decrypt_data_prealloc(
   formatted_dest_buf.len = len + 1;
   trimmed_buf.len = len + 1;
 
-  if (!res) { res = CAPTURE_ERROR(enc, u32_parse_data_prealloc(ffs_definition, PARSE_OUTPUT_TO_INPUT, u32_ctbuf, len, &trimmed_buf, &formatted_dest_buf ), "Invalid input string character(s)");}
-  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) trimmed(%S) formatted(%S)\n",csu, "u32_parse_data", res, trimmed_buf.buf, formatted_dest_buf.buf));
+  if (!res) { res = CAPTURE_ERROR(enc, u32_parse_data_prealloc(ffs_definition, PARSE_OUTPUT_TO_INPUT, u32_ctbuf, len, &trimmed_buf, &formatted_dest_buf, &copy_back_start), "Invalid input string character(s)");}
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) trimmed(%S) formatted(%S)\n",csu, "u32_parse_data_prealloc", res, trimmed_buf.buf, formatted_dest_buf.buf));
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s trimmed_buf.len(%i) \n",csu, "u32_parse_data_prealloc", trimmed_buf.len));
 
   if (!res && (trimmed_buf.len < ffs_definition->min_input_length || trimmed_buf.len > ffs_definition->max_input_length)) {
       res = CAPTURE_ERROR(enc, -EINVAL, "Input length does not match FFS parameters");
   }
+
+  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) \n",csu, "after", res));
 
   // decode keynum
   if (!res) { res = CAPTURE_ERROR(enc, u32_decode_keynum(ffs_definition, trimmed_buf.buf, key_number ), "Unable to determine key number in cipher text");}
@@ -1622,7 +1644,7 @@ int u32_fpe_decrypt_data_prealloc(
   UBIQ_DEBUG(debug_flag, printf("%s \n \t %s u8_pt(%s) u32_pt(%S) res(%i)\n",csu, "convert_utf8_to_utf32", u8_pt, u32_pt, res));
 
   // u32_finalize_output_string
-  if (!res) {res = CAPTURE_ERROR(enc, u32_finalize_output_string_prealloc(ctlen, u32_pt, u32_strlen(u32_pt), ffs_definition->u32_input_character_set[0], &formatted_dest_buf), "Unable to produce plain text string");}
+  if (!res) {res = CAPTURE_ERROR(enc, u32_finalize_output_string_prealloc(ctlen, u32_pt, u32_strlen(u32_pt), ffs_definition->u32_input_character_set[0], copy_back_start, &formatted_dest_buf), "Unable to produce plain text string");}
   UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i) ptbuf(%S)\n",csu, "formatted_dest_buf", res, formatted_dest_buf.buf));
 
   if (!res) { res = CAPTURE_ERROR(enc, convert_utf32_to_utf8( formatted_dest_buf.buf, (uint8_t **)&ptbuf_tmp),  "Unable to convert UTF8 string"); }
@@ -1636,8 +1658,6 @@ int u32_fpe_decrypt_data_prealloc(
       strcpy(ptbuf, ptbuf_tmp);
       *ptlen = len;
     }
-    
-
   }
 
   free(u32_ctbuf);

@@ -6,6 +6,14 @@
 #include <stdio.h>
 #include <unistr.h>
 
+// #define UBIQ_DEBUG_ON // UNCOMMENT to Enable UBIQ_DEBUG macro
+
+#ifdef UBIQ_DEBUG_ON
+#define UBIQ_DEBUG(x,y) {x && y;}
+#else
+#define UBIQ_DEBUG(x,y)
+#endif
+
 int
 ubiq_platform_efpe_parsing_parse_input(
     const uint32_t * const input_string, // Null terminated
@@ -62,6 +70,8 @@ char_parsing_decompose_string(
     size_t * formatted_len
   )
 {
+  static const char * const csu = "char_parsing_decompose_string";
+  int debug_flag = 0;
   int err;
 
   const char * i = input_string;
@@ -71,6 +81,7 @@ char_parsing_decompose_string(
   err = 0;
 
   while (*i && (0 == err)) {
+      UBIQ_DEBUG(debug_flag, printf("%s \t i(%s) trimmed_characters(%s) \t empty_formatted_output(%s) \t err(%d)\n",csu, i, trimmed_characters, empty_formatted_output, err));
     // Making assumption that input character is more likely to be in input character set, not
     // passthrough, so check input character set first, even though check may take longer.
     if (strchr(input_character_set, *i))
@@ -111,7 +122,12 @@ u32_parsing_decompose_string(
     size_t * formatted_len
   )
 {
+  static const char * const csu = "u32_parsing_decompose_string";
+  int debug_flag = 0;
+
   int err;
+
+  UBIQ_DEBUG(debug_flag, printf("%s \t trimmed_len(%d) formatted_len(%d) \t err(%d)\n",csu, *trimmed_len, *formatted_len, err));
 
   const uint32_t * i = input_string;
   uint32_t * f = empty_formatted_output;
@@ -120,6 +136,8 @@ u32_parsing_decompose_string(
   err = 0;
 
   while (*i && (0 == err)) {
+      UBIQ_DEBUG(debug_flag, printf("%s \t i(%S) trimmed_characters(%S) \t empty_formatted_output(%S) \t err(%d)\n",csu, i, trimmed_characters, empty_formatted_output, err));
+
     // Making assumption that input character is more likely to be in input character set, not
     // passthrough, so check input character set first, even though check may take longer.
     if (u32_strchr(input_character_set, *i))
@@ -136,15 +154,19 @@ u32_parsing_decompose_string(
     {
       *f++ = *i;
     }
-    // If the string is in the input characterset,
-    // copy to trimmed characters
+    // Else - character is from neither - consider error
     else  {
       err = -EINVAL;
     }
     i++;
   }
+  UBIQ_DEBUG(debug_flag, printf("%s end \t t(%S) \t f(%S) \t err(%d)\n",csu, t, f, err));
+  UBIQ_DEBUG(debug_flag, printf("%s \t len(%ld) \t len(%ld) \t err(%d)\n",csu, t - trimmed_characters, f - empty_formatted_output, err));
+
   *trimmed_len = t - trimmed_characters;
   *formatted_len = f - empty_formatted_output;
+  UBIQ_DEBUG(debug_flag, printf("%s \t trimmed_len(%d) formatted_len(%d) \t err(%d)\n",csu, *trimmed_len, *formatted_len, err));
+
   return err;
 }
 
