@@ -37,7 +37,7 @@
  * Defines
  *
 **************************************************************************************/
-#define UBIQ_DEBUG_ON // UNCOMMENT to Enable UBIQ_DEBUG macro
+// #define UBIQ_DEBUG_ON // UNCOMMENT to Enable UBIQ_DEBUG macro
 
 #ifdef UBIQ_DEBUG_ON
 #define UBIQ_DEBUG(x,y) {x && y;}
@@ -703,7 +703,7 @@ int char_process_prefix(
 {
   static const char * const csu = "char_process_prefix";
   int res = 0;
-  int debug_flag = 1;
+  int debug_flag = 0;
 
   // Need to step over prefix_len characters.  
   // If passthrough_processed_already, then we need to step over trimmed characters
@@ -758,7 +758,7 @@ int char_process_suffix(
 {
   static const char * const csu = "char_process_suffix";
   int res = 0;
-  int debug_flag = 1;
+  int debug_flag = 0;
 
   // Start at end of string and move forward
 
@@ -814,7 +814,7 @@ int u32_process_prefix(
 {
   static const char * const csu = "u32_process_prefix";
   int res = 0;
-  int debug_flag = 1;
+  int debug_flag = 0;
 
   uint32_t * src = (uint32_t *) trimmed_data->buf;
   uint32_t * dest = (uint32_t *) formatted_data->buf;
@@ -864,7 +864,7 @@ int u32_process_suffix(
 {
   static const char * const csu = "u32_process_suffix";
   int res = 0;
-  int debug_flag = 1;
+  int debug_flag = 0;
 
   // Start at end of string and move forward
 
@@ -917,7 +917,7 @@ int char_parse_data_prealloc(
 {
   static const char * const csu = "char_parse_data_prealloc";
   int res = 0;
-  int debug_flag = 1;
+  int debug_flag = 0;
   size_t source_parse_idx = 0;
   size_t source_effective_len = source_len;
 
