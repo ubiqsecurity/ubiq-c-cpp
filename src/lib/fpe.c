@@ -491,7 +491,7 @@ static int parse_passthrough_rules(
   struct ffs * e) 
 {
   static const char * const csu = "parse_passthrough_rules";
-  int debug_flag = 0;
+  int debug_flag = 1;
   int res = 0;
   int rules_idx = 0;
   UBIQ_DEBUG(debug_flag, printf("%s %s\n",csu, "started"));
@@ -705,6 +705,8 @@ int char_process_prefix(
   int res = 0;
   int debug_flag = 0;
 
+  UBIQ_DEBUG(debug_flag, printf("%s \t start empty_idx(%d)\n",csu, formatted_data->first_empty_idx));
+
   // Need to step over prefix_len characters.  
   // If passthrough_processed_already, then we need to step over trimmed characters
   // If !passthrough_processed_already, then we need to step over total characters
@@ -715,18 +717,19 @@ int char_process_prefix(
 
   size_t idx = 0;
   while (idx < prefix_len) {
+    UBIQ_DEBUG(debug_flag, printf("%s \t loop empty_idx(%d)\n",csu, formatted_data->first_empty_idx));
     if (passthrough_processed_already) {
     // If passthrough has already been processed, don't count passthrough characters
       while (*dest != '\0' && strchr(passthrough_char_set, *dest)) {
         dest++;
-        formatted_data->first_empty_idx++;
+        // formatted_data->first_empty_idx++;
       }
       if (*dest == '\0') {
         res = -EINVAL;
       } else {
         *dest++ = *src++;
         trimmed_data->len--;
-        formatted_data->first_empty_idx++;
+        // formatted_data->first_empty_idx++;
       }
     } else {
       // Passthrough has not been processed but only copy over a source string
@@ -741,8 +744,9 @@ int char_process_prefix(
   }
   if (!res) {
     trimmed_data->buf = src;
+    formatted_data->first_empty_idx = dest -((char *)formatted_data->buf);
   }
-  UBIQ_DEBUG(debug_flag, printf("%s \t formatted_data(%s) formatted_data.len(%d) res(%d)\n",csu, formatted_data->buf, formatted_data->len, res));
+  UBIQ_DEBUG(debug_flag, printf("%s \t formatted_data(%s) formatted_data.len(%d) res(%d) empty_idx(%d)\n",csu, formatted_data->buf, formatted_data->len, res, formatted_data->first_empty_idx));
   UBIQ_DEBUG(debug_flag, printf("%s \t trimmed_data(%s) trimmed_data.len(%d) res(%d)\n",csu, trimmed_data->buf, trimmed_data->len, res));
   return res;
 }
@@ -814,7 +818,7 @@ int u32_process_prefix(
 {
   static const char * const csu = "u32_process_prefix";
   int res = 0;
-  int debug_flag = 0;
+  int debug_flag = 1;
 
   uint32_t * src = (uint32_t *) trimmed_data->buf;
   uint32_t * dest = (uint32_t *) formatted_data->buf;
@@ -864,7 +868,7 @@ int u32_process_suffix(
 {
   static const char * const csu = "u32_process_suffix";
   int res = 0;
-  int debug_flag = 0;
+  int debug_flag = 1;
 
   // Start at end of string and move forward
 
@@ -917,7 +921,7 @@ int char_parse_data_prealloc(
 {
   static const char * const csu = "char_parse_data_prealloc";
   int res = 0;
-  int debug_flag = 0;
+  int debug_flag = 1;
   size_t source_parse_idx = 0;
   size_t source_effective_len = source_len;
 
@@ -969,14 +973,8 @@ int char_parse_data_prealloc(
         dest_zeroth_char, ffs->suffix_passthrough_length, formatted_dest_buf,
         passthrough_processed);
     } else if (ffs->passthrough_rules_priority[idx] == PASSTHROUGH)  {
-      // Remember the index of the passthrough so we know if it has been processed yet
-      while (formatted_dest_buf->first_empty_idx < formatted_dest_buf->len && 
-       strchr(ffs->passthrough_character_set, ((char *)formatted_dest_buf->buf)[formatted_dest_buf->first_empty_idx])) {
-        // Step over any leading passthrough character - at the end, first_empty_idx should be the beginning of 
-        // zeroth character data.  Cannot test for zeroth character because it could be the same as a passthrough
-        // prefix.
-        formatted_dest_buf->first_empty_idx++;
-       }
+      // The prefix logic will set the first_empty_idx.  The buffers have already
+      // been separated for formatted and trimmed.
       passthrough_processed = true;
     }
   }
@@ -1467,7 +1465,7 @@ int char_finalize_output_string_prealloc(
 )
 {
   static const char * const csu = "char_finalize_output_string";
-  int debug_flag = 0;
+  int debug_flag = 1;
   // To save a couple cycles - Use the parsed formatted destination buffer
 
   UBIQ_DEBUG(debug_flag, printf("%s data(%s) data_len(%d) zero_char(%c) copy_back_start(%d)\n", csu, data, data_len, zero_char, copy_back_start));
