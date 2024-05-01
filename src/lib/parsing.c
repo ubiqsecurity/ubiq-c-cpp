@@ -80,28 +80,22 @@ char_parsing_decompose_string(
 
   err = 0;
 
+  // Due to partial encryption, we cannot make any assumption regarding source characterset.
+  // Only passthrough or non-passthrough at this time.  We will validate timmed characters
+  // against input characterset later after all processing.
+
   while (*i && (0 == err)) {
       UBIQ_DEBUG(debug_flag, printf("%s \t i(%s) trimmed_characters(%s) \t empty_formatted_output(%s) \t err(%d)\n",csu, i, trimmed_characters, empty_formatted_output, err));
-    // Making assumption that input character is more likely to be in input character set, not
-    // passthrough, so check input character set first, even though check may take longer.
-    if (strchr(input_character_set, *i))
+
+    if (passthrough_character_set && strchr(passthrough_character_set, *i))
     {
+      *f++ = *i;
+    } else {
       *t++ = *i;
       *f++ = zeroth_char;
       // Trimmed may be shorter than input so make sure to include null terminator
       // after last character
       *t = 0;
-    }
-    // If the input string matches a passthrough character, copy
-    // to empty formatted output string
-    else if (passthrough_character_set && strchr(passthrough_character_set, *i))
-    {
-      *f++ = *i;
-    }
-    // If the string is in the input characterset,
-    // copy to trimmed characters
-    else  {
-      err = -EINVAL;
     }
     i++;
   }
@@ -123,11 +117,12 @@ u32_parsing_decompose_string(
   )
 {
   static const char * const csu = "u32_parsing_decompose_string";
-  int debug_flag = 0;
+  int debug_flag = 1;
 
   int err;
 
   UBIQ_DEBUG(debug_flag, printf("%s \t trimmed_len(%d) formatted_len(%d) \t err(%d)\n",csu, *trimmed_len, *formatted_len, err));
+  UBIQ_DEBUG(debug_flag, printf("%s \t passthrough_character_set(%S)\tinput_string(%S) \tinput_character_set(%S) \t err(%d)\n",csu, passthrough_character_set, input_string, input_character_set, err));
 
   const uint32_t * i = input_string;
   uint32_t * f = empty_formatted_output;
@@ -135,28 +130,26 @@ u32_parsing_decompose_string(
 
   err = 0;
 
+  // Due to partial encryption, we cannot make any assumption regarding source characterset.
+  // Only passthrough or non-passthrough at this time.  We will validate timmed characters
+  // against input characterset later after all processing.
+
   while (*i && (0 == err)) {
       UBIQ_DEBUG(debug_flag, printf("%s \t i(%S) trimmed_characters(%S) \t empty_formatted_output(%S) \t err(%d)\n",csu, i, trimmed_characters, empty_formatted_output, err));
 
     // Making assumption that input character is more likely to be in input character set, not
     // passthrough, so check input character set first, even though check may take longer.
-    if (u32_strchr(input_character_set, *i))
+    if (passthrough_character_set && u32_strchr(passthrough_character_set, *i))
     {
+      UBIQ_DEBUG(debug_flag, printf("passthrough_character_set %C\n", *i));
+      *f++ = *i;
+    } else {
+      UBIQ_DEBUG(debug_flag, printf("input_character_set %C\n", *i));
       *t++ = *i;
       *f++ = zeroth_char;
       // Trimmed may be shorter than input so make sure to include null terminator
       // after last character
       *t = 0;
-    }
-    // If the input string matches a passthrough character, copy
-    // to empty formatted output string
-    else if (passthrough_character_set && u32_strchr(passthrough_character_set, *i))
-    {
-      *f++ = *i;
-    }
-    // Else - character is from neither - consider error
-    else  {
-      err = -EINVAL;
     }
     i++;
   }
