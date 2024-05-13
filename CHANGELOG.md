@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.1.3.0 - 2024-04-17
+## 2.2.0.0 - 2024-04-17
 * Added support for partial encryption datasets which allow data to be left in the clear after encryption.
 
 ## 2.1.2.0 - 2024-02-13
