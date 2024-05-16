@@ -470,14 +470,13 @@ static int get_json_int(
 
 static int set_rule_priority(
   struct ffs * e,
+  int idx,
   cJSON* rule,
   const passthrough_rules_priority_type rule_type)
 {
   int res = 0;
-  int rules_idx = 0;
-  res = get_json_int(rule, "priority", &rules_idx);
-  if (!res && rules_idx > 0 && rules_idx <= sizeof(e->passthrough_rules_priority)) {
-    e->passthrough_rules_priority[rules_idx - 1] = rule_type;
+  if (!res && idx >= 0 && idx < sizeof(e->passthrough_rules_priority)) {
+    e->passthrough_rules_priority[idx] = rule_type;
   } else {
     res = -EINVAL;
   }
@@ -485,6 +484,22 @@ static int set_rule_priority(
 }
 
 // [{ priority: 1, type: 'passthrough', value: ' abc' }, { priority: 2, type: 'prefix', value: 1 }, { priority: 3, type: 'suffix', value: 3 }]
+
+static int comparator(const void* p1, const void* p2) {
+  static const char * const csu = "comparator";
+  int debug_flag = 1;
+  cJSON ** e1 = (cJSON ** )p1;
+  cJSON ** e2 = (cJSON ** )p2;
+
+  int priority1;
+  int priority2;
+  
+  get_json_int(*e1, "priority", &priority1);
+  get_json_int(*e2, "priority", &priority2);
+
+  // Negative if p1 < p2, positive if p2 > p1
+  return (priority1 - priority2);
+}
 
 static int parse_passthrough_rules(
   cJSON * ffs_data,
@@ -500,28 +515,45 @@ static int parse_passthrough_rules(
 
   if (cJSON_IsArray(passthrough_rules)) {
     UBIQ_DEBUG(debug_flag, printf("%s %s\n",csu, "passthrough_rules is array"));
-    char * value = NULL;
+
+    int arraySize = cJSON_GetArraySize(passthrough_rules);
+    UBIQ_DEBUG(debug_flag, printf("%s %s %d\n",csu, "arraySize", arraySize));
+    cJSON * array[arraySize];
     cJSON * rule;
+    int idx = 0;
     cJSON_ArrayForEach(rule, passthrough_rules) {
+      array[idx] = rule;
+      idx++;
+    }
+
+    UBIQ_DEBUG(debug_flag, printf("%s %s\n",csu, "before qsort"));
+    qsort((void *)array, arraySize, sizeof(cJSON *), comparator);
+    UBIQ_DEBUG(debug_flag, printf("%s %s\n",csu, "after qsort"));
+
+    char * value = NULL;
+
+    for (int idx = 0; res == 0 && idx < arraySize; idx++ ) {
+      cJSON * rule = array[idx];
+
       res = get_json_string(rule, "type", &value);
-      UBIQ_DEBUG(debug_flag, printf("%s type(%s)\t ret(%d)\n",csu, value, res));
+      UBIQ_DEBUG(debug_flag, printf("%s type(%s)\t idx(%d) ret(%d) %s\n",csu, value, idx, res, cJSON_Print(rule)));
       if (!res && value) {
         if (strcmp(value, "passthrough") == 0) {
           res = get_json_string(rule, "value", &e->passthrough_character_set);
           if (!res) {
-            res = set_rule_priority(e, rule, PASSTHROUGH);
+            res = set_rule_priority(e, idx, rule, PASSTHROUGH);
           }
           UBIQ_DEBUG(debug_flag, printf("%s e->passthrough_character_set(%s) \t res(%d)\n",csu, e->passthrough_character_set, res));
         } else if (strcmp(value, "prefix") == 0) {
           res = get_json_int(rule, "value", &e->prefix_passthrough_length);
           if (!res) {
-            res = set_rule_priority(e, rule, PREFIX);
+            res = set_rule_priority(e, idx, rule, PREFIX);
           }
           UBIQ_DEBUG(debug_flag, printf("%s e->prefix_passthrough_length(%d) \t ret(%d)\n",csu, e->prefix_passthrough_length, res));
         } else if (strcmp(value, "suffix") == 0) {
           res = get_json_int(rule, "value", &e->suffix_passthrough_length);
           if (!res) {
-            res = set_rule_priority(e, rule, SUFFIX);
+            res = set_rule_priority(e, idx, rule, SUFFIX);
           }
           UBIQ_DEBUG(debug_flag, printf("%s e->suffix_passthrough_length(%d) \t ret(%d)\n",csu, e->suffix_passthrough_length, res));
         } else {
@@ -536,6 +568,7 @@ static int parse_passthrough_rules(
       free (value);
     }
   }
+  UBIQ_DEBUG(debug_flag, printf("%s %s %d\n",csu, "end", res));
   return res;
 }
 
