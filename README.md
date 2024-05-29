@@ -6,7 +6,6 @@ Ubiq Security Platform API from applications written in the C and C++ languages.
 They include a pre-defined set of functions and classes that will provide
 simple interfaces to encrypt and decrypt data
 
-This library also incorporates Ubiq Format Preserving Encryption (eFPE).  eFPE allows encrypting so that the output cipher text is in the same format as the original plaintext. This includes preserving special characters and control over what characters are permitted in the cipher text. For example, consider encrypting a social security number '123-45-6789'. The cipher text will maintain the dashes and look something like: 'W$+-qF-oMMV'.
 
 ## Documentation
 
