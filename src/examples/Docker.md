@@ -9,11 +9,11 @@ the commands below with `sudo` or change to the root user prior to using the
 commands.
 
 The Docker container includes the executables for `ubiq_sample-c` and
-`ubiq_sample-c++` as well as the Format Preserving Encryption, FPE, sample
-applications `ubiq_sample_fpe-c` and `ubiq_sample_fpe-c++`.
+`ubiq_sample-c++` as well as the Ubiq Structured Encryption, sample
+applications `ubiq_sample_structured-c` and `ubiq_sample_structured-c++`.
 
 In the examples below, the `ubiq_sample-c` command can be replaced for `ubiq_sample-c++`
-and `ubiq_sample_fpe-c` command can be replaced with `ubiq_sample_fpe-c++`.
+and `ubiq_sample_structured-c` command can be replaced with `ubiq_sample_structured-c++`.
 
 
 ## View the Ubiq standard C/C++ sample help output
@@ -34,7 +34,7 @@ Encrypt or decrypt files using the Ubiq service
   -d                       Decrypt the contents of the input file and write
                              the results to the output file
   -s                       Use the simple encryption / decryption interfaces
-  -p                       Use the piecewise encryption / decryption interfaces
+  -p                       Use the encryption / decryption interfaces to handle large data elements where data is loaded in chunks
   -i INFILE                Set input file name
   -o OUTFILE               Set output file name
   -c CREDENTIALS           Set the file name with the API credentials
@@ -55,8 +55,7 @@ $ mkdir ubiq_sample
 $ cd ubiq_sample
 ```
 
-Next, create a file named `credentials` in this directory and populate it as
-described [here][1].
+Next, create a file named `credentials` in this directory and populate it with [API Key credentials][credentials]
 
 Finally, you'll need a file that can be used to test the encryption. You can
 copy a file to your newly created directory for this purpose or you can
@@ -91,15 +90,15 @@ total 3080
 -rw-r--r-- 1 1048576 Jan 12 10:25 recovered
 ```
 
-# View the Ubiq FPE C/C++ sample help output
+# View the Ubiq Structured C/C++ sample help output
 
 To learn about the options associated with the sample application use the `-h`
 command line argument. (Note that the `--rm` flag is passed to docker to
 automatically remove the container when it exits.)
 
 ```shell
-$ docker run -it --rm ubiqsecurity/ubiq-c-cpp-sample ubiq_sample_fpe-c -h
-Usage: ubiq_sample_fpe-c -e|-d INPUT -s|-p -n FFS [-c CREDENTIALS] [-P PROFILE]
+$ docker run -it --rm ubiqsecurity/ubiq-c-cpp-sample ubiq_sample_structured-c -h
+Usage: ubiq_sample_structured-c -e|-d INPUT -s|-p -n Dataset [-c CREDENTIALS] [-P PROFILE]
 Encrypt or decrypt data using the Ubiq service
 
   -h                       Show this help message and exit
@@ -110,14 +109,12 @@ Encrypt or decrypt data using the Ubiq service
   -d INPUT                 Decrypt the supplied input string
                              escape or use quotes if input string
                              contains special characters
-  -s                       Use the simple FPE encryption / decryption interfaces
-  -b                       Use the bulk FPE encryption / decryption interfaces
-  -n FFS                   Use the supplied Field Format Specification
+  -n Dataset               Use the supplied Dataset name
   -c CREDENTIALS           Set the file name with the API credentials
                              (default: ~/.ubiq/credentials)
   -P PROFILE               Identify the profile within the credentials file
 ```
-## FPE Encrypting and Decrypting Data
+## Structured Encrypting and Decrypting Data
 
 There are no credentials in the container image to
 facilitate encryption or decryption, so you'll need to create an empty
@@ -131,24 +128,21 @@ $ cd ubiq_sample
 ```
 
 Next, create a file named `credentials` in this directory and populate it as
-described [here][1].
-
-If you account has Format Preserving Encryption capability enabled, When registering your application, you will need to make sure to select the radio button to indicates that the application requires FPE / eFPE.  You will
-also need to create a Format Field Specification and link it to the regsitered application.
+described [API Key credentials][credentials].
 
 ### Encryption
 
 Assuming a Field Format Specification named SSN which accepts a nine digit number with optional space or dash delimiters.
 
 ```shell
-$ docker run -it --rm -v $(pwd):$(pwd) ubiqsecurity/ubiq-c-cpp-sample ubiq_sample_fpe-c -e 123-45-6789 -n SSN -s -c $(pwd)/credentials
-FPE Encrypted Data Results => 'l00-0X-e0w1'
+$ docker run -it --rm -v $(pwd):$(pwd) ubiqsecurity/ubiq-c-cpp-sample ubiq_sample_structured-c -e 123-45-6789 -n SSN -c $(pwd)/credentials
+Structured Encryption Data Results => 'l00-0X-e0w1'
 ```
 
 ### Decryption
 ```shell
-$ docker run -it --rm -v $(pwd):$(pwd) ubiqsecurity/ubiq-c-cpp-sample ubiq_sample_fpe-c -d 'l00-0X-e0w1' -n SSN -s -c $(pwd)/credentials
-FPE Decrypt Data Results => '123-45-6789'
+$ docker run -it --rm -v $(pwd):$(pwd) ubiqsecurity/ubiq-c-cpp-sample ubiq_sample_structured-c -d 'l00-0X-e0w1' -n SSN -c $(pwd)/credentials
+Structured Decryption Data Results => '123-45-6789'
 ```
 
-[1]: https://dev.ubiqsecurity.com/docs/using-api-key-credentials#credentials-file-format
+[credentials]:https://dev.ubiqsecurity.com/docs/api-keys
