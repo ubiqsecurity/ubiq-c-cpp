@@ -1078,4 +1078,4 @@ The <b>key_caching</b> section contains values to control how and when keys are 
 ```
 
 [dashboard]:https://dashboard.ubiqsecurity.com/
-[credentials]:https://dev.ubiqsecurity.com/docs/how-to-create-api-keys
+[credentials]:https://dev.ubiqsecurity.com/docs/api-keys
