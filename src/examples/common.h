@@ -17,7 +17,7 @@ typedef enum
 {
     UBIQ_SAMPLE_METHOD_UNSPEC,
     UBIQ_SAMPLE_METHOD_SIMPLE,
-    UBIQ_SAMPLE_METHOD_PIECEWISE,
+    UBIQ_SAMPLE_METHOD_CHUNKING,
 } ubiq_sample_method_t;
 
 int
@@ -29,10 +29,9 @@ ubiq_sample_getopt(
     const char ** const credfile, const char ** const profile);
 
 int
-ubiq_fpe_getopt(
+ubiq_structured_getopt(
     const int argc, char * const argv[],
     ubiq_sample_mode_t * const mode,
-    ubiq_sample_method_t * const method,
     const char ** const ffsname, const char ** const inputstring,
     const char ** const credfile, const char ** const profile);
 

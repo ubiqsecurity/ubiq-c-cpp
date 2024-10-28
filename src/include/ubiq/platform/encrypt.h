@@ -31,31 +31,11 @@ ubiq_platform_encrypt(
     const void * const ptbuf, const size_t ptlen,
     void ** const ctbuf, size_t * const ctlen);
 
-UBIQ_PLATFORM_API
-int
-ubiq_platform_fpe_encrypt(
-    const struct ubiq_platform_credentials * const creds,
-    const char * const ffs_name,
-    const void * const tweak, const size_t tweaklen,
-    const char * const ptbuf, const size_t ptlen,
-    char ** const ctbuf, size_t * const ctlen);
-
-// ctbuf is array of NULL terminated UTF8 strings
-// length is not returned since each ctbuf element may be different number of
-// bytes due to multi-byte characters
-UBIQ_PLATFORM_API
-int
-ubiq_platform_fpe_encrypt_for_search(
-    const struct ubiq_platform_credentials * const creds,
-    const char * const ffs_name,
-    const void * const tweak, const size_t tweaklen,
-    const char * const ptbuf, const size_t ptlen,
-    char *** const ctbuf, size_t * const count);
 
 /* Opaque encryption object */
 struct ubiq_platform_encryption;
 
-struct ubiq_platform_fpe_enc_dec_obj;
+struct ubiq_platform_structured_enc_dec_obj;
 
 /*
  * Create an encryption object that can be used to encrypt some number
@@ -167,24 +147,24 @@ ubiq_platform_encryption_get_copy_of_usage(
 
 /*
  * *******************************************
- *                  FPE
+ *                  Structured
  * *******************************************
  */
 
 // Piecewise functions
 UBIQ_PLATFORM_API
 int
-ubiq_platform_fpe_enc_dec_create(
+ubiq_platform_structured_enc_dec_create(
     const struct ubiq_platform_credentials * const creds,
-    struct ubiq_platform_fpe_enc_dec_obj ** const enc);
+    struct ubiq_platform_structured_enc_dec_obj ** const enc);
 
 // Piecewise functions
 UBIQ_PLATFORM_API
 int
-ubiq_platform_fpe_enc_dec_create_with_config(
+ubiq_platform_structured_enc_dec_create_with_config(
     const struct ubiq_platform_credentials * const creds,
     const struct ubiq_platform_configuration * const cfg,
-    struct ubiq_platform_fpe_enc_dec_obj ** const enc);
+    struct ubiq_platform_structured_enc_dec_obj ** const enc);
 /**
  * @brief Encrypt data using a pre-allocated byffer of data for the results.
  * 
@@ -203,8 +183,8 @@ ubiq_platform_fpe_enc_dec_create_with_config(
  */
 UBIQ_PLATFORM_API
 int
-ubiq_platform_fpe_encrypt_data_prealloc(
-  struct ubiq_platform_fpe_enc_dec_obj * const enc,
+ubiq_platform_structured_encrypt_data_prealloc(
+  struct ubiq_platform_structured_enc_dec_obj * const enc,
   const char * const ffs_name,
   const uint8_t * const tweak, const size_t tweaklen,
   const char * const ptbuf, const size_t ptlen,
@@ -213,8 +193,8 @@ ubiq_platform_fpe_encrypt_data_prealloc(
 
 UBIQ_PLATFORM_API
 int
-ubiq_platform_fpe_encrypt_data(
-  struct ubiq_platform_fpe_enc_dec_obj * const enc,
+ubiq_platform_structured_encrypt_data(
+  struct ubiq_platform_structured_enc_dec_obj * const enc,
   const char * const ffs_name,
   const uint8_t * const tweak, const size_t tweaklen,
   const char * const ptbuf, const size_t ptlen,
@@ -245,8 +225,8 @@ ubiq_platform_fpe_encrypt_data(
  */
 UBIQ_PLATFORM_API
 int
-ubiq_platform_fpe_encrypt_data_for_search_prealloc(
-  struct ubiq_platform_fpe_enc_dec_obj * const enc,
+ubiq_platform_encrypt_data_for_search_prealloc(
+  struct ubiq_platform_structured_enc_dec_obj * const enc,
   const char * const ffs_name,
   const uint8_t * const tweak, const size_t tweaklen,
   const char * const ptbuf, const size_t ptlen,
@@ -255,8 +235,8 @@ ubiq_platform_fpe_encrypt_data_for_search_prealloc(
 
 UBIQ_PLATFORM_API
 int
-ubiq_platform_fpe_encrypt_data_for_search(
-  struct ubiq_platform_fpe_enc_dec_obj * const enc,
+ubiq_platform_structured_encrypt_data_for_search(
+  struct ubiq_platform_structured_enc_dec_obj * const enc,
   const char * const ffs_name,
   const uint8_t * const tweak, const size_t tweaklen,
   const char * const ptbuf, const size_t ptlen,
@@ -265,30 +245,30 @@ ubiq_platform_fpe_encrypt_data_for_search(
 
 UBIQ_PLATFORM_API
 void
-ubiq_platform_fpe_enc_dec_destroy(
-    struct ubiq_platform_fpe_enc_dec_obj * const e);
+ubiq_platform_structured_enc_dec_destroy(
+    struct ubiq_platform_structured_enc_dec_obj * const e);
 
 // Get details regarding last error message if
 // available.  Must free the errmsg string when
 // done.
 UBIQ_PLATFORM_API
 int
-ubiq_platform_fpe_get_last_error(
-  struct ubiq_platform_fpe_enc_dec_obj * const enc,
+ubiq_platform_structured_get_last_error(
+  struct ubiq_platform_structured_enc_dec_obj * const enc,
   int * const err_num,
   char ** const err_msg
 );
 
 UBIQ_PLATFORM_API
 int
-ubiq_platform_fpe_enc_dec_get_copy_of_usage(
-    struct ubiq_platform_fpe_enc_dec_obj * const obj,
+ubiq_platform_structured_enc_dec_get_copy_of_usage(
+    struct ubiq_platform_structured_enc_dec_obj * const obj,
     char ** const buffer, size_t * const buffer_len);
 
 UBIQ_PLATFORM_API
 int
-ubiq_platform_fpe_enc_dec_add_user_defined_metadata(
-    struct ubiq_platform_fpe_enc_dec_obj * const obj,
+ubiq_platform_structured_enc_dec_add_user_defined_metadata(
+    struct ubiq_platform_structured_enc_dec_obj * const obj,
     const char * const jsonString);
 
 __END_DECLS
@@ -388,64 +368,12 @@ namespace ubiq {
         };
 
 
-        namespace fpe {
+        namespace structured {
 
-          // Simple
-          UBIQ_PLATFORM_API
-          std::string
-          encrypt(const credentials & creds,
-                  const std::string & ffs_name,
-                  const std::string & pt);
 
           UBIQ_PLATFORM_API
           std::string
-          encrypt(const credentials & creds,
-                  const std::string & ffs_name,
-                  const std::string & pt);
-
-          UBIQ_PLATFORM_API
-          std::vector<std::string>
-          encrypt_for_search(const credentials & creds,
-                  const std::string & ffs_name,
-                  const std::string & pt);
-
-          UBIQ_PLATFORM_API
-          std::vector<std::string>
-          encrypt_for_search(const credentials & creds,
-                  const std::string & ffs_name,
-                  const std::string & pt);
-
-          UBIQ_PLATFORM_API
-          std::string
-          encrypt(const credentials & creds,
-                  const std::string & ffs_name,
-                  const std::vector<std::uint8_t> & tweak,
-                  const std::string & pt);
-
-          UBIQ_PLATFORM_API
-          std::string
-          encrypt(const credentials & creds,
-                  const std::string & ffs_name,
-                  const std::vector<std::uint8_t> & tweak,
-                  const std::string & pt);
-
-          UBIQ_PLATFORM_API
-          std::vector<std::string>
-          encrypt_for_search(const credentials & creds,
-                  const std::string & ffs_name,
-                  const std::vector<std::uint8_t> & tweak,
-                  const std::string & pt);
-
-          UBIQ_PLATFORM_API
-          std::vector<std::string>
-          encrypt_for_search(const credentials & creds,
-                  const std::string & ffs_name,
-                  const std::vector<std::uint8_t> & tweak,
-                  const std::string & pt);
-
-          UBIQ_PLATFORM_API
-          std::string
-          get_error(struct ubiq_platform_fpe_enc_dec_obj * const enc);
+          get_error(struct ubiq_platform_structured_enc_dec_obj * const enc);
 
           // Bulk
           class encryption
@@ -528,9 +456,9 @@ namespace ubiq {
             add_user_defined_metadata(const std::string & jsonString);
 
           private:
-            std::shared_ptr<::ubiq_platform_fpe_enc_dec_obj> _enc;
+            std::shared_ptr<::ubiq_platform_structured_enc_dec_obj> _enc;
           };
-        } // fpe
+        } // structured
     } // platform
 } // ubiq
 
@@ -541,3 +469,4 @@ namespace ubiq {
  * mode: c++
  * end:
  */
+

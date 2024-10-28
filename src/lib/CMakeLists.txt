@@ -29,7 +29,8 @@ add_library(
   encrypt.c
   ff1.c
   ffx.c
-  fpe.c
+  deprecated_fpe.c
+  structured.c
   hashtable.c
   init.c
   parsing.c
@@ -103,8 +104,10 @@ add_library(
   configuration.cpp
   decrypt.cpp
   encrypt.cpp
-  fpe_encrypt.cpp
-  fpe_decrypt.cpp
+  deprecated_encrypt.cpp
+  deprecated_decrypt.cpp
+  structured_encrypt.cpp
+  structured_decrypt.cpp
   init.cpp)
 if(WIN32)
   target_compile_definitions(

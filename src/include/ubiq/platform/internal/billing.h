@@ -13,7 +13,8 @@ int
 ubiq_billing_ctx_create(
   struct ubiq_billing_ctx ** ctx,
   const char * const host,
-  void * const rest,
+  const char *const papi, 
+  const char *const sapi,
   const struct ubiq_platform_configuration * const cfg
   );
 

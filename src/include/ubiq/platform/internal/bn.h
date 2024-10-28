@@ -1,5 +1,5 @@
-#ifndef UBIQ_FPE_INTERNAL_BN_H
-#define UBIQ_FPE_INTERNAL_BN_H
+#ifndef UBIQ_STRUCTURED_INTERNAL_BN_H
+#define UBIQ_STRUCTURED_INTERNAL_BN_H
 
 #include <sys/cdefs.h>
 #include <errno.h>

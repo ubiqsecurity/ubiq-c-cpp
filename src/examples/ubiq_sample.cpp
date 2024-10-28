@@ -192,9 +192,9 @@ int main(const int argc, char * const argv[])
         size > UBIQ_SAMPLE_MAX_SIMPLE_SIZE) {
         std::cerr << "NOTE: This is only for demonstration purposes and is designed to work on memory" << std::endl;
         std::cerr << "      constrained devices.  Therefore, this sample application will switch to" << std::endl;
-        std::cerr << "      the piecewise APIs for files larger than " << UBIQ_SAMPLE_MAX_SIMPLE_SIZE << " bytes in order to reduce" << std::endl;
+        std::cerr << "      the chunking APIs for files larger than " << UBIQ_SAMPLE_MAX_SIMPLE_SIZE << " bytes in order to reduce" << std::endl;
         std::cerr << "      excessive resource usages on resource constrained IoT devices" << std::endl;
-        method = UBIQ_SAMPLE_METHOD_PIECEWISE;
+        method = UBIQ_SAMPLE_METHOD_CHUNKING;
     }
 
     /* Open the output file */

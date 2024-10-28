@@ -5,6 +5,8 @@
 
 #include <ubiq/platform/encrypt.h>
 #include <ubiq/platform/decrypt.h>
+#include <ubiq/platform/deprecated_encrypt.h>
+#include <ubiq/platform/deprecated_decrypt.h>
 
 /* C interfaces */
 __BEGIN_DECLS
@@ -23,6 +25,9 @@ UBIQ_PLATFORM_API
 int ubiq_platform_init(void);
 UBIQ_PLATFORM_API
 void ubiq_platform_exit(void);
+
+int ubiq_platform_initialized(void);
+
 
 __END_DECLS
 
@@ -43,6 +48,10 @@ namespace ubiq {
         void init(void);
         UBIQ_PLATFORM_API
         void exit(void);
+
+        UBIQ_PLATFORM_API
+        void initialized(void);
+
     }
 }
 

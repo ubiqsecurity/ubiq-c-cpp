@@ -56,8 +56,8 @@ int main(const int argc, char * const argv[])
           std::exit(EXIT_FAILURE);
       }
 
-      ubiq::platform::fpe::decryption dec(creds);
-      ubiq::platform::fpe::encryption enc(creds);
+      ubiq::platform::structured::decryption dec(creds);
+      ubiq::platform::structured::encryption enc(creds);
 
       // Test to see if the infile is a directory or file.  If it is a directory, then perform a dirlist of everything in the directory and loop
       // over each file

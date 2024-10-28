@@ -11,6 +11,15 @@
 #include <string.h>
 #include <stdio.h>
 
+// #define UBIQ_DEBUG_ON
+#ifdef UBIQ_DEBUG_ON
+#define UBIQ_DEBUG(x,y) {x && y;}
+#else
+#define UBIQ_DEBUG(x,y)
+#endif
+
+static int debug_flag = 1;
+
 int
 ubiq_platform_snprintf_api_url(
     char * const buf, const size_t len,
@@ -278,6 +287,8 @@ ubiq_platform_rest_request(
     const char * const content_type,
     const void * const content, const size_t length)
 {
+    static const char * const csu = "ubiq_platform_rest_request";
+
     struct ubiq_url url;
     int res;
 
@@ -285,11 +296,17 @@ ubiq_platform_rest_request(
      * handle must have already been initialized.
      * reset it to release resources associated with a previous request.
      */
+
+     UBIQ_DEBUG(debug_flag, printf("%s: before ubiq_platform_rest_handle_reset\n", csu));
+         
     ubiq_platform_rest_handle_reset(h);
 
+     UBIQ_DEBUG(debug_flag, printf("%s: before ubiq_url_init\n", csu));
     ubiq_url_init(&url);
 
+    UBIQ_DEBUG(debug_flag, printf("%s: before ubiq_url_parse urlstr(%s)\n", csu, urlstr));
     res = ubiq_url_parse(&url, urlstr);
+    UBIQ_DEBUG(debug_flag, printf("%s: after ubiq_url_parse res(%d)\n", csu, res));
     if (res == 0) {
         static const char * const key[] = {
             "(created)", "(request-target)",
@@ -330,6 +347,8 @@ ubiq_platform_rest_request(
 
         ubiq_support_hmac_init("sha512", h->sapi, strlen(h->sapi), &hctx);
 
+    UBIQ_DEBUG(debug_flag, printf("%s: after ubiq_support_hmac_init res(%d)\n", csu, res));
+
         for (unsigned int i = 0;
              i < sizeof(key) / sizeof(*key) && res == 0;
              i++) {
@@ -337,11 +356,13 @@ ubiq_platform_rest_request(
             int len = sizeof(val);
 
             /* get the content for the designated header */
+UBIQ_DEBUG(debug_flag, printf("%s: %d before  ubiq_platform_rest_header_content\n", csu, i));
             res = ubiq_platform_rest_header_content(
                 key[i],
                 method, &url, content_type, content, length,
                 val, &len);
 
+UBIQ_DEBUG(debug_flag, printf("%s: %d after ubiq_platform_rest_header_content %s res(%d)\n", csu, i, key[i], res));
             if (res == 0 && len >= 0) {
                 char hdr[512];
                 int n;
@@ -387,6 +408,8 @@ ubiq_platform_rest_request(
                 string_tolower(hdr, n, ':');
                 n += snprintf(hdr + n, sizeof(hdr) - n,  "\n");
                 ubiq_support_hmac_update(hctx, hdr, n);
+                UBIQ_DEBUG(debug_flag, printf("%s: end of loop res(%d)\n", csu, res));
+
             }
         }
 
@@ -427,8 +450,10 @@ ubiq_platform_rest_request(
          * add the Signature header to the list of headers
          * to send in the http request
          */
+                UBIQ_DEBUG(debug_flag, printf("%s: before ubiq_support_http_add_header res(%d)\n", csu, res));
         res = ubiq_support_http_add_header(h->hnd, sighdr);
         if (res == 0) {
+                UBIQ_DEBUG(debug_flag, printf("%s: before ubiq_support_http_request res(%d)\n", csu, res));
             res = ubiq_support_http_request(
                 h->hnd,
                 method, urlstr,
@@ -436,9 +461,11 @@ ubiq_platform_rest_request(
                 &h->rsp.buf, &h->rsp.len);
         }
 
+        UBIQ_DEBUG(debug_flag, printf("%s: before ubiq_url_reset res(%d)\n", csu, res));
         ubiq_url_reset(&url);
     }
 
+    UBIQ_DEBUG(debug_flag, printf("%s: end res(%d)\n", csu, res));
     return res;
 }
 
