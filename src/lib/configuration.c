@@ -17,26 +17,51 @@ const char * const FLUSH_INTERVAL = "flush_interval";
 const char * const TRAP_EXCEPTIONS = "trap_exceptions";
 const char * const TIMESTAMP_GRANULARITY = "timestamp_granularity";
 
+const char * const KEY_CACHING = "key_caching";
+const char * const KEY_CACHING_TTL_SECONDS = "ttl_seconds";
+const char * const KEY_CACHING_UNSTRUCTURED = "unstructured";
+const char * const KEY_CACHING_STRUCTURED = "structured";
+const char * const KEY_CACHING_ENCRYPT = "encrypt";
 
-struct ubiq_platform_configuration
+typedef struct configuration_event_reporting
 {
-  int event_reporting_wake_interval;
-  int event_reporting_minimum_count;
-  int event_reporting_flush_interval;
-  int event_reporting_trap_exceptions;
-  reporting_granularity_t event_reporting_timestamp_granularity;
-};
+  int wake_interval;
+  int minimum_count;
+  int flush_interval;
+  int trap_exceptions;
+  reporting_granularity_t timestamp_granularity;
+} configuration_event_reporting_t;
+
+typedef struct configuration_key_caching
+{
+  int ttl_seconds;
+  int unstructured;
+  int structured;
+  int encrypt;
+} configuration_key_caching_t;
+
+typedef struct ubiq_platform_configuration
+{
+  configuration_event_reporting_t event_reporting;
+  configuration_key_caching_t key_caching;
+} ubiq_platform_configuration_t;
+
 
 static
 void
 ubiq_platform_configuration_init(
     struct ubiq_platform_configuration * const c)
 {
-  c->event_reporting_wake_interval = 1;
-  c->event_reporting_minimum_count = 5;
-  c->event_reporting_flush_interval = 10;
-  c->event_reporting_trap_exceptions = 0;
-  c->event_reporting_timestamp_granularity = NANOS;
+  c->event_reporting.wake_interval = 1;
+  c->event_reporting.minimum_count = 5;
+  c->event_reporting.flush_interval = 10;
+  c->event_reporting.trap_exceptions = 0;
+  c->event_reporting.timestamp_granularity = NANOS;
+
+  c->key_caching.ttl_seconds = 1800;
+  c->key_caching.unstructured = 1;
+  c->key_caching.structured = 1;
+  c->key_caching.encrypt = 0;
 }
 
 static
@@ -71,35 +96,60 @@ const int
 ubiq_platform_configuration_get_event_reporting_wake_interval(
     const struct ubiq_platform_configuration * const config)
 {
-    return config->event_reporting_wake_interval;
+    return config->event_reporting.wake_interval;
 }
 
 const int
 ubiq_platform_configuration_get_event_reporting_min_count(
     const struct ubiq_platform_configuration * const config)
 {
-    return config->event_reporting_minimum_count;
+    return config->event_reporting.minimum_count;
 }
 
 const int
 ubiq_platform_configuration_get_event_reporting_flush_interval(
     const struct ubiq_platform_configuration * const config)
 {
-    return config->event_reporting_flush_interval;
+    return config->event_reporting.flush_interval;
 }
 
 const int
 ubiq_platform_configuration_get_event_reporting_trap_exceptions(
     const struct ubiq_platform_configuration * const config)
 {
-    return config->event_reporting_trap_exceptions;
+    return config->event_reporting.trap_exceptions;
 }
 
 const reporting_granularity_t
 ubiq_platform_configuration_get_event_reporting_timestamp_granularity(
     const struct ubiq_platform_configuration * const config)
 {
-    return config->event_reporting_timestamp_granularity;
+    return config->event_reporting.timestamp_granularity;
+}
+
+const int
+ubiq_platform_configuration_get_key_caching_encrypt(
+    const struct ubiq_platform_configuration * const config)
+{
+  return config->key_caching.encrypt;
+}
+const int
+ubiq_platform_configuration_get_key_caching_structured_keys(
+    const struct ubiq_platform_configuration * const config)
+{
+  return config->key_caching.structured;
+}
+const int
+ubiq_platform_configuration_get_key_caching_unstructured_keys(
+    const struct ubiq_platform_configuration * const config)
+{
+  return config->key_caching.unstructured;
+}
+const int
+ubiq_platform_configuration_get_key_caching_ttl_seconds(
+    const struct ubiq_platform_configuration * const config)
+{
+  return config->key_caching.ttl_seconds;
 }
 
 void
@@ -121,24 +171,61 @@ ubiq_platform_configuration_create_explicit(
   int res = 0;
   ubiq_platform_configuration_create(config);
   if (event_reporting_wake_interval != 0) {
-    (*config)->event_reporting_wake_interval = event_reporting_wake_interval;
+    (*config)->event_reporting.wake_interval = event_reporting_wake_interval;
   }
   if (event_reporting_minimum_count != 0) {
-    (*config)->event_reporting_minimum_count = event_reporting_minimum_count;
+    (*config)->event_reporting.minimum_count = event_reporting_minimum_count;
   }
   if (event_reporting_flush_interval != 0) {
-    (*config)->event_reporting_flush_interval = event_reporting_flush_interval;
+    (*config)->event_reporting.flush_interval = event_reporting_flush_interval;
   }
-  (*config)->event_reporting_trap_exceptions = event_reporting_trap_exceptions;
+  (*config)->event_reporting.trap_exceptions = event_reporting_trap_exceptions;
 
   if (event_reporting_timestamp_granularity != NULL) {
-    (*config)->event_reporting_timestamp_granularity = find_event_reporting_granularity(event_reporting_timestamp_granularity);
+    (*config)->event_reporting.timestamp_granularity = find_event_reporting_granularity(event_reporting_timestamp_granularity);
   }
 
 
   return res;
 }
 
+
+int
+ubiq_platform_configuration_create_explicit2(
+    const int event_reporting_wake_interval,
+    const int event_reporting_minimum_count,
+    const int event_reporting_flush_interval,
+    const int event_reporting_trap_exceptions,
+    const char * const event_reporting_timestamp_granularity,
+    const int key_caching_encrypt_keys,
+    const int key_caching_structured_keys,
+    const int key_caching_unstructured_keys,
+    const int key_caching_ttl_seconds,
+    struct ubiq_platform_configuration ** const config)
+{
+  int res = 0;
+  ubiq_platform_configuration_create(config);
+  if (event_reporting_wake_interval != 0) {
+    (*config)->event_reporting.wake_interval = event_reporting_wake_interval;
+  }
+  if (event_reporting_minimum_count != 0) {
+    (*config)->event_reporting.minimum_count = event_reporting_minimum_count;
+  }
+  if (event_reporting_flush_interval != 0) {
+    (*config)->event_reporting.flush_interval = event_reporting_flush_interval;
+  }
+  (*config)->event_reporting.trap_exceptions = event_reporting_trap_exceptions;
+  if (event_reporting_timestamp_granularity != NULL) {
+    (*config)->event_reporting.timestamp_granularity = find_event_reporting_granularity(event_reporting_timestamp_granularity);
+  }
+
+  (*config)->key_caching.encrypt = (key_caching_encrypt_keys != 0);
+  (*config)->key_caching.structured = (key_caching_structured_keys != 0);
+  (*config)->key_caching.unstructured = (key_caching_unstructured_keys != 0);
+  (*config)->key_caching.ttl_seconds = key_caching_ttl_seconds;
+
+  return res;
+}
 
 /*
  * try to create a set of configuration from the environment
@@ -208,7 +295,6 @@ ubiq_platform_configuration_load_configuration(
         if (buffer != NULL) {
           if( 1 == fread( buffer , fp_size, 1 , fp) ) {
             cJSON * json = cJSON_ParseWithLength(buffer, fp_size);
-
             if (json != NULL) {
               const cJSON * er =  cJSON_GetObjectItem(
                           json, EVENT_REPORTING);
@@ -218,36 +304,59 @@ ubiq_platform_configuration_load_configuration(
                 int value = 0;
                 element = cJSON_GetObjectItem(er, WAKE_INTERVAL);
                 if (cJSON_IsNumber(element) && ((value = cJSON_GetNumberValue(element)) != 0)) {
-                  (*config)->event_reporting_wake_interval = value;
+                  (*config)->event_reporting.wake_interval = value;
                 }
 
                 element = cJSON_GetObjectItem(er, MINIMUM_COUNT);
                 if (cJSON_IsNumber(element) && ((value = cJSON_GetNumberValue(element)) != 0)) {
-                  (*config)->event_reporting_minimum_count = value;
+                  (*config)->event_reporting.minimum_count = value;
                 }
 
                 element = cJSON_GetObjectItem(er, FLUSH_INTERVAL);
                 if (cJSON_IsNumber(element) && ((value = cJSON_GetNumberValue(element)) != 0)) {
-                  (*config)->event_reporting_flush_interval = value;
+                  (*config)->event_reporting.flush_interval = value;
                 }
 
                 element = cJSON_GetObjectItem(er, TRAP_EXCEPTIONS);
                 if (cJSON_IsBool(element)) {
-                  (*config)->event_reporting_trap_exceptions = cJSON_IsTrue(element);
+                  (*config)->event_reporting.trap_exceptions = cJSON_IsTrue(element);
                 }
 
                 element = cJSON_GetObjectItem(er, TIMESTAMP_GRANULARITY);
                 if (cJSON_IsString(element)) {
-                  (*config)->event_reporting_timestamp_granularity = find_event_reporting_granularity(cJSON_GetStringValue(element));
+                  (*config)->event_reporting.timestamp_granularity = find_event_reporting_granularity(cJSON_GetStringValue(element));
                 }
               }
 
+              const cJSON * kc =  cJSON_GetObjectItem(
+                          json, KEY_CACHING);
+
+              if (cJSON_IsObject(kc)) {
+                cJSON * element = NULL;
+                int value = 0;
+                element = cJSON_GetObjectItem(kc, KEY_CACHING_TTL_SECONDS);
+                if (cJSON_IsNumber(element) && ((value = cJSON_GetNumberValue(element)) >= 0)) {
+                  (*config)->key_caching.ttl_seconds = value;
+                }
+                element = cJSON_GetObjectItem(kc, KEY_CACHING_UNSTRUCTURED);
+                if (cJSON_IsBool(element)) {
+                  (*config)->key_caching.unstructured = cJSON_IsTrue(element);
+                }
+                element = cJSON_GetObjectItem(kc, KEY_CACHING_STRUCTURED);
+                if (cJSON_IsBool(element)) {
+                  (*config)->key_caching.structured = cJSON_IsTrue(element);
+                }
+                element = cJSON_GetObjectItem(kc, KEY_CACHING_ENCRYPT);
+                if (cJSON_IsBool(element)) {
+                  (*config)->key_caching.encrypt = cJSON_IsTrue(element);
+                }
+              }
               cJSON_Delete(json);
             }
           }
-          free(buffer);
         }
         fclose(fp);
+        free(buffer);
       }
       if (path != _path) {
           free((void *)_path);

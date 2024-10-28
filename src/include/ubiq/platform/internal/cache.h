@@ -10,6 +10,7 @@ struct ubiq_platform_cache ;
 int
 ubiq_platform_cache_create(
   unsigned int capacity,
+  const time_t ttl_seconds,
   struct ubiq_platform_cache ** const ubiq_cache);
 
 void
@@ -20,7 +21,6 @@ int
 ubiq_platform_cache_add_element(
   struct ubiq_platform_cache * ubiq_cache,
   const char * const key,
-  const time_t duration,
   void * data,
   void (*free_ptr)(void *)
 );

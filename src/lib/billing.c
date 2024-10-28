@@ -311,7 +311,7 @@ process_billing_task(void * data) {
 
       struct ubiq_platform_cache * local_cache  = e->billing_elements_cache;
       e->billing_elements_cache = NULL;
-      ubiq_platform_cache_create(CACHE_CAPACITY, &e->billing_elements_cache );
+      ubiq_platform_cache_create(CACHE_CAPACITY, CACHE_DURATION, &e->billing_elements_cache );
 
       // Can unlock since cache is now local
       pthread_mutex_unlock(&e->billing_lock);
@@ -638,7 +638,8 @@ int
 ubiq_billing_ctx_create(
   struct ubiq_billing_ctx ** ctx,
   const char * const host_path,
-  void * const rest,
+  const char *const papi, 
+  const char *const sapi,
   const struct ubiq_platform_configuration * const cfg
   )
 {
@@ -657,9 +658,9 @@ ubiq_billing_ctx_create(
     strcpy(local_ctx->billing_url, host_path);
     strcat(local_ctx->billing_url, "/api/v3/tracking/events");
 
-    res = ubiq_platform_cache_create(CACHE_CAPACITY, &local_ctx->billing_elements_cache);
+    res = ubiq_platform_cache_create(CACHE_CAPACITY, CACHE_DURATION, &local_ctx->billing_elements_cache);
     if (!res) {
-      local_ctx->rest = (struct ubiq_platform_rest_handle * const) rest;
+      res = ubiq_platform_rest_handle_create(papi, sapi, &local_ctx->rest);
     }
     if (!res) {
       if ((res = pthread_mutex_init(&local_ctx->billing_lock, NULL)) != 0) {
@@ -719,6 +720,7 @@ ubiq_billing_ctx_destroy(struct ubiq_billing_ctx * const ctx){
     pthread_cond_destroy(&ctx->process_billing_cond);
     pthread_mutex_destroy(&ctx->billing_lock);
 
+    ubiq_platform_rest_handle_destroy(ctx->rest);
     ubiq_platform_cache_destroy(billing_elements_cache);
     if (ctx->user_defined_metadata) {
       free(ctx->user_defined_metadata);
@@ -790,7 +792,7 @@ ubiq_billing_add_billing_event(
       count,
       billing_action);
 
-    ubiq_platform_cache_add_element(e->billing_elements_cache, key_str, CACHE_DURATION, billing_element, &billing_element_destroy);
+    ubiq_platform_cache_add_element(e->billing_elements_cache, key_str, billing_element, &billing_element_destroy);
   }
   pthread_mutex_unlock(&e->billing_lock);
   

@@ -13,9 +13,12 @@ add_executable(
   encrypt.cpp
   ff1.cpp
   ffx.cpp
-  fpedecrypt.cpp
-  fpeencrypt.cpp
-  fpeencrypt_new.cpp
+  deprecated_decrypt.cpp
+  deprecated_encrypt.cpp
+  deprecated_encrypt_new.cpp
+  structured_encrypt.cpp
+  structured_decrypt.cpp
+  structured_encrypt_new.cpp
   global.cpp
   hashtable.cpp
   parsing.cpp

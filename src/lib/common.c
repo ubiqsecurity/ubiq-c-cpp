@@ -9,6 +9,15 @@
 
 #include "cJSON/cJSON.h"
 
+// #define UBIQ_DEBUG_ON
+#ifdef UBIQ_DEBUG_ON
+#define UBIQ_DEBUG(x,y) {x && y;}
+#else
+#define UBIQ_DEBUG(x,y)
+#endif
+
+static int debug_flag = 1;
+
 void
 ubiq_url_init(
     struct ubiq_url * const url)
@@ -153,15 +162,22 @@ ubiq_platform_common_decrypt_wrapped_key(
     const char * const base64_wrapped_data_key,
     void ** const keybuf, size_t * const keylen)
 {
+  static const char * const csu = "ubiq_platform_common_decrypt_wrapped_key";
   int res = 0;
   void * buf;
   int len;
 
+  UBIQ_DEBUG(debug_flag, printf("%s: base64_wrapped_data_key(%s)\n", csu, base64_wrapped_data_key));
+
   len = ubiq_support_base64_decode(
       &buf, base64_wrapped_data_key, strlen(base64_wrapped_data_key));
 
+  UBIQ_DEBUG(debug_flag, printf("%s: len(%d)\n", csu, len));
+  
   res = ubiq_support_asymmetric_decrypt(
       prvpem, srsa, buf, len, keybuf, keylen);
+
+  UBIQ_DEBUG(debug_flag, printf("%s: res(%d) keylen(%d)\n", csu, res, *keylen));
 
   free(buf);
 
@@ -172,55 +188,12 @@ int
 ubiq_platform_common_parse_new_key(
     const cJSON * const json,
     const char * const srsa,
-    // char ** const session, char ** const fingerprint,
-    void ** const keybuf, size_t * const keylen)
-{
-    const cJSON * j;
-    int res;
-
-    res = 0;
-    if (res == 0) {
-        /*
-         * save the session id
-         */
-        // j = cJSON_GetObjectItemCaseSensitive(
-        //     json, "encryption_session");
-        // if (cJSON_IsString(j) && j->valuestring != NULL) {
-        //     *session = strdup(j->valuestring);
-        // } else {
-        //     res = -EBADMSG;
-        // }
-    }
-
-    if (res == 0) {
-        /*
-         * save the key fingerprint
-         */
-        // j = cJSON_GetObjectItemCaseSensitive(
-        //     json, "key_fingerprint");
-        // if (cJSON_IsString(j) && j->valuestring != NULL) {
-        //     *fingerprint = strdup(j->valuestring);
-        // } else {
-        //     res = -EBADMSG;
-        // }
-    }
-
-    if (res == 0) {
-      res = ubiq_platform_common_parse_key(json, srsa, keybuf, keylen);
-    }
-
-    return res;
-}
-
-int
-ubiq_platform_common_fpe_parse_new_key(
-    const cJSON * const json,
-    const char * const srsa,
     void ** const keybuf, size_t * const keylen)
 {
     int res = 0;
 
     res = ubiq_platform_common_parse_key(json, srsa, keybuf, keylen);
+
     return res;
 }
 
