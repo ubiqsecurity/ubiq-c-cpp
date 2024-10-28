@@ -1,5 +1,5 @@
-#ifndef UBIQ_FPE_INTERNAL_FFX_H
-#define UBIQ_FPE_INTERNAL_FFX_H
+#ifndef UBIQ_STRUCTURED_INTERNAL_FFX_H
+#define UBIQ_STRUCTURED_INTERNAL_FFX_H
 
 #include <sys/cdefs.h>
 

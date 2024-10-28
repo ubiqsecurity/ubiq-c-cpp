@@ -49,11 +49,6 @@ ubiq_platform_configuration_load_configuration(
 /*
  * Create a configuration object from  explicitly specified configuration.
  *
- * `papi` is the access key id.
- * `sapi` is the secret signing key.
- * `srsa` is the secret crypto access key.
- * `host` is the api server name and port. This parameter may be NULL.
- *
  * The function returns 0 on success or a negative error number on failure.
  * On success, `*config` will be populated with a pointer to the created
  * object. This object must be destroyed to avoid resource leakage.
@@ -66,6 +61,20 @@ ubiq_platform_configuration_create_explicit(
     const int event_reporting_flush_interval,
     const int event_reporting_trap_exceptions,
     const char * const event_reporting_timestamp_granularity,
+    struct ubiq_platform_configuration ** const config);
+
+UBIQ_PLATFORM_API
+int
+ubiq_platform_configuration_create_explicit2(
+    const int event_reporting_wake_interval,
+    const int event_reporting_minimum_count,
+    const int event_reporting_flush_interval,
+    const int event_reporting_trap_exceptions,
+    const char * const event_reporting_timestamp_granularity,
+    const int key_caching_encrypt_keys,
+    const int key_caching_structured_keys,
+    const int key_caching_unstructured_keys,
+    const int key_caching_ttl_seconds,
     struct ubiq_platform_configuration ** const config);
 
 /*
@@ -123,6 +132,19 @@ namespace ubiq {
               const int event_reporting_flush_interval,
               const int event_reporting_trap_exceptions,
               const std::string & event_reporting_timestamp_granularity);
+
+            UBIQ_PLATFORM_API
+            configuration(
+              const int event_reporting_wake_interval,
+              const int event_reporting_minimum_count,
+              const int event_reporting_flush_interval,
+              const int event_reporting_trap_exceptions,
+              const std::string & event_reporting_timestamp_granularity,
+              const int key_caching_encrypt_keys,
+              const int key_caching_structured_keys,
+              const int key_caching_unstructured_keys,
+              const int key_caching_ttl_seconds);
+
 
             UBIQ_PLATFORM_API
             configuration(const configuration &) = default;

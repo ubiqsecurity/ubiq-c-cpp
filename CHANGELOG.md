@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.2.1.0 - 2024-10-02
+* Key caching improvement for unstructured decryption
+* Key caching options got structured encryption / decryption
+* Deprecated simple interfaces for structured encryption
+* Updated exception handling and updated README documentation
+* Updated README code samples
+
 ## 2.2.0.0 - 2024-04-17
 * Added support for partial encryption datasets which allow data to be left in the clear after encryption.
 

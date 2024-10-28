@@ -3,6 +3,7 @@
 #include "ubiq/platform/internal/header.h"
 #include "ubiq/platform/internal/rest.h"
 #include "ubiq/platform/internal/credentials.h"
+#include "ubiq/platform/internal/configuration.h"
 #include "ubiq/platform/internal/common.h"
 #include "ubiq/platform/internal/support.h"
 #include "ubiq/platform/internal/parsing.h"
@@ -45,6 +46,8 @@
 #define UBIQ_DEBUG(x,y)
 #endif
 
+static int debug_flag = 0;
+
 // Need to capture value of res, not test value
 // since it may be a function and don't want it to get executed
 // more than once
@@ -72,8 +75,6 @@
  *
 **************************************************************************************/
 
-static const time_t CACHE_DURATION = 3 * 24 * 60 * 60;
-
 typedef enum {UINT32=0, UINT8=1}  ffs_character_types ;
 typedef enum {PARSE_INPUT_TO_OUTPUT = 0, PARSE_OUTPUT_TO_INPUT = 1} conversion_direction_type;
 typedef enum {NONE = 0, PASSTHROUGH = 1, PREFIX = 2, SUFFIX = 3} passthrough_rules_priority_type;
@@ -84,7 +85,22 @@ typedef enum {NONE = 0, PASSTHROUGH = 1, PREFIX = 2, SUFFIX = 3} passthrough_rul
  *
 **************************************************************************************/
 
-struct fpe_key {
+typedef struct {
+     void * buf;
+     size_t len;
+} ubiq_key_t;
+
+// wrapped_data_key is in base64
+// decrypted_data_key is byte array
+// decrypted_data_key will have length 0 if key_caching is stored encrypted and it needs to be decrypted
+// each time.
+typedef struct cached_key {
+  ubiq_key_t wrapped_data_key, decrypted_data_key;
+  unsigned int key_number;
+} cached_key_t;
+
+
+struct structured_key {
         void * buf;
         size_t len;
         unsigned int key_number;
@@ -115,27 +131,41 @@ struct parsed_data
 };
 
 
-struct ubiq_platform_fpe_enc_dec_obj
+struct ubiq_platform_structured_enc_dec_obj
 {
     /* http[s]://host/api/v0 */
     char * restapi;
     char * papi;
     char * encoded_papi;
     char * srsa;
-    // Curl library is not thread safe.  Need separate one for Billing and non-billing
+
+    struct {
+      void * buf;
+      size_t len;
+    } encrypted_private_key;
+
+    // Curl library is not thread safe.  Need separate one for Billing and non-billing.
+    // Billing rest handle is created / managed in billing_ctx
     struct ubiq_platform_rest_handle * rest;
-    struct ubiq_platform_rest_handle * billing_rest;
 
     struct ubiq_billing_ctx * billing_ctx;
 
     struct ubiq_platform_cache * ffs_cache; // URL / ffs
-    struct ubiq_platform_cache * key_cache; // ffs_name:key_number => void * (either ff1_ctx or ff3_ctx)
+    // If key is stored encrypted, need separate cache of rest
+
+    // Will only have contents IF we are caching AND not encrypted.
+    struct ubiq_platform_cache * ff1_ctx_cache; // ffs_name:key_number => void * (ff1_ctx)
+
+    struct ubiq_platform_cache * stuctured_key_cache; // ffs_name:key_number => void * (ff1_ctx)
 
     struct {
             char * err_msg;
             size_t err_num;
     } error;
 
+    int key_cache_encrypt;
+    int key_cache_ttl_seconds;
+    int key_cache_structured;
 };
 
 struct ffs {
@@ -184,7 +214,6 @@ static int encode_keynum(
 )
 {
   static const char * const csu = "encode_keynum";
-  int debug_flag = 0;
   int res = -EINVAL;
 
   UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i)\n",csu, "start", res));
@@ -275,7 +304,7 @@ u32_str_convert_u32_radix(
   uint32_t * out_str)
 {
   static const char * const csu = "u32_str_convert_u32_radix";
-  int debug_flag = 0;
+
   static size_t magic_number = 50; // Allow for null and extra space in get_string function
   int res = 0;
   bigint_t n;
@@ -328,7 +357,7 @@ str_convert_radix(
   char * out_str
 )
 {
-  int debug_flag = 0;
+
   static const char * const csu = "str_convert_radix";
   static size_t magic_number = 50; // Allow for null and extra space in get_string function
   int res = 0;
@@ -379,8 +408,8 @@ str_convert_radix(
 
 static
 int
-fpe_key_create(struct fpe_key ** key){
-  struct fpe_key * k;
+structured_key_create(struct structured_key ** key){
+  struct structured_key * k;
 
   int res = -ENOMEM;
 
@@ -394,7 +423,7 @@ fpe_key_create(struct fpe_key ** key){
 
 static
 void
-fpe_key_destroy(struct fpe_key * const key){
+structured_key_destroy(struct structured_key * const key){
   if (key && key->buf) {
     if (key->len > 0) {
       memset(key->buf, 0, key->len);
@@ -407,7 +436,7 @@ fpe_key_destroy(struct fpe_key * const key){
 static
 int
 save_rest_error(
-  struct ubiq_platform_fpe_enc_dec_obj * const e,
+  struct ubiq_platform_structured_enc_dec_obj * const e,
   struct ubiq_platform_rest_handle * const rest,
   const http_response_code_t rc)
 {
@@ -487,7 +516,7 @@ static int set_rule_priority(
 
 static int comparator(const void* p1, const void* p2) {
   static const char * const csu = "comparator";
-  int debug_flag = 1;
+
   cJSON ** e1 = (cJSON ** )p1;
   cJSON ** e2 = (cJSON ** )p2;
 
@@ -506,7 +535,7 @@ static int parse_passthrough_rules(
   struct ffs * e) 
 {
   static const char * const csu = "parse_passthrough_rules";
-  int debug_flag = 1;
+
   int res = 0;
   int rules_idx = 0;
   UBIQ_DEBUG(debug_flag, printf("%s %s\n",csu, "started"));
@@ -627,7 +656,6 @@ ffs_create(
 {
   static const char * const csu = "ffs_create";
   int res = 0;
-  int debug_flag = 0;
 
   struct ffs * e = NULL;
   e = calloc(1, sizeof(*e));
@@ -736,7 +764,6 @@ int char_process_prefix(
 {
   static const char * const csu = "char_process_prefix";
   int res = 0;
-  int debug_flag = 0;
 
   UBIQ_DEBUG(debug_flag, printf("%s \t start empty_idx(%d)\n",csu, formatted_data->first_empty_idx));
 
@@ -793,7 +820,6 @@ int char_process_suffix(
 {
   static const char * const csu = "char_process_suffix";
   int res = 0;
-  int debug_flag = 0;
 
   // Start at end of string and move forward
 
@@ -849,7 +875,6 @@ int u32_process_prefix(
 {
   static const char * const csu = "u32_process_prefix";
   int res = 0;
-  int debug_flag = 1;
 
   uint32_t * src = (uint32_t *) trimmed_data->buf;
   uint32_t * dest = (uint32_t *) formatted_data->buf;
@@ -900,7 +925,6 @@ int u32_process_suffix(
 {
   static const char * const csu = "u32_process_suffix";
   int res = 0;
-  int debug_flag = 1;
 
   // Start at end of string and move forward
 
@@ -953,7 +977,6 @@ int char_parse_data_prealloc(
 {
   static const char * const csu = "char_parse_data_prealloc";
   int res = 0;
-  int debug_flag = 1;
 
   UBIQ_DEBUG(debug_flag, printf("%s start \t source_string(%s) source_len(%d) trimmed_buf->len(%d) formatted_dest_buf->len(%d)\n",csu, source_string, source_len, trimmed_buf->len, formatted_dest_buf->len));
 
@@ -1033,7 +1056,6 @@ int u32_parse_data_prealloc(
   formatted_data_type * const formatted_dest_buf)
 {
   static const char * const csu = "u32_parse_data_prealloc";
-  static int debug_flag = 1;
   int res = 0;
 
   UBIQ_DEBUG(debug_flag, printf("%s start \t source_string(%S) source_len(%d) trimmed_buf->len(%d) formatted_dest_buf->len(%d)\n",csu, source_string, source_len, trimmed_buf->len, formatted_dest_buf->len));
@@ -1101,7 +1123,7 @@ get_key_cache_string(const char * const ffs_name,
   const int key_number,
   char ** str) 
 {
-  size_t key_len = strlen(ffs_name) + 25; // magic number to accomodate a max int plus null terminator and colon
+  size_t key_len = strlen(ffs_name) + 25; // magic number to accommodate a max int plus null terminator and colon
   char * key_str = calloc(1, key_len);
 
   snprintf(key_str, key_len, "%s:%d", ffs_name, key_number);
@@ -1113,14 +1135,14 @@ get_key_cache_string(const char * const ffs_name,
 static
 int
 create_and_add_ctx_cache(
-  struct ubiq_platform_fpe_enc_dec_obj * const e,
+  struct ubiq_platform_structured_enc_dec_obj * const e,
   const struct ffs * const ffs,
   int key_number,
-  struct fpe_key * key,
+  struct structured_key * key,
   struct ctx_cache_element ** element)
 {
   static const char * const csu = "create_and_add_ctx_cache";
-  int debug_flag = 0;
+
   int res = 0;
 
   struct ctx_cache_element * ctx_element = NULL;
@@ -1130,14 +1152,14 @@ create_and_add_ctx_cache(
   res = get_key_cache_string(ffs->name, key_number, &key_str);
 
   struct ff1_ctx * ctx = NULL;
-  UBIQ_DEBUG(debug_flag, printf("%s ffs->input_character_set(%s)\n", csu, ffs->input_character_set ));
+  UBIQ_DEBUG(debug_flag, printf("%s ffs->input_character_set(%s) key_number(%d)\n", csu, ffs->input_character_set, key_number ));
 
   // ff1_ctx will recognize utf8 and handle accordingly.  That is why we need to keep 
   // input_character_set, even when utf8
   res = ff1_ctx_create_custom_radix(&ctx, key->buf, key->len, ffs->tweak.buf, ffs->tweak.len, ffs->tweak_min_len, ffs->tweak_max_len, ffs->input_character_set);
 
   if (!res) { res = ctx_cache_element_create(&ctx_element, ctx, key->key_number);}
-  if (!res) {res = ubiq_platform_cache_add_element(e->key_cache, key_str, CACHE_DURATION, ctx_element, &ctx_cache_element_destroy);}
+  if (!res) {res = ubiq_platform_cache_add_element(e->ff1_ctx_cache, key_str, ctx_element, &ctx_cache_element_destroy);}
 
   if (!res) {
     *element = ctx_element;
@@ -1150,17 +1172,17 @@ create_and_add_ctx_cache(
 
 static
 int
-ubiq_platform_fpe_encryption(
+ubiq_platform_structured_encryption(
     const char * const host,
     const char * const papi, const char * const sapi,
     const char * const srsa,
     const struct ubiq_platform_configuration * const cfg,
-    struct ubiq_platform_fpe_enc_dec_obj ** const enc)
+    struct ubiq_platform_structured_enc_dec_obj ** const enc)
 {
-    static const char * const csu = "ubiq_platform_fpe_encryption";
+    static const char * const csu = "ubiq_platform_structured_encryption";
     static const char * const api_path = "api/v0";
 
-    struct ubiq_platform_fpe_enc_dec_obj * e = NULL;
+    struct ubiq_platform_structured_enc_dec_obj * e = NULL;
     size_t len;
     int res;
     res = -ENOMEM;
@@ -1177,10 +1199,6 @@ ubiq_platform_fpe_encryption(
         e->restapi = calloc(len, 1);
         ubiq_platform_snprintf_api_url(e->restapi, len, host, api_path);
         res = ubiq_platform_rest_handle_create(papi, sapi, &e->rest);
-        // Curl library is not thread safe.  Need separate one for Billing and non-billing
-        if (!res) {
-          res = ubiq_platform_rest_handle_create(papi, sapi, &e->billing_rest);
-        }
       }
       if (!res) {
         res = ubiq_platform_rest_uri_escape(e->rest, papi, &e->encoded_papi);
@@ -1198,23 +1216,50 @@ ubiq_platform_fpe_encryption(
           res = -ENOMEM;
         }
       }
+
       if (!res) {
-        // htable size 500 - means slots for 500 possible key colisions - probably way more than the 
+          e->key_cache_ttl_seconds = ubiq_platform_configuration_get_key_caching_ttl_seconds(cfg);
+          e->key_cache_structured = ubiq_platform_configuration_get_key_caching_structured_keys(cfg);
+          e->key_cache_encrypt = ubiq_platform_configuration_get_key_caching_encrypt(cfg);
+      }
+
+      if (!res) {
+        // htable size 500 - means slots for 500 possible key collisions - probably way more than the 
         // number of datasets being used here
-        res = ubiq_platform_cache_create(500, &e->ffs_cache);
+        // Can still use cfg ttl for dataset, just not key
+        res = ubiq_platform_cache_create(500, e->key_cache_ttl_seconds, &e->ffs_cache);
+      }
+
+      int ttl = 0;
+
+      // If structured key caching, then use the supplied value.
+      // If the ttl is 0, means key information will not be cached.
+      if (e->key_cache_structured) {
+        ttl = e->key_cache_ttl_seconds;
+      }
+
+      if (!res) {
+        // htable size 500 - means slots for 500 possible key collisions
+        // Reduces the likelihood of a key collision 
+        // If we are storing the keys encrypted, then 
+        // the ctx cannot cache data
+        if (e->key_cache_encrypt) {
+          ttl = 0;
+        }
+        res = ubiq_platform_cache_create(500, ttl, &e->ff1_ctx_cache);
       }
       if (!res) {
-        // htable size 500 - means slots for 500 possible key colisions
-        // Reduces the likelyhood of a key collision 
-        res = ubiq_platform_cache_create(500, &e->key_cache);
+        // htable size 500 - means slots for 500 possible key collisions
+        // Reduces the likelihood of a key collision 
+        res = ubiq_platform_cache_create(500, ttl, &e->stuctured_key_cache);
       }
       if (!res) {
-        res = ubiq_billing_ctx_create(&e->billing_ctx, host, e->billing_rest, cfg);
+        res = ubiq_billing_ctx_create(&e->billing_ctx, host, papi, sapi, cfg);
       }
     }
 
     if (res) {
-      ubiq_platform_fpe_enc_dec_destroy(e);
+      ubiq_platform_structured_enc_dec_destroy(e);
       e = NULL;
     }
 
@@ -1222,123 +1267,231 @@ ubiq_platform_fpe_encryption(
     return res;
 }
 
+static int
+key_cache_element_create(cached_key_t ** const e) {
+  int res = -ENOMEM;
+  cached_key_t * cached_key = NULL;
+  cached_key = calloc(1, sizeof(*cached_key));
+  if (cached_key) {
+    *e = cached_key;
+    res = 0;
+  }
+  return res;
+}
+
+static void
+key_cache_element_destroy(void * const e) {
+  cached_key_t * cached_key = (cached_key_t *) e;
+  free(cached_key->wrapped_data_key.buf);
+  free(cached_key->decrypted_data_key.buf);
+  free(e);
+}
+
+static 
+int
+get_structured_key(
+  struct ubiq_platform_structured_enc_dec_obj * const e,
+  const struct ffs * const ffs,
+  int * key_number,
+  struct structured_key * key)
+{
+  const char * const csu = "get_structured_key";
+
+  static const char * const fmt_encrypt_key = "%s/fpe/key?ffs_name=%s&papi=%s";
+  static const char * const fmt_decrypt_key = "%s/fpe/key?ffs_name=%s&papi=%s&key_number=%d";
+
+  int res = 0;
+  // Will fetch from cache
+
+  char * key_str = NULL;
+  get_key_cache_string(ffs->name, *key_number, &key_str);
+  UBIQ_DEBUG(debug_flag, printf("%s get_key_cache_string (%s)\n",csu, key_str));
+
+  cached_key_t * tmp_key = NULL;
+
+  tmp_key = (cached_key_t *)ubiq_platform_cache_find_element(e->stuctured_key_cache, key_str);
+  UBIQ_DEBUG(debug_flag, printf("%s ubiq_platform_cache_find_element (%d)\n",csu, tmp_key == NULL));
+
+  // Unable to find key - create a new key for the cache
+  if (tmp_key == NULL && ((res = key_cache_element_create(&tmp_key)) == 0)) {
+    UBIQ_DEBUG(debug_flag, printf("%s: key(%s) NOT found in Cache\n",csu, key_str));
+
+    cJSON * rsp_json = NULL;
+    const cJSON * j = NULL;
+    char * url = NULL;
+    size_t len;
+
+    char * encoded_name = NULL;
+    res = ubiq_platform_rest_uri_escape(e->rest, ffs->name, &encoded_name);
+
+    if (!res) {
+      if (*key_number >= 0) {
+        len = snprintf(NULL, 0, fmt_decrypt_key, e->restapi, encoded_name, e->encoded_papi, *key_number);
+      } else {
+        len = snprintf(NULL, 0, fmt_encrypt_key, e->restapi, encoded_name, e->encoded_papi);
+      }
+      if ((url = malloc(len + 1)) == NULL) {
+        res = -ENOMEM;
+      } else {
+        if (*key_number >= 0) {
+          snprintf(url, len + 1, fmt_decrypt_key, e->restapi, encoded_name, e->encoded_papi, *key_number);
+        } else {
+          snprintf(url, len + 1, fmt_encrypt_key, e->restapi, encoded_name, e->encoded_papi);
+        }
+      }
+    }
+    free(encoded_name);
+
+    if (!res) {
+      UBIQ_DEBUG(debug_flag, printf("%s url %s\n", csu, url));
+      res = ubiq_platform_rest_request(
+        e->rest,
+        HTTP_RM_GET, url, "application/json", NULL , 0);
+    }
+    free(url);
+    UBIQ_DEBUG(debug_flag, printf("%s ubiq_platform_rest_request res(%d)\n", csu, res));
+
+
+    // If Success, simply proceed
+    if (!res) {
+      const http_response_code_t rc =
+          ubiq_platform_rest_response_code(e->rest);
+
+      UBIQ_DEBUG(debug_flag, printf("%s http_response_code_t res(%d)\n", csu, rc));
+
+      if (rc != HTTP_RC_OK) {
+        res = save_rest_error(e, e->rest, rc);
+      } else {
+        const void * rsp = ubiq_platform_rest_response_content(e->rest, &len);
+        res = (rsp_json = cJSON_ParseWithLength(rsp, len)) ? 0 : INT_MIN;
+      UBIQ_DEBUG(debug_flag, printf("%s ubiq_platform_rest_response_content rsp(%.*s)\n", csu, len, rsp));
+  
+      }
+    }
+
+    // If response was valid json AND we don't already manage the encrypted_private_key
+    // save it in the main enc_dec object.
+    if (!res && rsp_json) {
+      if (e->encrypted_private_key.len == 0) {
+        j = cJSON_GetObjectItemCaseSensitive(
+            rsp_json, "encrypted_private_key");
+        if (cJSON_IsString(j) && j->valuestring != NULL) {
+            e->encrypted_private_key.buf = strdup(j->valuestring);
+            e->encrypted_private_key.len = strlen(e->encrypted_private_key.buf);
+            UBIQ_DEBUG(debug_flag, printf("e->encrypted_private_key.buf %.*s\n" ,e->encrypted_private_key.len, e->encrypted_private_key.buf));
+        } else {
+            res = -EBADMSG;
+        }
+      }
+    }
+
+    if (!res && rsp_json) {
+      j = cJSON_GetObjectItemCaseSensitive(rsp_json, "wrapped_data_key");
+      if (cJSON_IsString(j) && j->valuestring != NULL) {
+        tmp_key->wrapped_data_key.buf = strdup(j->valuestring);
+        tmp_key->wrapped_data_key.len = strlen(tmp_key->wrapped_data_key.buf);
+      }
+    }
+
+
+    // Decrypt the wrapped key IF we are storing unencrypted keys
+    if (!res && !e->key_cache_encrypt) {
+      res = ubiq_platform_common_decrypt_wrapped_key(
+          e->encrypted_private_key.buf,
+          e->srsa,
+          tmp_key->wrapped_data_key.buf,
+          &tmp_key->decrypted_data_key.buf,
+          &tmp_key->decrypted_data_key.len);
+    }
+
+    if (!CAPTURE_ERROR(e, res, "Unable to parse key from server")) {
+        const cJSON * kn = cJSON_GetObjectItemCaseSensitive(
+                          rsp_json, "key_number");
+        if (cJSON_IsString(kn) && kn->valuestring != NULL) {
+          const char * errstr = NULL;
+          uintmax_t n = strtoumax(kn->valuestring, NULL, 10);
+          if (n == UINTMAX_MAX && errno == ERANGE) {
+            res = CAPTURE_ERROR(e, -ERANGE, "Invalid key range");
+          } else {
+            tmp_key->key_number = (unsigned int)n;
+          }
+        } else {
+          res = CAPTURE_ERROR(e, -EBADMSG, "Invalid server response");
+        }
+    }
+
+    // Add to cache
+    if (!res) {res = ubiq_platform_cache_add_element(e->stuctured_key_cache, key_str, tmp_key, &key_cache_element_destroy);}
+    cJSON_Delete(rsp_json);
+  }
+
+  if (!res) {
+    // Key has been decrypted, so copy info to supplied output string
+    if (tmp_key->decrypted_data_key.buf != NULL && tmp_key->decrypted_data_key.len != 0) {
+      UBIQ_DEBUG(debug_flag, printf("%s decrypted_data_key exists\n", csu));
+      key->buf = calloc(1, tmp_key->decrypted_data_key.len);
+      memcpy(key->buf, tmp_key->decrypted_data_key.buf, tmp_key->decrypted_data_key.len);
+      key->len = tmp_key->decrypted_data_key.len;
+      key->key_number = tmp_key->key_number;
+    } else {
+        UBIQ_DEBUG(debug_flag, printf("%s wrapped data key being decrypted\n", csu));
+        ubiq_platform_common_decrypt_wrapped_key(
+          e->encrypted_private_key.buf,
+          e->srsa,
+          tmp_key->wrapped_data_key.buf,
+          &key->buf,
+          &key->len);  
+        key->key_number = tmp_key->key_number;  
+    }
+  }
+  free(key_str);
+  return res;
+}
+
 static
 int
 get_ctx(
-  struct ubiq_platform_fpe_enc_dec_obj * const e,
+  struct ubiq_platform_structured_enc_dec_obj * const e,
   const struct ffs * const ffs,
   int * key_number,
   struct ff1_ctx ** ff1_ctx 
 ) 
 {
   const char * const csu = "get_ctx";
-  int debug_flag = 0;
   int res = 0;
   struct ctx_cache_element * ctx_element = NULL;
   char * key_str = NULL;
 
   get_key_cache_string(ffs->name, *key_number, &key_str);
-  
-  ctx_element = (struct ctx_cache_element *)ubiq_platform_cache_find_element(e->key_cache, key_str);
- 
+  UBIQ_DEBUG(debug_flag, printf("%s key_str(%s)\n",csu, key_str));
+
+  ctx_element = (struct ctx_cache_element *)ubiq_platform_cache_find_element(e->ff1_ctx_cache, key_str);
+
   if (ctx_element != NULL) {
     UBIQ_DEBUG(debug_flag, printf("%s %s\n",csu, "key found in Cache"));
   } else {
     if (!res) {
-        UBIQ_DEBUG(debug_flag, printf("%s %s\n",csu, "key NOT found in Cache"));
-        UBIQ_DEBUG(debug_flag, printf("%s %s\n",csu, key_str));
-        static const char * const fmt_encrypt_key = "%s/fpe/key?ffs_name=%s&papi=%s";
-        static const char * const fmt_decrypt_key = "%s/fpe/key?ffs_name=%s&papi=%s&key_number=%d";
+    UBIQ_DEBUG(debug_flag, printf("%s key NOT found in cache\n",csu));
+      struct structured_key * k = NULL;
+      res = structured_key_create(&k);
+      UBIQ_DEBUG(debug_flag, printf("%s structured_key_create res(%d)\n",csu, res));
 
-        cJSON * rsp_json = NULL;
-        char * url = NULL;
-        size_t len;
+      if (!res) {res = get_structured_key(e, ffs, key_number, k);}
+      UBIQ_DEBUG(debug_flag, printf("%s get_structured_key res(%d)\n",csu, res));
 
-        char * encoded_name = NULL;
-        res = ubiq_platform_rest_uri_escape(e->rest, ffs->name, &encoded_name);
+      if (!res) {res = create_and_add_ctx_cache(e,ffs, k->key_number, k, &ctx_element);}
 
-        if (!res) {
-          if (*key_number >= 0) {
-            len = snprintf(NULL, 0, fmt_decrypt_key, e->restapi, encoded_name, e->encoded_papi, *key_number);
-          } else {
-            len = snprintf(NULL, 0, fmt_encrypt_key, e->restapi, encoded_name, e->encoded_papi);
-          }
-          if ((url = malloc(len + 1)) == NULL) {
-            res = -ENOMEM;
-          } else {
-            if (*key_number >= 0) {
-              snprintf(url, len + 1, fmt_decrypt_key, e->restapi, encoded_name, e->encoded_papi, *key_number);
-            } else {
-              snprintf(url, len + 1, fmt_encrypt_key, e->restapi, encoded_name, e->encoded_papi);
-            }
-          }
-        }
-        free(encoded_name);
-
-        if (!res) {
-          UBIQ_DEBUG(debug_flag, printf("url %s\n", url));
-          res = ubiq_platform_rest_request(
-            e->rest,
-            HTTP_RM_GET, url, "application/json", NULL , 0);
-        }
-        free(url);
-        // If Success, simply proceed
-        if (!res) {
-          const http_response_code_t rc =
-              ubiq_platform_rest_response_code(e->rest);
-
-          if (rc != HTTP_RC_OK) {
-            res = save_rest_error(e, e->rest, rc);
-          } else {
-            const void * rsp = ubiq_platform_rest_response_content(e->rest, &len);
-            res = (rsp_json = cJSON_ParseWithLength(rsp, len)) ? 0 : INT_MIN;
-
-          }
-        }
-
-      struct fpe_key * k = NULL;
-      if (!res && rsp_json != NULL) {
-
-        res = fpe_key_create(&k);
-
-        res = ubiq_platform_common_fpe_parse_new_key(
-            rsp_json, e->srsa,
-            &k->buf, &k->len);
-
-        if (!CAPTURE_ERROR(e, res, "Unable to parse key from server")) {
-          const cJSON * kn = cJSON_GetObjectItemCaseSensitive(
-                            rsp_json, "key_number");
-          if (cJSON_IsString(kn) && kn->valuestring != NULL) {
-            const char * errstr = NULL;
-            uintmax_t n = strtoumax(kn->valuestring, NULL, 10);
-            if (n == UINTMAX_MAX && errno == ERANGE) {
-              res = CAPTURE_ERROR(e, -ERANGE, "Invalid key range");
-            } else {
-              k->key_number = (unsigned int)n;
-            }
-          } else {
-            res = CAPTURE_ERROR(e, -EBADMSG, "Invalid server response");
-          }
-        }
+      if (!res && (*key_number == -1)) {
+        res = create_and_add_ctx_cache(e,ffs, *key_number, k, &ctx_element);
       }
-      cJSON_Delete(rsp_json);
-      if (!res) {
 
-        res = create_and_add_ctx_cache(e,ffs, k->key_number, k, &ctx_element);
-
-        if (!res && (*key_number == -1)) {
-          res = create_and_add_ctx_cache(e,ffs, *key_number, k, &ctx_element);
-        }
-
-      }
-      fpe_key_destroy(k);
+      structured_key_destroy(k);
     }
   }
 
   if (!res) {
       *ff1_ctx = ctx_element->fpe_ctx;
       *key_number = ctx_element->key_number;
-
   }
 
   free(key_str);
@@ -1351,7 +1504,7 @@ get_ctx(
 static
 int
 ffs_add_def(
-  struct ubiq_platform_fpe_enc_dec_obj * const e,
+  struct ubiq_platform_structured_enc_dec_obj * const e,
   cJSON * const ffs_json,
   const struct ffs ** ffs_definition)
 {
@@ -1360,7 +1513,7 @@ ffs_add_def(
     struct ffs * f = NULL;
     res = ffs_create(ffs_json,  &f);
     if (!res) {
-      ubiq_platform_cache_add_element(e->ffs_cache, f->name, CACHE_DURATION, f, &ffs_destroy);
+      ubiq_platform_cache_add_element(e->ffs_cache, f->name, f, &ffs_destroy);
       *ffs_definition = f;
     } else {
       // Error, so free resources.
@@ -1374,7 +1527,7 @@ ffs_add_def(
 static
 int
 ffs_get_def(
-  struct ubiq_platform_fpe_enc_dec_obj * const e,
+  struct ubiq_platform_structured_enc_dec_obj * const e,
   const char * const ffs_name,
   const struct ffs ** ffs_definition)
 {
@@ -1383,7 +1536,6 @@ ffs_get_def(
   const char * const csu = "ffs_get_def";
   const char * const fmt = "%s/ffs?ffs_name=%s&papi=%s";
 
-  int debug_flag = 0;
   cJSON * json = NULL;
   char * url = NULL;
   size_t len;
@@ -1391,7 +1543,7 @@ ffs_get_def(
   const void * rsp = NULL;
   const struct ffs * ffs = NULL;
 
-  // The ubiq_platform_fpe_enc_dec_obj was created using specific credentials,
+  // The ubiq_platform_structured_enc_dec_obj was created using specific credentials,
   // so can simply use the ffs_name to look for a key, not the full URL.  This will save
   // having to encode the URL each time
 
@@ -1470,7 +1622,6 @@ int u32_finalize_output_string_prealloc(
 )
 {
   static const char * const csu = "u32_finalize_output_string_prealloc";
-  int debug_flag = 0;
   // To save a couple cycles - Use the parsed formatted destination buffer
 
   UBIQ_DEBUG(debug_flag, printf("%s data(%S) data_len(%d) formatted_dest_buf->len(%d) zero_char(%d)\n", csu, data, data_len, formatted_dest_buf->len, zero_char));
@@ -1506,7 +1657,6 @@ int char_finalize_output_string_prealloc(
 )
 {
   static const char * const csu = "char_finalize_output_string";
-  int debug_flag = 1;
   // To save a couple cycles - Use the parsed formatted destination buffer
 
   UBIQ_DEBUG(debug_flag, printf("%s data(%s) data_len(%d) zero_char(%c) copy_back_start(%d)\n", csu, data, data_len, zero_char, copy_back_start));
@@ -1527,8 +1677,8 @@ int char_finalize_output_string_prealloc(
 }
 
 static
-int char_fpe_encrypt_data_prealloc(
-  struct ubiq_platform_fpe_enc_dec_obj * const enc,
+int char_structured_encrypt_data_prealloc(
+  struct ubiq_platform_structured_enc_dec_obj * const enc,
   const struct ffs * const ffs_definition,
   struct ff1_ctx * const ctx,
   const int key_number,
@@ -1536,8 +1686,7 @@ int char_fpe_encrypt_data_prealloc(
   const char * const ptbuf, const size_t ptlen,
   char * const ctbuf, size_t * const ctlen)
 {
-  static const char * const csu = "char_fpe_encrypt_data_prealloc";
-  int debug_flag = 0;
+  static const char * const csu = "char_structured_encrypt_data_prealloc";
   int res = 0;
   // struct parsed_data * parsed = NULL;
   char * ct = NULL;
@@ -1594,8 +1743,8 @@ int char_fpe_encrypt_data_prealloc(
 }
 
 static
-int u32_fpe_encrypt_data_prealloc(
-  struct ubiq_platform_fpe_enc_dec_obj * const enc,
+int u32_structured_encrypt_data_prealloc(
+  struct ubiq_platform_structured_enc_dec_obj * const enc,
   const struct ffs * const ffs_definition,
   struct ff1_ctx * const ctx,
   const int key_number,
@@ -1603,8 +1752,7 @@ int u32_fpe_encrypt_data_prealloc(
   const char * const ptbuf, const size_t ptlen,
   char * const ctbuf, size_t * const ctlen)
 {
-  static const char * const csu = "u32_fpe_encrypt_data_prealloc";
-  int debug_flag = 0;
+  static const char * const csu = "u32_structured_encrypt_data_prealloc";
   int res = 0;
   char * u8_ct = NULL;
   char * ctbuf_tmp = NULL;
@@ -1687,16 +1835,15 @@ int u32_fpe_encrypt_data_prealloc(
 
 
 static
-int char_fpe_decrypt_data_prealloc(
-  struct ubiq_platform_fpe_enc_dec_obj * const enc,
+int char_structured_decrypt_data_prealloc(
+  struct ubiq_platform_structured_enc_dec_obj * const enc,
   const struct ffs * const ffs_definition,
   const uint8_t * const tweak, const size_t tweaklen,
   const char * const ctbuf, const size_t ctlen,
   char * const ptbuf, size_t * const ptlen,
   int * key_number)
 {
-  static const char * const csu = "char_fpe_decrypt_data_prealloc";
-  int debug_flag = 0;
+  static const char * const csu = "char_structured_decrypt_data_prealloc";
   int res = 0;
   struct ff1_ctx * ctx = NULL;
   char * pt = NULL;
@@ -1754,16 +1901,15 @@ int char_fpe_decrypt_data_prealloc(
 }
 
 static
-int u32_fpe_decrypt_data_prealloc(
-  struct ubiq_platform_fpe_enc_dec_obj * const enc,
+int u32_structured_decrypt_data_prealloc(
+  struct ubiq_platform_structured_enc_dec_obj * const enc,
   const struct ffs * const ffs_definition,
   const uint8_t * const tweak, const size_t tweaklen,
   const char * const ctbuf, const size_t ctlen,
   char * const ptbuf, size_t * const ptlen,
   int * key_number)
 {
-  static const char * const csu = "u32_fpe_decrypt_data_prealloc";
-  int debug_flag = 0;
+  static const char * const csu = "u32_structured_decrypt_data_prealloc";
   int res = 0;
   // size_t copy_back_start = 0;
   struct ff1_ctx * ctx = NULL;
@@ -1871,14 +2017,13 @@ int u32_fpe_decrypt_data_prealloc(
 static 
 int 
   load_search_keys(
-    struct ubiq_platform_fpe_enc_dec_obj * const e,
+    struct ubiq_platform_structured_enc_dec_obj * const e,
     const char * const ffs_name,
     int * num_keys_loaded)
 {
 
   const char * const csu = "load_search_keys";
   const char * const fmt = "%s/fpe/def_keys?ffs_name=%s&papi=%s";
-  int debug_flag = 0;
 
   UBIQ_DEBUG(debug_flag, printf("%s %s\n",csu, "started"));
 
@@ -1984,10 +2129,10 @@ int
             struct ctx_cache_element * ctx_element = NULL;
 
             res = get_key_cache_string(ffs_name, i, &key_str);
-            if ((0 == res) && (NULL == ubiq_platform_cache_find_element(e->key_cache, key_str))) {
+            if ((0 == res) && (NULL == ubiq_platform_cache_find_element(e->ff1_ctx_cache, key_str))) {
               UBIQ_DEBUG(debug_flag, printf("%s key (%i) not in cache\n",csu, i));
-              struct fpe_key * k = NULL;
-              res = fpe_key_create(&k);
+              struct structured_key * k = NULL;
+              res = structured_key_create(&k);
               if (!res) {
 
                 cJSON * key = cJSON_GetArrayItem(keys, i);
@@ -2007,7 +2152,7 @@ int
                         free(key_str);
                         res = get_key_cache_string(ffs_name, -1, &key_str);
                         if (!res) {
-                          if (NULL == ubiq_platform_cache_find_element(e->key_cache, key_str)) {
+                          if (NULL == ubiq_platform_cache_find_element(e->ff1_ctx_cache, key_str)) {
                             UBIQ_DEBUG(debug_flag, printf("%s key (%d) not in cache\n",csu, -1));
                             res = create_and_add_ctx_cache(e,ffs_definition, -1, k, &ctx_element);
                           } else {
@@ -2018,9 +2163,9 @@ int
                     }
                   }
                 }
-                UBIQ_DEBUG(debug_flag, printf("%s before fpe_key_destroy\n",csu));
-                fpe_key_destroy(k);
-                UBIQ_DEBUG(debug_flag, printf("%s after fpe_key_destroy\n",csu));
+                UBIQ_DEBUG(debug_flag, printf("%s before structured_key_destroy\n",csu));
+                structured_key_destroy(k);
+                UBIQ_DEBUG(debug_flag, printf("%s after structured_key_destroy\n",csu));
 
             } else {
               UBIQ_DEBUG(debug_flag, printf("%s key (%i) already in cache\n",csu, i));
@@ -2048,15 +2193,14 @@ int
 **************************************************************************************/
 
 int
-ubiq_platform_fpe_encrypt_data_prealloc(
-  struct ubiq_platform_fpe_enc_dec_obj * const enc,
+ubiq_platform_structured_encrypt_data_prealloc(
+  struct ubiq_platform_structured_enc_dec_obj * const enc,
   const char * const ffs_name,
   const uint8_t * const tweak, const size_t tweaklen,
   const char * const ptbuf, const size_t ptlen,
   char * const ctbuf, size_t * const ctlen)
 {
-  static const char * const csu = "ubiq_platform_fpe_encrypt_data_prealloc";
-  int debug_flag = 0;
+  static const char * const csu = "ubiq_platform_structured_encrypt_data_prealloc";
   int res = 0;
   const struct ffs * ffs_definition = NULL;
   struct ff1_ctx * ctx = NULL;
@@ -2075,9 +2219,9 @@ ubiq_platform_fpe_encrypt_data_prealloc(
 
   if (!res) {
     if (ffs_definition->character_types == UINT8) {
-      res = char_fpe_encrypt_data_prealloc(enc, ffs_definition, ctx, key_number, tweak, tweaklen, ptbuf, ptlen, ctbuf, ctlen);
+      res = char_structured_encrypt_data_prealloc(enc, ffs_definition, ctx, key_number, tweak, tweaklen, ptbuf, ptlen, ctbuf, ctlen);
     } else {
-      res = u32_fpe_encrypt_data_prealloc(enc, ffs_definition, ctx, key_number, tweak, tweaklen, ptbuf, ptlen, ctbuf, ctlen);
+      res = u32_structured_encrypt_data_prealloc(enc, ffs_definition, ctx, key_number, tweak, tweaklen, ptbuf, ptlen, ctbuf, ctlen);
     }
   }
 
@@ -2097,15 +2241,14 @@ ubiq_platform_fpe_encrypt_data_prealloc(
 }
 
 int
-ubiq_platform_fpe_encrypt_data(
-  struct ubiq_platform_fpe_enc_dec_obj * const enc,
+ubiq_platform_structured_encrypt_data(
+  struct ubiq_platform_structured_enc_dec_obj * const enc,
   const char * const ffs_name,
   const uint8_t * const tweak, const size_t tweaklen,
   const char * const ptbuf, const size_t ptlen,
   char ** const ctbuf, size_t * const ctlen)
 {
-  static const char * const csu = "ubiq_platform_fpe_encrypt_data";
-  int debug_flag = 0;
+  static const char * const csu = "ubiq_platform_structured_encrypt_data";
   int res = 0;
   const struct ffs * ffs_definition = NULL;
   struct ff1_ctx * ctx = NULL;
@@ -2117,9 +2260,9 @@ ubiq_platform_fpe_encrypt_data(
   
   *ctlen = (ptlen * 4) + 1;
   if ((res = alloc(*ctlen, sizeof(uint32_t),(void **) &buf)) == 0) {
-      UBIQ_DEBUG(debug_flag, printf("%s %s res(%d)\n", csu, "before ubiq_platform_fpe_decrypt_data_prealloc", res));
+      UBIQ_DEBUG(debug_flag, printf("%s %s res(%d)\n", csu, "before ubiq_platform_structured_decrypt_data_prealloc", res));
 
-      if ((res = ubiq_platform_fpe_encrypt_data_prealloc(
+      if ((res = ubiq_platform_structured_encrypt_data_prealloc(
         enc, ffs_name, tweak, tweaklen,
         ptbuf, ptlen, buf, ctlen)) == 0) {
           *ctbuf = buf;
@@ -2153,16 +2296,15 @@ ubiq_platform_fpe_encrypt_data(
 
 UBIQ_PLATFORM_API
 int
-ubiq_platform_fpe_decrypt_data_prealloc(
-  struct ubiq_platform_fpe_enc_dec_obj * const enc,
+ubiq_platform_structured_decrypt_data_prealloc(
+  struct ubiq_platform_structured_enc_dec_obj * const enc,
   const char * const ffs_name,
   const uint8_t * const tweak, const size_t tweaklen,
   const char * const ctbuf, const size_t ctlen,
   char * const ptbuf, size_t * const ptlen
 )
 {
-  static const char * const csu = "ubiq_platform_fpe_decrypt_data_prealloc";
-  int debug_flag = 0;
+  static const char * const csu = "ubiq_platform_structured_decrypt_data_prealloc";
   int res = 0;
   const struct ffs * ffs_definition = NULL;
 
@@ -2176,9 +2318,9 @@ ubiq_platform_fpe_decrypt_data_prealloc(
 
   if (!res) {
     if (ffs_definition->character_types == UINT8) {
-      res = char_fpe_decrypt_data_prealloc(enc, ffs_definition, tweak, tweaklen, ctbuf, ctlen, ptbuf, ptlen, &key_number);
+      res = char_structured_decrypt_data_prealloc(enc, ffs_definition, tweak, tweaklen, ctbuf, ctlen, ptbuf, ptlen, &key_number);
     } else {
-      res = u32_fpe_decrypt_data_prealloc(enc, ffs_definition, tweak, tweaklen, ctbuf, ctlen, ptbuf, ptlen, &key_number);
+      res = u32_structured_decrypt_data_prealloc(enc, ffs_definition, tweak, tweaklen, ctbuf, ctlen, ptbuf, ptlen, &key_number);
     }
   }
 
@@ -2197,15 +2339,14 @@ ubiq_platform_fpe_decrypt_data_prealloc(
 }
 
 int
-ubiq_platform_fpe_decrypt_data(
-  struct ubiq_platform_fpe_enc_dec_obj * const enc,
+ubiq_platform_structured_decrypt_data(
+  struct ubiq_platform_structured_enc_dec_obj * const enc,
   const char * const ffs_name,
   const uint8_t * const tweak, const size_t tweaklen,
   const char * const ctbuf, const size_t ctlen,
   char ** const ptbuf, size_t * const ptlen)
 {
-  static const char * const csu = "ubiq_platform_fpe_decrypt_data";
-  int debug_flag = 0;
+  static const char * const csu = "ubiq_platform_structured_decrypt_data";
   int res = 0;
 
   UBIQ_DEBUG(debug_flag, printf("%s %s res(%d)\n", csu, "start", res));
@@ -2216,8 +2357,8 @@ ubiq_platform_fpe_decrypt_data(
   *ptlen = (ctlen * 4) + 1;
   if (((res = alloc(*ptlen, sizeof(uint32_t),(void **) &buf)) == 0))
   {
-    UBIQ_DEBUG(debug_flag, printf("%s %s res(%d)\n", csu, "before ubiq_platform_fpe_decrypt_data_prealloc", res));
-    if ((res = ubiq_platform_fpe_decrypt_data_prealloc(
+    UBIQ_DEBUG(debug_flag, printf("%s %s res(%d)\n", csu, "before ubiq_platform_structured_decrypt_data_prealloc", res));
+    if ((res = ubiq_platform_structured_decrypt_data_prealloc(
       enc, ffs_name, tweak, tweaklen,
       ctbuf, ctlen, buf,ptlen)) == 0) {
           *ptbuf = buf;
@@ -2233,15 +2374,15 @@ ubiq_platform_fpe_decrypt_data(
 }
 
 int
-ubiq_platform_fpe_enc_dec_create(
+ubiq_platform_structured_enc_dec_create(
     const struct ubiq_platform_credentials * const creds,
-    struct ubiq_platform_fpe_enc_dec_obj ** const enc) {
+    struct ubiq_platform_structured_enc_dec_obj ** const enc) {
 
   struct ubiq_platform_configuration * cfg = NULL;
 
   ubiq_platform_configuration_load_configuration(NULL, &cfg);
 
-  int ret = ubiq_platform_fpe_enc_dec_create_with_config(creds, cfg, enc);
+  int ret = ubiq_platform_structured_enc_dec_create_with_config(creds, cfg, enc);
   ubiq_platform_configuration_destroy(cfg);
   return ret;
 
@@ -2249,12 +2390,12 @@ ubiq_platform_fpe_enc_dec_create(
 
 // Piecewise functions
 int
-ubiq_platform_fpe_enc_dec_create_with_config(
+ubiq_platform_structured_enc_dec_create_with_config(
     const struct ubiq_platform_credentials * const creds,
     const struct ubiq_platform_configuration * const cfg,
-    struct ubiq_platform_fpe_enc_dec_obj ** const enc) {
+    struct ubiq_platform_structured_enc_dec_obj ** const enc) {
       
-    struct ubiq_platform_fpe_enc_dec_obj * e;
+    struct ubiq_platform_structured_enc_dec_obj * e;
     int res;
 
     const char * const host = ubiq_platform_credentials_get_host(creds);
@@ -2262,13 +2403,18 @@ ubiq_platform_fpe_enc_dec_create_with_config(
     const char * const sapi = ubiq_platform_credentials_get_sapi(creds);
     const char * const srsa = ubiq_platform_credentials_get_srsa(creds);
 
+    // If library hasn't been initialized, fail fast.
+    if (!ubiq_platform_initialized()) {
+      return -EINVAL;
+    }
+
     // This function will actually create and initialize the object
-    res = ubiq_platform_fpe_encryption(host, papi, sapi, srsa, cfg, &e);
+    res = ubiq_platform_structured_encryption(host, papi, sapi, srsa, cfg, &e);
 
     if (res == 0) {
         *enc = e;
     } else {
-        ubiq_platform_fpe_enc_dec_destroy(e);
+        ubiq_platform_structured_enc_dec_destroy(e);
     }
 
     return res;
@@ -2279,31 +2425,32 @@ ubiq_platform_fpe_enc_dec_create_with_config(
 
 
 void
-ubiq_platform_fpe_enc_dec_destroy(
-    struct ubiq_platform_fpe_enc_dec_obj * const e)
+ubiq_platform_structured_enc_dec_destroy(
+    struct ubiq_platform_structured_enc_dec_obj * const e)
 {
-  const char * const csu = "ubiq_platform_fpe_enc_dec_destroy";
+  const char * const csu = "ubiq_platform_structured_enc_dec_destroy";
 
   if (e) {
 
     // Need to make sure billing ctx is destroyed before other objects
     ubiq_billing_ctx_destroy(e->billing_ctx);
-    ubiq_platform_rest_handle_destroy(e->billing_rest);
     ubiq_platform_rest_handle_destroy(e->rest);
     free(e->restapi);
     free(e->papi);
     free(e->encoded_papi);
     free(e->srsa);
     ubiq_platform_cache_destroy(e->ffs_cache);
-    ubiq_platform_cache_destroy(e->key_cache);
+    ubiq_platform_cache_destroy(e->ff1_ctx_cache);
+    ubiq_platform_cache_destroy(e->stuctured_key_cache);
+    free(e->encrypted_private_key.buf);
     free(e->error.err_msg);
   }
   free(e);
 }
 
 int
-ubiq_platform_fpe_get_last_error(
-  struct ubiq_platform_fpe_enc_dec_obj * const enc,
+ubiq_platform_structured_get_last_error(
+  struct ubiq_platform_structured_enc_dec_obj * const enc,
   int * const err_num,
   char ** const err_msg
 )
@@ -2324,97 +2471,18 @@ ubiq_platform_fpe_get_last_error(
   return res;
 }
 
-int
-ubiq_platform_fpe_encrypt(
-    const struct ubiq_platform_credentials * const creds,
-    const char * const ffs_name,
-    const void * const tweak, const size_t tweaklen,
-    const char * const ptbuf, const size_t ptlen,
-    char ** const ctbuf, size_t * const ctlen)
-{
-
-  struct ubiq_platform_fpe_enc_dec_obj * enc;
-  int res = 0;
-
-  // Create Structure that will handle REST calls.
-  // Std voltron gets additional information, this will
-  // simply allocate structure.  Mapping creds to individual strings
-  enc = NULL;
-  res = ubiq_platform_fpe_enc_dec_create(creds,  &enc);
-
-  if (!res) {
-     res = ubiq_platform_fpe_encrypt_data(enc, ffs_name,
-       tweak, tweaklen, ptbuf, ptlen, ctbuf, ctlen);
-  }
-  ubiq_platform_fpe_enc_dec_destroy(enc);
-
-  return res;
-}
-
-int
-ubiq_platform_fpe_decrypt(
-    const struct ubiq_platform_credentials * const creds,
-    const char * const ffs_name,
-    const void * const tweak, const size_t tweaklen,
-    const void * const ctbuf, const size_t ctlen,
-    char ** const ptbuf, size_t * const ptlen)
-{
-  static const char * const csu = "ubiq_platform_fpe_decrypt";
-  int debug_flag = 0;
-  struct ubiq_platform_fpe_enc_dec_obj * enc;
-  int res = 0;
-
-  enc = NULL;
-  res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
-
-  UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i)\n",csu, "start", res));
-
-  if (!res) {
-    res  = ubiq_platform_fpe_decrypt_data(enc, ffs_name, tweak, tweaklen, ctbuf, ctlen, ptbuf, ptlen);
-    UBIQ_DEBUG(debug_flag, printf("%s \n \t%s res(%i)\n",csu, "after ubiq_platform_fpe_decrypt_data", res));
-  }
-  ubiq_platform_fpe_enc_dec_destroy(enc);
-  return res;
-}
-
-// Simple version
-int
-ubiq_platform_fpe_encrypt_for_search(
-    const struct ubiq_platform_credentials * const creds,
-    const char * const ffs_name,
-    const void * const tweak, const size_t tweaklen,
-    const char * const ptbuf, const size_t ptlen,
-    char *** const ctbuf, size_t * const count)
-{
-  static const char * const csu = "ubiq_platform_fpe_encrypt_for_search";
-  struct ubiq_platform_fpe_enc_dec_obj * enc;
-  int res = 0;
-
-  enc = NULL;
-  res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
-
-   if (!res) {
-    res  = ubiq_platform_fpe_encrypt_data_for_search(enc, ffs_name, tweak, tweaklen, ptbuf, ptlen, ctbuf, count);
-  }
-
-  ubiq_platform_fpe_enc_dec_destroy(enc);
-  return res;
-
-}
-
 /*
 */
 int
-ubiq_platform_fpe_encrypt_data_for_search_prealloc(
-  struct ubiq_platform_fpe_enc_dec_obj * const enc,
+ubiq_platform_structured_encrypt_data_for_search_prealloc(
+  struct ubiq_platform_structured_enc_dec_obj * const enc,
   const char * const ffs_name,
   const uint8_t * const tweak, const size_t tweaklen,
   const char * const ptbuf, const size_t ptlen,
   char ** const ctbuf, size_t * const ctbuflen , size_t * const count
 )
 {
-  static const char * const csu = "ubiq_platform_fpe_encrypt_data_for_search_prealloc";
-  int debug_flag = 0;
+  static const char * const csu = "ubiq_platform_structured_encrypt_data_for_search_prealloc";
   const struct ffs * ffs_definition = NULL;
   struct ff1_ctx * ctx = NULL;
   // int key_number = -1;
@@ -2444,19 +2512,19 @@ ubiq_platform_fpe_encrypt_data_for_search_prealloc(
 
     if (!res) {
       if (ffs_definition->character_types == UINT8) {
-        res = char_fpe_encrypt_data_prealloc(enc, ffs_definition, ctx, i, tweak, tweaklen, ptbuf, ptlen,  ctbuf[i], &len);
-        UBIQ_DEBUG(debug_flag, printf("%s %s res(%d) ctbuf[i](%s)\n", csu, "char_fpe_encrypt_data_prealloc", res, ctbuf[i]));
+        res = char_structured_encrypt_data_prealloc(enc, ffs_definition, ctx, i, tweak, tweaklen, ptbuf, ptlen,  ctbuf[i], &len);
+        UBIQ_DEBUG(debug_flag, printf("%s %s res(%d) ctbuf[i](%s)\n", csu, "char_structured_encrypt_data_prealloc", res, ctbuf[i]));
         // If there was a failure and ctbuflen was not large enough, return how big the buffer needs to be
         if (!res && len > *ctbuflen) {
           *ctbuflen = len;
         }
       } else {
-        res = u32_fpe_encrypt_data_prealloc(enc, ffs_definition, ctx, i, tweak, tweaklen, ptbuf, ptlen, ctbuf[i], &len);
-        UBIQ_DEBUG(debug_flag, printf("%s %s res(%d) ret_ct[i](%s)\n", csu, "u32_fpe_encrypt_data_prealloc", res, ctbuf[i]));
+        res = u32_structured_encrypt_data_prealloc(enc, ffs_definition, ctx, i, tweak, tweaklen, ptbuf, ptlen, ctbuf[i], &len);
+        UBIQ_DEBUG(debug_flag, printf("%s %s res(%d) ret_ct[i](%s)\n", csu, "u32_structured_encrypt_data_prealloc", res, ctbuf[i]));
       }
     }
 
-    // char_fpe_encrypt_data does not add billing event - ubiq_platform_fpe_enc_dec_obj adds billing but does not accept key number.
+    // char_structured_encrypt_data does not add billing event - ubiq_platform_structured_enc_dec_obj adds billing but does not accept key number.
     // Therefore, need to add billing records here
 
     if (!res) {
@@ -2478,16 +2546,15 @@ ubiq_platform_fpe_encrypt_data_for_search_prealloc(
 
 // Bulk version
 int
-ubiq_platform_fpe_encrypt_data_for_search(
-  struct ubiq_platform_fpe_enc_dec_obj * const enc,
+ubiq_platform_structured_encrypt_data_for_search(
+  struct ubiq_platform_structured_enc_dec_obj * const enc,
   const char * const ffs_name,
   const uint8_t * const tweak, const size_t tweaklen,
   const char * const ptbuf, const size_t ptlen,
   char *** const ctbuf, size_t * const count
 )
 {
-  static const char * const csu = "ubiq_platform_fpe_encrypt_data_for_search";
-  int debug_flag = 0;
+  static const char * const csu = "ubiq_platform_structured_encrypt_data_for_search";
   const struct ffs * ffs_definition = NULL;
   struct ff1_ctx * ctx = NULL;
   // int key_number = -1;
@@ -2529,11 +2596,11 @@ ubiq_platform_fpe_encrypt_data_for_search(
   }
 
   UBIQ_DEBUG(debug_flag, printf("%s %s res(%d) key_count(%d)\n", csu, "alloc", res, key_count));
-  res = ubiq_platform_fpe_encrypt_data_for_search_prealloc(
+  res = ubiq_platform_structured_encrypt_data_for_search_prealloc(
     enc, ffs_name, tweak, tweaklen,
     ptbuf, ptlen, ret_ct, &ctbuflen, count);
   
-  UBIQ_DEBUG(debug_flag, printf("%s %s res(%d) ctbuflen(%d) count(%d)\n", csu, "ubiq_platform_fpe_encrypt_data_for_search_prealloc", res, ctbuflen, *count));
+  UBIQ_DEBUG(debug_flag, printf("%s %s res(%d) ctbuflen(%d) count(%d)\n", csu, "ubiq_platform_structured_encrypt_data_for_search_prealloc", res, ctbuflen, *count));
 
   for (int i = 0; i < key_count; i++) {
     UBIQ_DEBUG(debug_flag, printf("%s key(%d) ret_ct(%s)\n", csu, i, ret_ct[i]));
@@ -2554,8 +2621,8 @@ ubiq_platform_fpe_encrypt_data_for_search(
 
 
 int
-ubiq_platform_fpe_enc_dec_get_copy_of_usage(
-    struct ubiq_platform_fpe_enc_dec_obj * const obj,
+ubiq_platform_structured_enc_dec_get_copy_of_usage(
+    struct ubiq_platform_structured_enc_dec_obj * const obj,
     char ** const buffer, size_t * const buffer_len) {
 
       if (obj == NULL || buffer == NULL || buffer_len == NULL) {
@@ -2565,8 +2632,8 @@ ubiq_platform_fpe_enc_dec_get_copy_of_usage(
     }
 
 int
-ubiq_platform_fpe_enc_dec_add_user_defined_metadata(
-    struct ubiq_platform_fpe_enc_dec_obj * const obj,
+ubiq_platform_structured_enc_dec_add_user_defined_metadata(
+    struct ubiq_platform_structured_enc_dec_obj * const obj,
     const char * const jsonString)
 {
 
@@ -2576,3 +2643,5 @@ ubiq_platform_fpe_enc_dec_add_user_defined_metadata(
 
     return ubiq_billing_add_user_defined_metadata(obj->billing_ctx,jsonString);
 }
+
+

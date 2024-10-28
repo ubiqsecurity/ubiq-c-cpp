@@ -1,5 +1,5 @@
-#ifndef UBIQ_FPE_FF1_H
-#define UBIQ_FPE_FF1_H
+#ifndef UBIQ_STRUCTURED_FF1_H
+#define UBIQ_STRUCTURED_FF1_H
 
 #include <sys/cdefs.h>
 #include <stdint.h>

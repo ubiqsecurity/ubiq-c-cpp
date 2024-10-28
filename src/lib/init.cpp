@@ -25,3 +25,10 @@ void ubiq::platform::exit(void)
 {
     ubiq_platform_exit();
 }
+
+void ubiq::platform::initialized(void)
+{
+    if (!ubiq_platform_initialized()) {
+        throw std::runtime_error("platform has not been initialized");
+    }
+}

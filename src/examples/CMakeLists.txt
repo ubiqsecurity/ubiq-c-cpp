@@ -53,32 +53,32 @@ target_link_libraries(
 
 
 add_executable(
-  ubiq_sample_fpe-c
+  ubiq_sample_structured-c
 
-  ubiq_sample_fpe.c
+  ubiq_sample_structured.c
   $<TARGET_OBJECTS:ubiq_sample-common>
 )
 target_compile_definitions(
-  ubiq_sample_fpe-c
+  ubiq_sample_structured-c
   PRIVATE
   _CRT_SECURE_NO_WARNINGS)
 
 target_link_libraries(
-  ubiq_sample_fpe-c
+  ubiq_sample_structured-c
   ubiqclient)
 
 add_executable(
-  ubiq_sample_fpe-c++
+  ubiq_sample_structured-c++
 
-  ubiq_sample_fpe.cpp
+  ubiq_sample_structured.cpp
   $<TARGET_OBJECTS:ubiq_sample-common>
 )
 target_compile_definitions(
-  ubiq_sample_fpe-c++
+  ubiq_sample_structured-c++
   PRIVATE
   _CRT_SECURE_NO_WARNINGS)
 target_link_libraries(
-  ubiq_sample_fpe-c++
+  ubiq_sample_structured-c++
   ubiqclient++ )
 
 

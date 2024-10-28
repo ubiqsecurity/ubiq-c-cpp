@@ -3,9 +3,11 @@
 #include "ubiq/platform/internal/header.h"
 #include "ubiq/platform/internal/rest.h"
 #include "ubiq/platform/internal/credentials.h"
+#include "ubiq/platform/internal/configuration.h"
 #include "ubiq/platform/internal/common.h"
 #include "ubiq/platform/internal/support.h"
 #include "ubiq/platform/internal/billing.h"
+#include "ubiq/platform/internal/cache.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -13,6 +15,28 @@
 #include <string.h>
 
 #include "cJSON/cJSON.h"
+// #define UBIQ_DEBUG_ON
+#ifdef UBIQ_DEBUG_ON
+#define UBIQ_DEBUG(x,y) {x && y;}
+#else
+#define UBIQ_DEBUG(x,y)
+#endif
+
+static int debug_flag = 1;
+
+
+typedef struct {
+     void * buf;
+     size_t len;
+} ubiq_key_t;
+
+// wrapped_data_key is in base64
+// decrypted_data_key is byte array
+// decrypted_data_key will have length 0 if key_caching is stored encrypted and it needs to be decrypted
+// each time.
+typedef struct cached_key {
+  ubiq_key_t wrapped_data_key, decrypted_data_key;
+} cached_key_t;
 
 struct ubiq_platform_decryption
 {
@@ -22,20 +46,25 @@ struct ubiq_platform_decryption
     struct ubiq_platform_rest_handle * rest;
     struct ubiq_billing_ctx * billing_ctx;
 
+    struct ubiq_platform_cache * key_cache; // key will be the base64 encoded encrypted data key (came from KMS)
+    // Payload will be a cached_key_t.  The result MAY need to be decrypted using the encrypted_private_key and the srsa value.
+
     const char * srsa;
 
     struct {
-        struct {
-            void * buf;
-            size_t len;
-        } raw, enc;
-
-    } key;
+      void * buf;
+      size_t len;
+    } encrypted_private_key;
 
     const struct ubiq_platform_algorithm * algo;
     struct ubiq_support_cipher_context * ctx;
     void * buf;
     size_t len;
+
+    int key_cache_encrypt;
+    int key_cache_ttl_seconds;
+    int key_cache_unstructured;
+
 };
 
 int
@@ -69,6 +98,12 @@ ubiq_platform_decryption_create_with_config(
     size_t len;
     int res;
 
+    // If library hasn't been initialized, fail fast.
+    if (!ubiq_platform_initialized()) {
+      return -EINVAL;
+    }
+
+
     res = -ENOMEM;
 
     len = ubiq_platform_snprintf_api_url(NULL, 0, host, api_path);
@@ -94,10 +129,33 @@ ubiq_platform_decryption_create_with_config(
         strcpy((char *)d->papi, papi);
 
         res = ubiq_platform_rest_handle_create(papi, sapi, &d->rest);
+        // res = ubiq_platform_rest_handle_create(papi, sapi, &d->billing_rest);
 
         if (!res) {
-          res = ubiq_billing_ctx_create(&d->billing_ctx, host, d->rest, cfg);
+          res = ubiq_billing_ctx_create(&d->billing_ctx, host, papi, sapi, cfg);
         }
+        if (!res) {
+          d->key_cache_ttl_seconds = ubiq_platform_configuration_get_key_caching_ttl_seconds(cfg);
+          d->key_cache_unstructured = ubiq_platform_configuration_get_key_caching_unstructured_keys(cfg);
+          d->key_cache_encrypt = ubiq_platform_configuration_get_key_caching_encrypt(cfg);
+          UBIQ_DEBUG(debug_flag, printf("key_cache_unstructured: %d\n", d->key_cache_unstructured));
+          UBIQ_DEBUG(debug_flag, printf("key_cache_ttl_seconds: %d\n", d->key_cache_ttl_seconds));
+          UBIQ_DEBUG(debug_flag, printf("key_cache_encrypt: %d\n", d->key_cache_encrypt));
+        }
+
+        if (!res) {
+          int ttl = 0;
+
+          // If unstructured key caching, then use the supplied value.
+          // If the ttl is 0, means key information will not be cached.
+          if (d->key_cache_unstructured) {
+            ttl = d->key_cache_ttl_seconds;
+          }
+          UBIQ_DEBUG(debug_flag, printf("ttl: %d\n", ttl));
+          // htable size 500 - means slots for 500 possible key collisions - probably way more than the 
+          // number of keys being used here
+          res = ubiq_platform_cache_create(500, ttl, &d->key_cache);
+      }
 
       }
     }
@@ -116,25 +174,31 @@ void
 ubiq_platform_decryption_reset(
     struct ubiq_platform_decryption * const d)
 {
-    if (d->key.raw.len) {
-        /*
-         * if the key has been used at all, discarding it
-         */
-
-        memset(d->key.raw.buf, 0, d->key.raw.len);
-        memset(d->key.enc.buf, 0, d->key.enc.len);
-
-        free(d->key.raw.buf);
-        free(d->key.enc.buf);
-
-        d->key.raw.buf = d->key.enc.buf = NULL;
-        d->key.raw.len = d->key.raw.len = 0;
-
-        d->algo = NULL;
-        if (d->ctx) {
-            ubiq_support_cipher_destroy(d->ctx);
-        }
+    d->algo = NULL;
+    if (d->ctx) {
+        UBIQ_DEBUG(debug_flag, printf("d->ctx != NULL\n"));
+        ubiq_support_cipher_destroy(d->ctx);
     }
+}
+
+static int
+key_cache_element_create(cached_key_t ** const e) {
+  int res = -ENOMEM;
+  cached_key_t * cached_key = NULL;
+  cached_key = calloc(1, sizeof(*cached_key));
+  if (cached_key) {
+    *e = cached_key;
+    res = 0;
+  }
+  return res;
+}
+
+static void
+key_cache_element_destroy(void * const e) {
+  cached_key_t * cached_key = (cached_key_t *) e;
+  free(cached_key->wrapped_data_key.buf);
+  free(cached_key->decrypted_data_key.buf);
+  free(e);
 }
 
 /*
@@ -145,57 +209,123 @@ static
 int
 ubiq_platform_decryption_new_key(
     struct ubiq_platform_decryption * const d,
-    const void * const enckey, const size_t keylen)
+    const void * const enckey, const size_t keylen,
+    cached_key_t ** key)
 {
     const char * const fmt = "%s/decryption/key";
 
-    cJSON * json;
-    char * url, * str, * enc;
-    size_t len;
+    char * base64_encrypted_data_key;
     int res;
 
-    len = snprintf(NULL, 0, fmt, d->restapi);
-    url = malloc(len + 1);
-    snprintf(url, len + 1, fmt, d->restapi);
+    // Encode the encrypted key to base64 for the cache key lookup
+    ubiq_support_base64_encode(&base64_encrypted_data_key, enckey, keylen);
 
-    ubiq_support_base64_encode(&enc, enckey, keylen);
+    // Does the key already exist ?
+    cached_key_t * cached_key = (cached_key_t *)ubiq_platform_cache_find_element(d->key_cache, base64_encrypted_data_key);
 
-    json = cJSON_CreateObject();
-    cJSON_AddItemToObject(
-        json, "encrypted_data_key", cJSON_CreateStringReference(enc));
-    str = cJSON_Print(json);
-    cJSON_Delete(json);
+    // Key doesn't exist
+    if (NULL != cached_key) {
+      UBIQ_DEBUG(debug_flag, printf("Key found\n"));
+      *key = cached_key;
+    } else {
+      UBIQ_DEBUG(debug_flag, printf("Key NOT found\n"));
+      cJSON * json;
+      res = key_cache_element_create(key);
+      UBIQ_DEBUG(debug_flag, printf("Key(%p) res(%d)\n", *key, res));
+      if (0 == res) {
+          char * url, * str;
+          size_t len = 0;
 
-    res = ubiq_platform_rest_request(
-        d->rest,
-        HTTP_RM_POST, url, "application/json", str, strlen(str));
+          len = snprintf(NULL, 0, fmt, d->restapi);
+          url = malloc(len + 1);
+          snprintf(url, len + 1, fmt, d->restapi);
 
-    free(str);
-    free(enc);
-    free(url);
+          json = cJSON_CreateObject();
+          cJSON_AddItemToObject(
+              json, "encrypted_data_key", cJSON_CreateStringReference(base64_encrypted_data_key));
+          str = cJSON_Print(json);
+          cJSON_Delete(json);
 
-    if (res == 0) {
-        const http_response_code_t rc =
-            ubiq_platform_rest_response_code(d->rest);
+          UBIQ_DEBUG(debug_flag, printf("url(%s) \n", url));
+          UBIQ_DEBUG(debug_flag, printf("str(%s) \n", str));
+          
+          res = ubiq_platform_rest_request(
+              d->rest,
+              HTTP_RM_POST, url, "application/json", str, strlen(str));
 
-        if (rc == HTTP_RC_OK) {
-            const void * rsp =
-                ubiq_platform_rest_response_content(d->rest, &len);
+          UBIQ_DEBUG(debug_flag, printf("res(%d)\n" ,res));
 
-            res = INT_MIN;
-            json = cJSON_ParseWithLength(rsp, len);
-            if (json) {
-                res = ubiq_platform_common_parse_new_key(
-                    json, d->srsa,
-                    // &d->session, &d->key.fingerprint,
-                    &d->key.raw.buf, &d->key.raw.len);
+          free(str);
+          free(url);
+          if (res == 0) {
+              const http_response_code_t rc =
+                  ubiq_platform_rest_response_code(d->rest);
 
-                cJSON_Delete(json);
+              UBIQ_DEBUG(debug_flag, printf("rc %d\n" ,rc));
+
+              if (rc == HTTP_RC_OK) {
+                  size_t len = 0;
+                  const void * rsp =
+                      ubiq_platform_rest_response_content(d->rest, &len);
+
+                  UBIQ_DEBUG(debug_flag, printf("rsp %.*s\n" ,len, rsp));
+
+                  res = 0;
+                  json = cJSON_ParseWithLength(rsp, len);
+                  if (json) {
+                    const cJSON * j = NULL;
+                    // Extract encrypted_private_key and stored in dec object.  
+                    // Since private key is tied to API Key, it will always be the same, regardless of 
+                    // actual data encryption key.
+                    if (d->encrypted_private_key.len == 0) {
+                      j = cJSON_GetObjectItemCaseSensitive(
+                          json, "encrypted_private_key");
+                      if (cJSON_IsString(j) && j->valuestring != NULL) {
+                          d->encrypted_private_key.buf = strdup(j->valuestring);
+                          d->encrypted_private_key.len = strlen(d->encrypted_private_key.buf);
+                          UBIQ_DEBUG(debug_flag, printf("d->encrypted_private_key.buf %.*s\n" ,d->encrypted_private_key.len, d->encrypted_private_key.buf));
+                      } else {
+                          res = -EBADMSG;
+                      }
+                    }
+
+                    // Extract wrapped data key and stored in cache_key object
+                    j = cJSON_GetObjectItemCaseSensitive(
+                          json, "wrapped_data_key");
+                    if (cJSON_IsString(j) && j->valuestring != NULL) {
+                      (*key)->wrapped_data_key.buf = strdup(j->valuestring);
+                      (*key)->wrapped_data_key.len = strlen((*key)->wrapped_data_key.buf);
+
+                          UBIQ_DEBUG(debug_flag, printf("(*key)->wrapped_data_key.buf %.*s\n" ,(*key)->wrapped_data_key.len, (*key)->wrapped_data_key.buf));
+
+                      // If caching unencrypted data, decrypt wrapped data key and store that in cache_key
+                      if (!d->key_cache_encrypt) {
+                        UBIQ_DEBUG(debug_flag, printf("Key Decrypted before cache\n"));
+                        res = ubiq_platform_common_decrypt_wrapped_key(
+                          d->encrypted_private_key.buf,
+                          d->srsa,
+                          (*key)->wrapped_data_key.buf,
+                          &((*key)->decrypted_data_key.buf),
+                          &((*key)->decrypted_data_key.len));
+                      }
+                      UBIQ_DEBUG(debug_flag, printf("BEFORE ubiq_platform_cache_add_element res(%d)\n", res));
+                      if (!res) {
+                        res = ubiq_platform_cache_add_element(d->key_cache, base64_encrypted_data_key, 
+                          *key, &key_cache_element_destroy);
+                        UBIQ_DEBUG(debug_flag, printf("Key ADDED res(%d)\n",res));
+                      }
+                    } else {
+                      res = -EBADMSG;
+                    }
+                  }
+                  cJSON_Delete(json);
+              } else {
+                  res = ubiq_platform_http_error(rc);
+              }
             }
-        } else {
-            res = ubiq_platform_http_error(rc);
-        }
+          }
     }
+    free(base64_encrypted_data_key);
 
     return res;
 }
@@ -207,6 +337,8 @@ ubiq_platform_decryption_destroy(
     ubiq_platform_decryption_reset(d);
     ubiq_billing_ctx_destroy(d->billing_ctx);
     ubiq_platform_rest_handle_destroy(d->rest);
+    ubiq_platform_cache_destroy(d->key_cache);
+    free(d->encrypted_private_key.buf);
 
     free(d->buf);
 
@@ -295,40 +427,56 @@ ubiq_platform_decryption_update(
 
                 /* has the entire header been received? */
                 if (dec->len >= sizeof(h->v0) + ivlen + keylen) {
-                    const void * iv, * key;
+                    cached_key_t * cached_key = NULL;
+                    const void * iv = NULL, * key = NULL;
 
                     iv = (const char *)h + off;
                     off += ivlen;
                     key = (const char *)h + off;
                     off += keylen;
 
-                    /*
-                     * if there is an existing decrypted data key,
-                     * check if it is the same as the one used for
-                     * the prior decryption. if not, reset the key
-                     */
-                    if (dec->key.enc.len != keylen ||
-                        memcmp(dec->key.enc.buf, key, keylen) != 0) {
-                        ubiq_platform_decryption_reset(dec);
-                    }
+                    // Decrypt the key or retrieve from the cache.
+                    // key and keylen are raw bytes
+                    res = ubiq_platform_decryption_new_key(
+                            dec, key, keylen, &cached_key);
 
-                    /*
-                     * if no key is already present, decrypt the
-                     * current one. if a key is present, it's because
-                     * it's the same as the one used for the previous
-                     * encryption, and there's no need to get the
-                     * server to decrypt it again
-                     */
-                    if (!dec->key.enc.len) {
-                        res = ubiq_platform_decryption_new_key(
-                            dec, key, keylen);
-                    }
+                    UBIQ_DEBUG(debug_flag, printf("ubiq_platform_decryption_new_key res(%d)\n", res));
 
+                    // ubiq_platform_decryption_reset(dec);
+
+                    ubiq_key_t decryption_key;
+                    int mem_manage_decryption_key = 0;
+
+                    if (!res && cached_key != NULL) {
+                      UBIQ_DEBUG(debug_flag, printf("cached_key != NULL\n"));
+
+                      if (cached_key->decrypted_data_key.buf != NULL && cached_key->decrypted_data_key.len) {
+                        UBIQ_DEBUG(debug_flag, printf("cached_key->decrypted_data_key.buf != NULL\n"));
+                        decryption_key.buf = cached_key->decrypted_data_key.buf;
+                        decryption_key.len = cached_key->decrypted_data_key.len;
+
+                        UBIQ_DEBUG(debug_flag, printf("decryption_key.buf (%p)\n", decryption_key.buf));
+                        UBIQ_DEBUG(debug_flag, printf("cached_key->decrypted_data_key.buf (%p)\n", cached_key->decrypted_data_key.buf));
+                        UBIQ_DEBUG(debug_flag, printf("decryption_key.len (%d)\n", decryption_key.len));
+                        UBIQ_DEBUG(debug_flag, printf("cached_key->decrypted_data_key.len (%d)\n", cached_key->decrypted_data_key.len));
+
+                      } else {
+                        UBIQ_DEBUG(debug_flag, printf("cached_key->decrypted_data_key.buf == NULL\n"));
+                          mem_manage_decryption_key = 1;
+                          res = ubiq_platform_common_decrypt_wrapped_key(
+                          dec->encrypted_private_key.buf,
+                          dec->srsa,
+                          cached_key->wrapped_data_key.buf,
+                          &decryption_key.buf,
+                          &decryption_key.len);
+
+                      }
+                    }
                     /*
                      * if the key is present now, create the
                      * decryption context
                      */
-                    if (res == 0 && dec->key.raw.len) {
+                    if (res == 0 && decryption_key.len) {
                         const void * aadbuf;
                         size_t aadlen;
 
@@ -343,10 +491,17 @@ ubiq_platform_decryption_update(
 
                         res = ubiq_support_decryption_init(
                             algo,
-                            dec->key.raw.buf, dec->key.raw.len,
+                            decryption_key.buf, decryption_key.len,
                             iv, ivlen,
                             aadbuf, aadlen,
                             &dec->ctx);
+
+                        if (mem_manage_decryption_key) {
+                                UBIQ_DEBUG(debug_flag, printf("Freeing decryption_key.buf\n"));
+                          free(decryption_key.buf);
+                        }
+
+
                         if (res == 0) {
                             res = ubiq_billing_add_billing_event(
                                 dec->billing_ctx,

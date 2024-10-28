@@ -109,7 +109,7 @@ ubiq_platform_encryption_new(
         res = ubiq_platform_rest_handle_create(papi, sapi, &e->rest);
 
         if (!res) {
-          res = ubiq_billing_ctx_create(&e->billing_ctx, host, e->rest, cfg);
+          res = ubiq_billing_ctx_create(&e->billing_ctx, host, papi, sapi, cfg);
         }
       }
     }
@@ -210,6 +210,12 @@ int ubiq_platform_encryption_create_with_config(
 {
     struct ubiq_platform_encryption * e;
     int res;
+
+    // If library hasn't been initialized, fail fast.
+    if (!ubiq_platform_initialized()) {
+      return -EINVAL;
+    }
+
 
     const char * const host = ubiq_platform_credentials_get_host(creds);
     const char * const papi = ubiq_platform_credentials_get_papi(creds);

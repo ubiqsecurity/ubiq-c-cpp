@@ -31,10 +31,12 @@
 #define UBIQ_DEBUG(x,y)
 #endif
 
+static int debug_flag = 1;
 
 
 struct ubiq_platform_cache {
   ubiq_platform_hashtable * root;
+  time_t ttl_seconds;
   // TODO - Add something to prevent aged elements from being removed - such as billing elements.  Not critical since should flush every 10 seconds or so so ageing out shouldn't happen
 };
 
@@ -96,7 +98,13 @@ create_element(
       e->data = data;
       e->free_ptr = free_ptr;
       // current time + duration in seconds
-      e->expires_after = ts.tv_sec + duration;
+      if (duration == 0) {
+        // Meant to expire immediately so add it as expired.
+        e->expires_after = ts.tv_sec - 1;
+      } else {
+        e->expires_after = ts.tv_sec + duration;
+        
+      }
 
       if (e->key != NULL) {
         *element = e;
@@ -138,6 +146,7 @@ ubiq_platform_cache_find_element(
     res = get_time(&ts);
     if (res != 0 || rec->expires_after < ts.tv_sec)
     {
+      UBIQ_DEBUG(debug_flag, printf("res(%d)  expired(%d)\n", res,rec->expires_after < ts.tv_sec));
       find_node = ubiq_platform_ht_remove((((struct ubiq_platform_cache const *)ubiq_cache)->root), key);
       destroy_element(find_node);
     } else {
@@ -151,13 +160,11 @@ int
 ubiq_platform_cache_add_element(
   struct ubiq_platform_cache * ubiq_cache,
   const char * const key,
-  const time_t duration,
   void * data,
   void (*free_ptr)(void *)
 )
 {
   const char * csu = "ubiq_platform_cache_add_element";
-  int debug_flag = 0;
 
   // add needs to be careful if the record already exists or not.  If
   // it already exists, the new record might not match the find record
@@ -174,8 +181,9 @@ ubiq_platform_cache_add_element(
   // If it doesn't exist, then insert.  Else return 
 
   existing_element = (struct cache_element *)ubiq_platform_cache_find_element(ubiq_cache, key);
+  UBIQ_DEBUG(debug_flag, printf("%s existing_element (%s) : %d\n", csu, key, (existing_element != NULL)));
   if (existing_element == NULL) {
-     if (0 == (res = create_element(&inserted_element, key, duration, data, free_ptr))) {
+     if (0 == (res = create_element(&inserted_element, key, ubiq_cache->ttl_seconds, data, free_ptr))) {
       // Did a check above so put should return 0 since record should not exist
       res = ubiq_platform_ht_put(ubiq_cache->root, key, inserted_element, (void **)&existing_element);
       if (existing_element != NULL) {
@@ -184,8 +192,10 @@ ubiq_platform_cache_add_element(
       }
     }
   } else {
+      UBIQ_DEBUG(debug_flag, printf("Data payload already exists\n"));
     // Data payload is NOT added since record already exists so free data
     if (free_ptr) {
+      UBIQ_DEBUG(debug_flag, printf("Freeing data : %d\n", free_ptr != NULL));
       (free_ptr)(data);
     }
   }
@@ -196,13 +206,22 @@ ubiq_platform_cache_add_element(
 int
 ubiq_platform_cache_create(
   unsigned int capacity,
+  const time_t ttl_seconds,
   struct ubiq_platform_cache ** const ubiq_cache)
 {
   struct ubiq_platform_cache * tmp_cache;
   int res = -ENOMEM;
+  *ubiq_cache = NULL;
+
+  if (ttl_seconds < 0) {
+    
+    return -EINVAL;
+  }
+  
   tmp_cache = calloc(1, sizeof(* tmp_cache));
   if (tmp_cache != NULL) {
     ubiq_platform_ht_create(capacity, &tmp_cache->root);
+    tmp_cache->ttl_seconds = ttl_seconds;
     *ubiq_cache = tmp_cache;
 
     res = 0;
@@ -249,7 +268,7 @@ typedef struct callback_data {
 void
 cache_ht_walk_r_action(const void *nodep, void *__closure)
 {
-  int debug_flag = 1;
+  int debug_flag = 0;
   static const char * const csu = "cache_ht_walk_r_action";
 
   struct cache_element * e = NULL;
@@ -277,7 +296,7 @@ ubiq_platform_cache_walk_r(
   void (* action) (const void *__nodep, void *__closure) ,
   void *__closure)
 {
-  int debug_flag = 1;
+  int debug_flag = 0;
   static const char * const csu = "ubiq_platform_cache_walk_r";
 
 

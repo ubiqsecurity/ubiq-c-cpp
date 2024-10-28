@@ -82,7 +82,7 @@ Encrypt or decrypt files using the Ubiq service
   -d                       Decrypt the contents of the input file and write
                              the results to the output file
   -s                       Use the simple encryption / decryption interfaces
-  -p                       Use the piecewise encryption / decryption interfaces
+  -p                       Use the chunking encryption / decryption interfaces
   -i INFILE                Set input file name
   -o OUTFILE               Set output file name
   -c CREDENTIALS           Set the file name with the API credentials
@@ -90,7 +90,7 @@ Encrypt or decrypt files using the Ubiq service
   -P PROFILE               Identify the profile within the credentials file
 </pre>
 
-#### Demonstrate using the simple (-s / --simple) API interface to encrypt the README file
+#### Demonstrate using the simple (-s) API interface to encrypt the README file
 
 ```console
 $ ./ubiq_sample-c -i README.md -o /tmp/readme.enc -e -s -c credentials
@@ -99,7 +99,7 @@ $ ./ubiq_sample-c -i README.md -o /tmp/readme.enc -e -s -c credentials
 > .\ubiq_sample-c.exe -i README.md -o C:\Temp\readme.enc -e -s -c credentials
 ```
 
-#### Demonstrate using the simple (-s / --simple) API interface to decrypt the README file
+#### Demonstrate using the simple (-s) API interface to decrypt the README file
 
 ```console
 $ ./ubiq_sample-c -i /tmp/readme.enc -o /tmp/README.out -d -s -c credentials
@@ -108,7 +108,7 @@ $ ./ubiq_sample-c -i /tmp/readme.enc -o /tmp/README.out -d -s -c credentials
 > .\ubiq_sample-c.exe -i C:\Temp\readme.enc -o C:\Temp\README.out -d -s -c credentials
 ```
 
-#### Demonstrate using the piecewise (-p / --piecewise) API interface to encrypt the README file
+#### Demonstrate using the chunking (-p) API interface to encrypt the README file
 
 ```console
 $ ./ubiq_sample-c -i README.md -o /tmp/readme.enc -e -p -c credentials
@@ -117,7 +117,7 @@ $ ./ubiq_sample-c -i README.md -o /tmp/readme.enc -e -p -c credentials
 > .\ubiq_sample-c.exe -i README.md -o C:\Temp\readme.enc -e -p -c credentials
 ```
 
-#### Demonstrate using the piecewise (-p / --piecewise) API interface to decrypt the README file
+#### Demonstrate using the chunking (-p) API interface to decrypt the README file
 
 ```console
 $ ./ubiq_sample-c -i /tmp/readme.enc -o /tmp/README.out -d -p -c credentials
@@ -130,8 +130,8 @@ $ ./ubiq_sample-c -i /tmp/readme.enc -o /tmp/README.out -d -p -c credentials
 
 
 
-## Documentation for ubiq_sample_fpe.c and ubiq_sample_fpe.cpp
-This library also incorporates Ubiq Format Preserving Encryption (eFPE).  eFPE allows encrypting so that the output cipher text is in the same format as the original plaintext. This includes preserving special characters and control over what characters are permitted in the cipher text. For example, consider encrypting a social security number '123-45-6789'. The cipher text will maintain the dashes and look something like: 'W$+-qF-oMMV'.
+## Documentation for ubiq_sample_structured.c and ubiq_sample_structured.cpp
+This library also incorporates Ubiq Structured Encryption.  Structured encryption allows encrypting so that the output cipher text is in the same format as the original plaintext. This includes preserving special characters and control over what characters are permitted in the cipher text. For example, consider encrypting a social security number '123-45-6789'. The cipher text will maintain the dashes and look something like: 'W$+-qF-oMMV'.
 
 
 See the [C API docs](https://dev.ubiqsecurity.com/docs/api).
@@ -157,13 +157,13 @@ $ cmake --build . --target all
 ## View Program Options
 
 ```console
-$ ./ubiq_sample_fpe-c -h
+$ ./ubiq_sample_structured-c -h
 
-$ ./ubiq_sample_fpe-c++ -h
+$ ./ubiq_sample_structured-c++ -h
 ```
 
 ```console
-Encrypt or decrypt data using the Ubiq eFPE service
+Encrypt or decrypt data using the Ubiq structured encryption service
 
   -h                       Show this help message and exit
   -V                       Show program's version number and exit
@@ -173,9 +173,7 @@ Encrypt or decrypt data using the Ubiq eFPE service
   -d INPUT                 Decrypt the supplied input string
                              escape or use quotes if input string
                              contains special characters
-  -s                       Use the simple eFPE encryption / decryption interfaces
-  -b                       Use the bulk eFPE encryption / decryption interfaces
-  -n FFS                   Use the supplied Field Format Specification
+  -n Dataset               Use the supplied Dataset
   -c CREDENTIALS           Set the file name with the API credentials
                              (default: ~/.ubiq/credentials)
   -P PROFILE               Identify the profile within the credentials file
@@ -186,11 +184,11 @@ Encrypt or decrypt data using the Ubiq eFPE service
 #### Demonstrate encrypting a social security number and returning a cipher text
 
 ```console
-$ ./ubiq_sample_fpe-c -e '123-45-6789' -n ALPHANUM_SSN -s
+$ ./ubiq_sample_structured-c -e '123-45-6789' -n ALPHANUM_SSN -s
 ```
 
 #### Demonstrate decrypting a social security number and returning the plain text
 
 ```console
-$ ./ubiq_sample_fpe-c -d 'W#]-iV-`,"j' -n ALPHANUM_SSN -s
+$ ./ubiq_sample_structured-c -d 'W#]-iV-`,"j' -n ALPHANUM_SSN -s
 ```

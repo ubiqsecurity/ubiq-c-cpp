@@ -3,6 +3,7 @@
 #include <ubiq/platform/compat/cdefs.h>
 #include <stddef.h>
 
+#include <ubiq/platform.h>
 #include <ubiq/platform/credentials.h>
 #include <ubiq/platform/configuration.h>
 
@@ -31,14 +32,6 @@ ubiq_platform_decrypt(
     const void * const ctbuf, const size_t ctlen,
     void ** ptbuf, size_t * ptlen);
 
-UBIQ_PLATFORM_API
-int
-ubiq_platform_fpe_decrypt(
-    const struct ubiq_platform_credentials * const creds,
-    const char * const ffs_name,
-    const void * const tweak, const size_t tweaklen,
-    const void * const ctbuf, const size_t ctlen,
-    char ** const ptbuf, size_t * const ptlen);
 
 
 /* Opaque decryption object */
@@ -159,46 +152,30 @@ ubiq_platform_decryption_get_copy_of_usage(
 
 /*
  * *******************************************
- *                  FPE
+ *                  Structured
  * *******************************************
  */
 
 UBIQ_PLATFORM_API
 int
-ubiq_platform_fpe_decrypt_data(
-  struct ubiq_platform_fpe_enc_dec_obj * const enc,
+ubiq_platform_structured_decrypt_data(
+  struct ubiq_platform_structured_enc_dec_obj * const enc,
   const char * const ffs_name,
   const uint8_t * const tweak, const size_t tweaklen,
   const char * const ctbuf, const size_t ctlen,
   char ** const ptbuf, size_t * const ptlen
 );
 
-/**
- * @brief Decrypt data using a pre-allocated buffer of data for the results.
- * 
- * @param enc handle to the Encrypt / Decrypt object
- * @param ffs_name name of the Dataset to use when decrypting the data.
- * @param tweak array of bytes to use for tweak 
- * @param tweaklen length of the tweak
- * @param ctbuf buffer containing the cipher text.  String should be NULL terminated.
- * @param ctlen number of bytes of data in the cipher text not including the NULL
- * terminator.
- * @param ptbuf pre-allocated buffer large enough to contain the
- * decrypted data including the NULL terminator.
- * @param ptlen indicates the size of allocated buffer.  Will be set to the number of 
- * bytes of the ptbuf returned or necessary space if ptbuf is not long enough
- * @return integer, 0 on success or negative error number on failure. 
- */
-
 UBIQ_PLATFORM_API
 int
-ubiq_platform_fpe_decrypt_data_prealloc(
-  struct ubiq_platform_fpe_enc_dec_obj * const enc,
+ubiq_platform_structured_decrypt_data_prealloc(
+  struct ubiq_platform_structured_enc_dec_obj * const enc,
   const char * const ffs_name,
   const uint8_t * const tweak, const size_t tweaklen,
   const char * const ctbuf, const size_t ctlen,
   char * const ptbuf, size_t * const ptlen
 );
+
 
 __END_DECLS
 
@@ -295,23 +272,10 @@ namespace ubiq {
         };
 
 
-        namespace fpe {
-
-          UBIQ_PLATFORM_API
-          std::string
-          decrypt(const credentials & creds,
-                  const std::string & ffs_name,
-                  const std::string & ct);
-
-          UBIQ_PLATFORM_API
-          std::string
-          decrypt(const credentials & creds,
-                  const std::string & ffs_name,
-                  const std::vector<std::uint8_t> & tweak,
-                  const std::string & ct);
-
+        namespace structured {
           class decryption
           {
+
           public:
             UBIQ_PLATFORM_API
             virtual ~decryption(void) = default;
@@ -325,9 +289,12 @@ namespace ubiq {
             decryption(void) = default;
 
             decryption(const decryption &) = delete;
+
             UBIQ_PLATFORM_API
             decryption(decryption &&) = default;
+
             decryption & operator =(const decryption &) = delete;
+
             UBIQ_PLATFORM_API
             decryption & operator =(decryption &&) = default;
 
@@ -367,9 +334,11 @@ namespace ubiq {
             add_user_defined_metadata(const std::string & jsonString);
 
           private:
-            std::shared_ptr<::ubiq_platform_fpe_enc_dec_obj> _dec;
-          };
-        } // fpe
+            std::shared_ptr<::ubiq_platform_structured_enc_dec_obj> _dec;
+
+          }; // class decryption
+
+        } // structured
     } // platform
 } // ubiq
 
@@ -380,3 +349,5 @@ namespace ubiq {
  * mode: c++
  * end:
  */
+
+
