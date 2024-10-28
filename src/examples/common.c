@@ -128,7 +128,7 @@ ubiq_sample_usage(
     fprintf(stderr, "  -d                       Decrypt the contents of the input file and write\n");
     fprintf(stderr, "                             the results to the output file\n");
     fprintf(stderr, "  -s                       Use the simple encryption / decryption interfaces\n");
-    fprintf(stderr, "  -p                       Use the piecewise encryption / decryption interfaces\n");
+    fprintf(stderr, "  -p                       Use the encryption / decryption interfaces to handle large data elements where data is loaded in chunks\n");
     fprintf(stderr, "  -i INFILE                Set input file name\n");
     fprintf(stderr, "  -o OUTFILE               Set output file name\n");
     fprintf(stderr, "  -c CREDENTIALS           Set the file name with the API credentials\n");
@@ -178,12 +178,12 @@ ubiq_sample_getopt(
         case 'p':
             if (*method != UBIQ_SAMPLE_METHOD_UNSPEC) {
                 ubiq_sample_usage(
-                    argv[0], "please specify one of simple or piecewise once");
+                    argv[0], "please specify one of simple or chunking interfaces");
                 exit(EXIT_FAILURE);
             }
 
             *method = (opt == 's') ?
-                UBIQ_SAMPLE_METHOD_SIMPLE : UBIQ_SAMPLE_METHOD_PIECEWISE;
+                UBIQ_SAMPLE_METHOD_SIMPLE : UBIQ_SAMPLE_METHOD_CHUNKING;
 
             break;
         case 'i':
@@ -245,7 +245,7 @@ ubiq_sample_getopt(
     }
 
     if (*method == UBIQ_SAMPLE_METHOD_UNSPEC) {
-        ubiq_sample_usage(argv[0], "simple / piecewise method not specified");
+        ubiq_sample_usage(argv[0], "simple / chunking method not specified");
         exit(EXIT_FAILURE);
     }
 
@@ -264,15 +264,15 @@ ubiq_sample_getopt(
 
 static
 void
-ubiq_fpe_usage(
+ubiq_structured_usage(
     const char * const cmd, const char * const err)
 {
     if (err) {
         fprintf(stderr, "%s\n\n", err);
     }
 
-    fprintf(stderr, "Usage: %s -e|-d INPUT -s|-p -n FFS [-c CREDENTIALS] [-P PROFILE]\n", cmd);
-    fprintf(stderr, "Encrypt or decrypt data using the Ubiq eFPE service\n");
+    fprintf(stderr, "Usage: %s -e|-d INPUT -s|-p -n Dataset [-c CREDENTIALS] [-P PROFILE]\n", cmd);
+    fprintf(stderr, "Encrypt or decrypt data using the Ubiq Structured Encryption service\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "  -h                       Show this help message and exit\n");
     fprintf(stderr, "  -V                       Show program's version number and exit\n");
@@ -282,19 +282,16 @@ ubiq_fpe_usage(
     fprintf(stderr, "  -d INPUT                 Decrypt the supplied input string\n");
     fprintf(stderr, "                             escape or use quotes if input string\n");
     fprintf(stderr, "                             contains special characters\n");
-    fprintf(stderr, "  -s                       Use the simple eFPE encryption / decryption interfaces\n");
-    fprintf(stderr, "  -b                       Use the bulk eFPE encryption / decryption interfaces\n");
-    fprintf(stderr, "  -n FFS                   Use the supplied Field Format Specification\n");
+    fprintf(stderr, "  -n Dataset               Use the supplied Dataset name\n");
     fprintf(stderr, "  -c CREDENTIALS           Set the file name with the API credentials\n");
     fprintf(stderr, "                             (default: ~/.ubiq/credentials)\n");
     fprintf(stderr, "  -P PROFILE               Identify the profile within the credentials file\n");
 }
 
 int
-ubiq_fpe_getopt(
+ubiq_structured_getopt(
     const int argc, char * const argv[],
     ubiq_sample_mode_t * const mode,
-    ubiq_sample_method_t * const method,
     const char ** const ffsname, const char ** const inputstring,
     const char ** const credfile, const char ** const profile)
 {
@@ -304,13 +301,12 @@ ubiq_fpe_getopt(
     opterr = 0;
 
     *mode = UBIQ_SAMPLE_MODE_UNSPEC;
-    *method = UBIQ_SAMPLE_METHOD_UNSPEC;
     *inputstring = *ffsname = *credfile = *profile = NULL;
 
-    while ((opt = getopt(argc, argv, "+:hVsbe:d:c:P:n:")) != -1) {
+    while ((opt = getopt(argc, argv, "+:hVe:d:c:P:n:")) != -1) {
         switch (opt) {
         case 'h':
-            ubiq_fpe_usage(argv[0], NULL);
+            ubiq_structured_usage(argv[0], NULL);
             exit(EXIT_SUCCESS);
             break;
         case 'V':
@@ -319,7 +315,7 @@ ubiq_fpe_getopt(
         case 'e':
         case 'd':
             if (*mode != UBIQ_SAMPLE_MODE_UNSPEC) {
-                ubiq_fpe_usage(
+                ubiq_structured_usage(
                     argv[0], "please specify either encrypt or decrypt once");
                 exit(EXIT_FAILURE);
             }
@@ -330,22 +326,10 @@ ubiq_fpe_getopt(
             *inputstring = optarg;
 
             break;
-        case 's':
-        case 'b':
-            if (*method != UBIQ_SAMPLE_METHOD_UNSPEC) {
-                ubiq_fpe_usage(
-                    argv[0], "please specify either simple or bulk once");
-                exit(EXIT_FAILURE);
-            }
-
-            *method = (opt == 's') ?
-                UBIQ_SAMPLE_METHOD_SIMPLE : UBIQ_SAMPLE_METHOD_PIECEWISE;
-
-            break;
         case 'n':
             if (*ffsname) {
-                ubiq_fpe_usage(
-                    argv[0], "please specify only one Field Format Specification (FFS)");
+                ubiq_structured_usage(
+                    argv[0], "please specify only one Dataset name");
                 exit(EXIT_FAILURE);
             }
 
@@ -354,7 +338,7 @@ ubiq_fpe_getopt(
             break;
         case 'c':
             if (*credfile) {
-                ubiq_fpe_usage(
+                ubiq_structured_usage(
                     argv[0], "please specify only one credentials file");
                 exit(EXIT_FAILURE);
             }
@@ -364,7 +348,7 @@ ubiq_fpe_getopt(
             break;
         case 'P':
             if (*profile) {
-                ubiq_fpe_usage(
+                ubiq_structured_usage(
                     argv[0], "please specify only one profile name");
                 exit(EXIT_FAILURE);
             }
@@ -374,35 +358,29 @@ ubiq_fpe_getopt(
             break;
         case '?':
             fprintf(stderr, "unrecognized option: %s\n\n", argv[optind - 1]);
-            ubiq_fpe_usage(argv[0], NULL);
+            ubiq_structured_usage(argv[0], NULL);
             exit(EXIT_FAILURE);
         case ':':
             fprintf(stderr,
                     "missing argument for option: %s\n\n",
                     argv[optind - 1]);
-            ubiq_fpe_usage(argv[0], NULL);
+            ubiq_structured_usage(argv[0], NULL);
             exit(EXIT_FAILURE);
         }
     }
 
     if (*mode == UBIQ_SAMPLE_MODE_UNSPEC) {
-        ubiq_fpe_usage(argv[0], "encrypt / decrypt operation not specified");
-        exit(EXIT_FAILURE);
-    }
-
-
-    if (*method == UBIQ_SAMPLE_METHOD_UNSPEC) {
-        ubiq_fpe_usage(argv[0], "simple / bulk method not specified");
+        ubiq_structured_usage(argv[0], "encrypt / decrypt operation not specified");
         exit(EXIT_FAILURE);
     }
 
     if (!*inputstring) {
-        ubiq_fpe_usage(argv[0], "input string not specified");
+        ubiq_structured_usage(argv[0], "input string not specified");
         exit(EXIT_FAILURE);
     }
 
     if (!*ffsname) {
-      ubiq_fpe_usage(argv[0], "Field Format Specification name not specified");
+      ubiq_structured_usage(argv[0], "Dataset name not specified");
       exit(EXIT_FAILURE);
     }
 

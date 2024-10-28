@@ -32,6 +32,20 @@ const reporting_granularity_t
 ubiq_platform_configuration_get_event_reporting_timestamp_granularity(
     const struct ubiq_platform_configuration * const config);
 
+const int
+ubiq_platform_configuration_get_key_caching_encrypt(
+    const struct ubiq_platform_configuration * const config);
+const int
+ubiq_platform_configuration_get_key_caching_structured_keys(
+    const struct ubiq_platform_configuration * const config);
+const int
+ubiq_platform_configuration_get_key_caching_unstructured_keys(
+    const struct ubiq_platform_configuration * const config);
+const int
+ubiq_platform_configuration_get_key_caching_ttl_seconds(
+    const struct ubiq_platform_configuration * const config);
+
+
 __END_DECLS
 
 /*

@@ -11,9 +11,7 @@ public:
     void TearDown(void);
 
 protected:
-    void encrypt_decrypt(const std::string & ffsname, const std::string &pt);
-
-    void encrypt_decrypt_bulk(
+    void encrypt_decrypt(
         const std::string & ffsname,
         const std::string & pt);
 
@@ -38,27 +36,6 @@ TEST_F(cpp_fpe_decrypt, none)
 
 void
 cpp_fpe_decrypt::encrypt_decrypt(
-    const std::string & ffsname,
-    const std::string & pt)
-{
-    std::string ct, rec;
-
-    /* encrypt the data */
-    ASSERT_NO_THROW(
-        ct = ubiq::platform::fpe::encrypt(_creds, ffsname, pt));
-
-    /* decrypt the data */
-    ASSERT_NO_THROW(
-        rec = ubiq::platform::fpe::decrypt(_creds, ffsname,  ct));
-
-    /* verify that the recovered data matches the plain text */
-    ASSERT_EQ(pt.size(), rec.size());
-    EXPECT_EQ(0, std::memcmp(pt.data(), rec.data(), pt.size()));
-
-}
-
-void
-cpp_fpe_decrypt::encrypt_decrypt_bulk(
     const std::string & ffsname,
     const std::string & pt)
 {
@@ -98,14 +75,9 @@ cpp_fpe_decrypt::encrypt_decrypt_bulk(
 }
 
 
-TEST_F(cpp_fpe_decrypt, simple)
+TEST_F(cpp_fpe_decrypt, normal)
 {
     encrypt_decrypt("ALPHANUM_SSN", "0123456789");
-}
-
-TEST_F(cpp_fpe_decrypt, bulk)
-{
-    encrypt_decrypt_bulk("ALPHANUM_SSN", "0123456789");
 }
 
 

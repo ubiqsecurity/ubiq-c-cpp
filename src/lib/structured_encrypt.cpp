@@ -1,0 +1,159 @@
+#include "ubiq/platform.h"
+
+#include <system_error>
+#include <cstring>
+
+using namespace ubiq::platform::structured;
+
+encryption::encryption(const credentials & creds,
+  configuration & cfg
+) {
+    struct ubiq_platform_structured_enc_dec_obj * enc(nullptr);
+    int res;
+
+    res = ubiq_platform_structured_enc_dec_create_with_config(&*creds, &(*cfg), &enc);
+    if (res != 0) {
+        throw std::system_error(-res, std::generic_category(), get_error(enc));
+    }
+
+    _enc.reset(enc, &ubiq_platform_structured_enc_dec_destroy);
+
+}
+
+
+encryption::encryption(const credentials & creds)
+{
+    struct ubiq_platform_structured_enc_dec_obj * enc(nullptr);
+
+    int res;
+
+    res = ubiq_platform_structured_enc_dec_create(&*creds, &enc);
+    if (res != 0) {
+        throw std::system_error(-res, std::generic_category(), get_error(enc));
+    }
+
+    _enc.reset(enc, &ubiq_platform_structured_enc_dec_destroy);
+}
+
+std::string
+encryption::encrypt(
+  const std::string & ffs_name,
+  const std::string & pt
+)
+{
+  return encrypt(ffs_name, std::vector<std::uint8_t>(), pt);
+}
+
+std::vector<std::string>
+encryption::encrypt_for_search(
+  const std::string & ffs_name,
+  const std::string & pt
+)
+{
+  return encrypt_for_search(ffs_name, std::vector<std::uint8_t>(), pt);
+}
+
+
+std::vector<std::string>
+encryption::encrypt_for_search(
+  const std::string & ffs_name,
+  const std::vector<std::uint8_t> & tweak,
+  const std::string & pt
+)
+{
+  std::vector<std::string> ct;
+  int res;
+  char ** ctbuf;
+  size_t count;
+
+  res = ubiq_platform_structured_encrypt_data_for_search(
+    _enc.get(), ffs_name.data(),
+    tweak.data(), tweak.size(),
+    pt.data(), pt.length(),
+    &ctbuf, &count);
+  if (res != 0) {
+      throw std::system_error(-res, std::generic_category(), get_error(_enc.get()));
+  }
+
+  ct.reserve(count);
+  // ct length is not reliable for all elements of ctbuf since the multibyte UTF8
+  // may be different for each value.
+  for (int i=0; i< count; i++) {
+    ct.emplace(ct.end(), std::move(std::string(ctbuf[i])));
+    std::free(ctbuf[i]);
+  }
+  std::free(ctbuf);
+  return ct;
+}
+
+std::string
+encryption::encrypt(
+  const std::string & ffs_name,
+  const std::vector<std::uint8_t> & tweak,
+  const std::string & pt
+)
+{
+  std::string ct;
+  char * ctbuf;
+  size_t ctlen;
+  int res;
+
+  res = ubiq_platform_structured_encrypt_data(
+    _enc.get(), ffs_name.data(),
+    tweak.data(), tweak.size(),
+    pt.data(), pt.length(),
+    &ctbuf, &ctlen);
+  if (res != 0) {
+      throw std::system_error(-res, std::generic_category(), get_error(_enc.get()));
+  }
+
+  ct = std::string(ctbuf, ctlen);
+  std::free(ctbuf);
+  return ct;
+}
+
+std::string
+ubiq::platform::structured::get_error(struct ubiq_platform_structured_enc_dec_obj * const enc)
+{
+  std::string ret("Unknown internal error");
+  char * err_msg = NULL;
+  int err_num;
+
+  if (enc) {
+    ubiq_platform_structured_get_last_error(enc, &err_num, &err_msg);
+
+    if (err_num != 0 && err_msg != NULL) {
+      ret = err_msg;
+    }
+    free(err_msg);
+  }
+  return ret;
+}
+
+std::string
+encryption::get_copy_of_usage(void) {
+  std::string s("");
+  char * buf(nullptr);
+  size_t len;
+  int res(0);
+
+  res = ubiq_platform_structured_enc_dec_get_copy_of_usage(_enc.get(), &buf, &len);
+  if (res != 0) {
+      throw std::system_error(-res, std::generic_category());
+  }
+  s.resize(len);
+  std::memcpy((char *)s.data(), buf, len);
+  std::free(buf);
+
+  return s;
+}
+
+void
+encryption::add_user_defined_metadata(const std::string & jsonString) {
+  int res(0);
+
+  res = ubiq_platform_structured_enc_dec_add_user_defined_metadata(_enc.get(), jsonString.data());
+  if (res != 0) {
+      throw std::system_error(-res, std::generic_category());
+  }
+}

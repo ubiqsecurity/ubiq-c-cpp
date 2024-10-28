@@ -42,7 +42,7 @@ int main(const int argc, char * const argv[])
     char search_buf[128][buflen];
 
     struct ubiq_platform_credentials * creds;
-    struct ubiq_platform_fpe_enc_dec_obj *enc = NULL;
+    struct ubiq_platform_structured_enc_dec_obj *enc = NULL;
     int res = 0;
 
     try {
@@ -70,7 +70,7 @@ int main(const int argc, char * const argv[])
           std::exit(EXIT_FAILURE);
       }
 
-      res = ubiq_platform_fpe_enc_dec_create(creds, &enc);
+      res = ubiq_platform_structured_enc_dec_create(creds, &enc);
 
       std::list<std::string> files = std::list<std::string>();
 
@@ -112,7 +112,7 @@ int main(const int argc, char * const argv[])
           if (itr == perf_values.end()) {
             try {
               len = buflen;
-              res = ubiq_platform_fpe_encrypt_data_prealloc(enc, dit->dataset_name.c_str(), NULL, 0, 
+              res = ubiq_platform_structured_encrypt_data_prealloc(enc, dit->dataset_name.c_str(), NULL, 0, 
                 dit->plain_text.c_str(), dit->plain_text.length(),
                 ct_buf, &len);
               
@@ -124,7 +124,7 @@ int main(const int argc, char * const argv[])
             }
             try {
               len = buflen;
-              res = ubiq_platform_fpe_decrypt_data_prealloc(enc, dit->dataset_name.c_str(), NULL, 0, 
+              res = ubiq_platform_structured_decrypt_data_prealloc(enc, dit->dataset_name.c_str(), NULL, 0, 
                 dit->cipher_text.c_str(), dit->cipher_text.length(),
                 pt_buf, &len);
 
@@ -146,13 +146,13 @@ int main(const int argc, char * const argv[])
 
             auto start = std::chrono::steady_clock::now();
 
-            res = ubiq_platform_fpe_encrypt_data_prealloc(enc, dit->dataset_name.c_str(), NULL, 0, 
+            res = ubiq_platform_structured_encrypt_data_prealloc(enc, dit->dataset_name.c_str(), NULL, 0, 
                 dit->plain_text.c_str(), dit->cipher_text.length(),
                 ct_buf, &len);
 
             auto encrypt = std::chrono::steady_clock::now();
 
-            res = ubiq_platform_fpe_decrypt_data_prealloc(enc, dit->dataset_name.c_str(), NULL, 0, 
+            res = ubiq_platform_structured_decrypt_data_prealloc(enc, dit->dataset_name.c_str(), NULL, 0, 
               dit->cipher_text.c_str(), dit->cipher_text.length(),
               pt_buf, &len2);
 
@@ -258,7 +258,7 @@ int main(const int argc, char * const argv[])
       exit_value = EXIT_FAILURE;
     }
     /* The library needs to clean up after itself */
-    ubiq_platform_fpe_enc_dec_destroy(enc);
+    ubiq_platform_structured_enc_dec_destroy(enc);
     ubiq_platform_credentials_destroy(creds);
     ubiq_platform_exit();
 
