@@ -61,3 +61,21 @@ credentials::operator bool(void) const
 {
     return !!_cred.get();
 }
+
+
+void credentials::set_idp_parameters(
+                const std::string & username, 
+                const std::string & password,
+                const std::string & host)
+{
+   int res = ubiq_platform_credentials_set_idp(
+    _cred.get(),
+    username.c_str(),
+    password.c_str(),
+    host.c_str()
+  );
+
+  if (res != 0) {
+    throw std::system_error(-res, std::generic_category());
+  }
+}              

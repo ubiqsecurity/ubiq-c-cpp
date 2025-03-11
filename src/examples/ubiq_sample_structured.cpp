@@ -8,12 +8,13 @@ static
 void
 ubiq_structured_encrypt(
   const ubiq::platform::credentials & creds,
+  const ubiq::platform::configuration & cfg,
   const char * const dataset_name,
   const char * const pt)
 {
   std::string ct;
 
-  ubiq::platform::structured::encryption enc(creds);
+  ubiq::platform::structured::encryption enc(creds, cfg);
 
   ct = enc.encrypt(dataset_name, pt);
 
@@ -25,11 +26,12 @@ static
 void
 ubiq_structured_decrypt(
   const ubiq::platform::credentials & creds,
+  const ubiq::platform::configuration & cfg,
   const char * const dataset_name,
   const char * const ct)
 {
   std::string pt;
-  ubiq::platform::structured::decryption dec(creds);
+  ubiq::platform::structured::decryption dec(creds, cfg);
   pt = dec.decrypt(dataset_name, ct);
 
   std::cout << "Structured Decryption Data Results => '" << pt << "'" << std::endl;
@@ -38,9 +40,10 @@ ubiq_structured_decrypt(
 int main(const int argc, char * const argv[])
 {
     ubiq_sample_mode_t mode;
-    const char * inputstring, * dataset_name, * credfile, * profile;
+    const char * inputstring, * dataset_name, * credfile, * profile, *cfgfile = NULL;
 
     ubiq::platform::credentials creds;
+    ubiq::platform::configuration cfg;
 
     try {
       /* library must be initialized */
@@ -61,7 +64,7 @@ int main(const int argc, char * const argv[])
       ubiq_structured_getopt(argc, argv,
                         &mode, 
                         &dataset_name, &inputstring,
-                        &credfile, &profile);
+                        &credfile, &profile, &cfgfile);
 
       /*
        * When `creds` was declared above, it loaded the default
@@ -84,10 +87,14 @@ int main(const int argc, char * const argv[])
           std::exit(EXIT_FAILURE);
       }
 
+      if (cfgfile) {
+        cfg = ubiq::platform::configuration(cfgfile);
+      }
+
       if (mode == UBIQ_SAMPLE_MODE_ENCRYPT) {
-          ubiq_structured_encrypt(creds, dataset_name, inputstring);
+          ubiq_structured_encrypt(creds, cfg, dataset_name, inputstring);
       } else {
-          ubiq_structured_decrypt(creds, dataset_name, inputstring);
+          ubiq_structured_decrypt(creds, cfg, dataset_name, inputstring);
       }
     }
     catch (const std::exception& e) {

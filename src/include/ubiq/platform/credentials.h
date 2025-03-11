@@ -67,6 +67,25 @@ ubiq_platform_credentials_create_explicit(
     struct ubiq_platform_credentials ** const creds);
 
 /*
+ * set an existing credentials object using explicitly specified IDP credentials.
+ *
+ * `username` is the idp username.
+ * `password` is the idp password.
+ * `host` is the api server name and port. This parameter may be NULL.
+ *
+ * The function returns 0 on success or a negative error number on failure.
+ * On success, `*creds` will have been updated.  The credentials object must be 
+ * previously created and later destroyed
+ */
+UBIQ_PLATFORM_API
+int
+ubiq_platform_credentials_set_idp(
+    struct ubiq_platform_credentials * const creds,
+    const char * const username, 
+    const char * const password,
+    const char * const host);
+
+/*
  * Destroy a previously created credentials object.
  */
 UBIQ_PLATFORM_API
@@ -142,8 +161,15 @@ namespace ubiq {
             UBIQ_PLATFORM_API
             operator bool(void) const;
 
+            UBIQ_PLATFORM_API
+            void set_idp_parameters(
+                const std::string & username, 
+                const std::string & password,
+                const std::string & host);
+
+
         private:
-            std::shared_ptr<const ::ubiq_platform_credentials> _cred;
+            std::shared_ptr<::ubiq_platform_credentials> _cred;
         };
     }
 }

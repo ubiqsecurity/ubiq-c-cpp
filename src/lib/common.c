@@ -56,15 +56,19 @@ ubiq_url_parse(
     char scheme[8];
     char hostname[256];
     char path[2048];
-    char query[1024];
+    char query[4096];
 
     int res, err;
 
     ubiq_url_init(url);
 
     err = INT_MIN;
-    res = sscanf(str, "%7[^:]://%255[^/]%2047[^?]?%1023s",
+    res = sscanf(str, "%7[^:]://%255[^/]%2047[^?]?%4095s",
                  scheme, hostname, path, query);
+    UBIQ_DEBUG(debug_flag, printf("ubiq_url_parse: scheme '%s'\n", scheme));
+    UBIQ_DEBUG(debug_flag, printf("ubiq_url_parse: hostname '%s'\n", hostname));
+    UBIQ_DEBUG(debug_flag, printf("ubiq_url_parse: path '%s'\n", path));
+    UBIQ_DEBUG(debug_flag, printf("ubiq_url_parse: query '%s'\n", query));
     /*
      * sscanf returns the number of elements parsed/set/returned by
      * the call. if less than 3, then the call has failed to parse

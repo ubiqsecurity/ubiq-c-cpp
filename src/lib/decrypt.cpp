@@ -5,6 +5,11 @@
 
 using namespace ubiq::platform;
 
+decryption::decryption(::ubiq_platform_decryption * d)
+{
+   _dec.reset(d, &ubiq_platform_decryption_destroy);
+}
+
 decryption::decryption(const credentials & creds)
 {
     struct ubiq_platform_decryption * dec;

@@ -77,6 +77,29 @@ ubiq_platform_configuration_create_explicit2(
     const int key_caching_ttl_seconds,
     struct ubiq_platform_configuration ** const config);
 
+/**
+ * @brief Set the IDP portions of an existing configuration
+ * element.  All parameters must be provided and non-null
+ * 
+ * @param config 
+ * @param idp_type 
+ * @param idp_customer_id 
+ * @param idp_token_endpoint_url 
+ * @param idp_tenant_id 
+ * @param idp_client_secret 
+ * @return integer - 0 on success, and non zero on failure 
+ */
+UBIQ_PLATFORM_API
+int
+ubiq_platform_configuration_set_idp(
+  struct ubiq_platform_configuration * const config,
+  const char * idp_type,
+  const char * idp_customer_id,
+  const char * idp_token_endpoint_url,
+  const char * idp_tenant_id,
+  const char * idp_client_secret);
+ 
+
 /*
  * Destroy a previously created configuration object.
  */
@@ -168,8 +191,16 @@ namespace ubiq {
             UBIQ_PLATFORM_API
             operator bool(void) const;
 
+            UBIQ_PLATFORM_API
+            void set_idp_parameters(
+              const std::string & idp_type,
+              const std::string & idp_customer_id,
+              const std::string & idp_token_endpoint_url,
+              const std::string & idp_tenant_id,
+              const std::string & idp_client_secret);
+
         private:
-            std::shared_ptr<const ::ubiq_platform_configuration> _config;
+            std::shared_ptr<::ubiq_platform_configuration> _config;
         };
     }
 }

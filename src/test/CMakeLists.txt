@@ -6,6 +6,7 @@ add_executable(
   unittests
 
   bn.cpp
+  builder.cpp
   cache.cpp
   credentials.cpp
   configuration.cpp
@@ -22,7 +23,8 @@ add_executable(
   global.cpp
   hashtable.cpp
   parsing.cpp
-  request.cpp)
+  request.cpp
+  rsa.cpp)
 # link against the static libraries which avoids
 # having to export certain internal interfaces
 # on windows to make them available for testing
