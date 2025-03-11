@@ -10,6 +10,7 @@ static
 int
 ubiq_structured_encrypt(
     const struct ubiq_platform_credentials * const creds,
+    const struct ubiq_platform_configuration * const cfg,
     const char * const dataset_name,
     const char * const pt)
 {
@@ -18,7 +19,7 @@ ubiq_structured_encrypt(
   size_t ctlen = 0;
   int res;
 
-  res = ubiq_platform_structured_enc_dec_create(creds, &enc);
+  res = ubiq_platform_structured_enc_dec_create_with_config(creds, cfg, &enc);
 
   if (!res) {
     res = ubiq_platform_structured_encrypt_data(enc,
@@ -42,6 +43,7 @@ static
 int
 ubiq_structured_decrypt(
     const struct ubiq_platform_credentials * const creds,
+    const struct ubiq_platform_configuration * const cfg,
     const char * const dataset_name,
     const char * const ct)
 {
@@ -50,7 +52,7 @@ ubiq_structured_decrypt(
   size_t ptlen = 0;
   int res;
 
-  res = ubiq_platform_structured_enc_dec_create(creds, &enc);
+  res = ubiq_platform_structured_enc_dec_create_with_config(creds, cfg, &enc);
   if (!res) {
 
     res = ubiq_platform_structured_decrypt_data(enc,
@@ -74,9 +76,11 @@ ubiq_structured_decrypt(
 int main(const int argc, char * const argv[])
 {
     ubiq_sample_mode_t mode;
-    const char * inputstring, * dataset_name, * credfile, * profile;
+    const char * inputstring, * dataset_name, * credfile, * profile, *cfgfile;
 
     struct ubiq_platform_credentials * creds;
+    struct ubiq_platform_configuration * cfg;
+
     size_t size;
     int res;
 
@@ -98,7 +102,7 @@ int main(const int argc, char * const argv[])
     ubiq_structured_getopt(argc, argv,
                       &mode, 
                       &dataset_name, &inputstring,
-                      &credfile, &profile);
+                      &credfile, &profile, &cfgfile);
 
     /*
      * If neither `credfile` nor `profile are specified, then the
@@ -119,13 +123,18 @@ int main(const int argc, char * const argv[])
         exit(EXIT_FAILURE);
     }
 
-        if (mode == UBIQ_SAMPLE_MODE_ENCRYPT) {
-            res = ubiq_structured_encrypt(creds, dataset_name, inputstring);
-        } else {
-            res = ubiq_structured_decrypt(creds, dataset_name, inputstring);
-        }
+    if (!res) {
+      res = ubiq_platform_configuration_load_configuration(cfgfile, &cfg);
+    } 
+
+    if (mode == UBIQ_SAMPLE_MODE_ENCRYPT) {
+        res = ubiq_structured_encrypt(creds, cfg, dataset_name, inputstring);
+    } else {
+        res = ubiq_structured_decrypt(creds, cfg, dataset_name, inputstring);
+    }
 
     ubiq_platform_credentials_destroy(creds);
+    ubiq_platform_configuration_destroy(cfg);
 
     ubiq_platform_exit();
 

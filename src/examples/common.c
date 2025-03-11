@@ -118,7 +118,7 @@ ubiq_sample_usage(
         fprintf(stderr, "%s\n\n", err);
     }
 
-    fprintf(stderr, "Usage: %s -e|-d -s|-p -i INFILE -o OUTFILE\n", cmd);
+    fprintf(stderr, "Usage: %s -e|-d -s|-p -i INFILE -o OUTFILE [-g CONFIGURATION]\n", cmd);
     fprintf(stderr, "Encrypt or decrypt files using the Ubiq service\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "  -h                       Show this help message and exit\n");
@@ -134,6 +134,8 @@ ubiq_sample_usage(
     fprintf(stderr, "  -c CREDENTIALS           Set the file name with the API credentials\n");
     fprintf(stderr, "                             (default: ~/.ubiq/credentials)\n");
     fprintf(stderr, "  -P PROFILE               Identify the profile within the credentials file\n");
+    fprintf(stderr, "  -g CONFIGURATION         Set the file name with the configuration\n");
+    fprintf(stderr, "                             (default: ~/.ubiq/configuration)\n");
 }
 
 int
@@ -142,7 +144,8 @@ ubiq_sample_getopt(
     ubiq_sample_mode_t * const mode,
     ubiq_sample_method_t * const method,
     const char ** const infile, const char ** const outfile,
-    const char ** const credfile, const char ** const profile)
+    const char ** const credfile, const char ** const profile,
+    const char ** const cfgfile)
 {
     int opt;
 
@@ -153,7 +156,7 @@ ubiq_sample_getopt(
     *method = UBIQ_SAMPLE_METHOD_UNSPEC;
     *infile = *outfile = *credfile = *profile = NULL;
 
-    while ((opt = getopt(argc, argv, "+:hVedspi:o:c:P:")) != -1) {
+    while ((opt = getopt(argc, argv, "+:hVedspi:o:c:P:g:")) != -1) {
         switch (opt) {
         case 'h':
             ubiq_sample_usage(argv[0], NULL);
@@ -226,6 +229,16 @@ ubiq_sample_getopt(
             *profile = optarg;
 
             break;
+        case 'g':
+            if (*cfgfile) {
+                ubiq_sample_usage(
+                    argv[0], "please specify only one configuration file");
+                exit(EXIT_FAILURE);
+            }
+
+            *cfgfile = optarg;
+
+            break;
         case '?':
             fprintf(stderr, "unrecognized option: %s\n\n", argv[optind - 1]);
             ubiq_sample_usage(argv[0], NULL);
@@ -286,6 +299,8 @@ ubiq_structured_usage(
     fprintf(stderr, "  -c CREDENTIALS           Set the file name with the API credentials\n");
     fprintf(stderr, "                             (default: ~/.ubiq/credentials)\n");
     fprintf(stderr, "  -P PROFILE               Identify the profile within the credentials file\n");
+    fprintf(stderr, "  -g CONFIGURATION         Set the file name with the configuration\n");
+    fprintf(stderr, "                             (default: ~/.ubiq/configuration)\n");
 }
 
 int
@@ -293,7 +308,8 @@ ubiq_structured_getopt(
     const int argc, char * const argv[],
     ubiq_sample_mode_t * const mode,
     const char ** const ffsname, const char ** const inputstring,
-    const char ** const credfile, const char ** const profile)
+    const char ** const credfile, const char ** const profile,
+    const char ** const cfgfile)
 {
     int opt;
 
@@ -303,7 +319,7 @@ ubiq_structured_getopt(
     *mode = UBIQ_SAMPLE_MODE_UNSPEC;
     *inputstring = *ffsname = *credfile = *profile = NULL;
 
-    while ((opt = getopt(argc, argv, "+:hVe:d:c:P:n:")) != -1) {
+    while ((opt = getopt(argc, argv, "+:hVe:d:c:P:n:g:")) != -1) {
         switch (opt) {
         case 'h':
             ubiq_structured_usage(argv[0], NULL);
@@ -354,6 +370,16 @@ ubiq_structured_getopt(
             }
 
             *profile = optarg;
+
+            break;
+        case 'g':
+            if (*cfgfile) {
+                ubiq_sample_usage(
+                    argv[0], "please specify only one configuration file");
+                exit(EXIT_FAILURE);
+            }
+
+            *cfgfile = optarg;
 
             break;
         case '?':

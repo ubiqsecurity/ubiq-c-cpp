@@ -5,6 +5,11 @@
 
 using namespace ubiq::platform;
 
+encryption::encryption(::ubiq_platform_encryption * e)
+{
+   _enc.reset(e, &ubiq_platform_encryption_destroy);
+}
+
 encryption::encryption(const credentials & creds, const unsigned int uses)
 {
     struct ubiq_platform_encryption * enc;

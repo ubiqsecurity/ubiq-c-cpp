@@ -195,10 +195,18 @@ ubiq::platform::configuration configuration;
 ```
 
 
-#### Use the following environment variables to set the credential values
+#### Use the following environment variables to set the credential values for API Keys
 UBIQ_ACCESS_KEY_ID  
 UBIQ_SECRET_SIGNING_KEY  
 UBIQ_SECRET_CRYPTO_ACCESS_KEY  
+
+### IDP integration
+Ubiq currently supports both Okta and Entra IDP integration.  Instead of using the credentials provided when creating the API Key, the username (email) and password will be used to authenticate with the IDP and provide access to the Ubiq platform.
+
+### Use the following environment variables to set the credential values for IDP integration
+UBIQ_IDP_USERNAME  
+UBIQ_IDP_PASSWORD  
+
 ```c
 /* C */
 struct ubiq_platform_credentials * credentials;
@@ -222,6 +230,14 @@ ubiq_platform_credentials_create_explicit(
     "..." /* secret crypto access key */,
     "..." /* Ubiq API server, may be NULL */,
     &credentials);
+
+ubiq_platform_credentials_set_idp(
+  credentials,
+  "..." /* username */,
+  "..." /* password */,
+  "..." /* host */,
+)
+
 ```
 ```c++
 /* C++ */
@@ -230,6 +246,12 @@ ubiq::platform::credentials credentials(
     "..." /* secret signing key */,
     "..." /* secret crypto access key */,
     "..." /* Ubiq API server, may be unspecified */);
+
+credentials.set_idp_parameters(
+  "..." /* username */,
+  "..." /* password */,
+  "..." /* host */
+)
 ```
 
 #### Explicitly set the configuration
@@ -248,6 +270,15 @@ ubiq_platform_configuration_create_explicit2(
     <int>, // key_caching_unstructured_keys - 0 don't cache, 1 cache unstructured keys
     <int>, // key_caching_ttl_seconds
     &configuration);
+
+ubiq_platform_configuration_set_idp(
+  configuration,
+  "..." /* idp provider */,
+  "..." /* ubiq_customer_id */,
+  "..." /* idp_token_endpoint_url */,
+  "..." /* idp_tenant_id */,
+  "..." /* idp_client_secret */
+)    
 ```
 ```c++
 /* C++ */
@@ -261,6 +292,14 @@ ubiq::platform::configuration configuration(
     <int>, // key_caching_structured_keys - 0 don't cache, 1 cache structured keys
     <int>, // key_caching_unstructured_keys - 0 don't cache, 1 cache unstructured keys
     <int>, // key_caching_ttl_seconds);
+
+configuration.set_idp_parameters(
+    "..." /* idp providertype */,
+    "..." /* ubiq_customer_id */,
+    "..." /* idp_token_endpoint_url */,
+    "..." /* idp_tenant_id */,
+    "..." /* idp_client_secret */  
+)
 ```
 
 
@@ -710,6 +749,71 @@ buf = dec.end();
 ptbuf.insert(ptbuf.end(), buf.begin(), buf.end());
 ```
 
+### Builder Interfaces
+
+The library also includes <b>builder</b> design pattern for creating the unstructured
+encryption and decryption objects
+```c
+  /* C */
+  struct ubiq_platform_builder * builder = NULL;
+  struct ubiq_platform_encryption * encrypt = NULL;
+  struct ubiq_platform_decryption * decrypt = NULL;
+  struct ubiq_platform_credentials * creds = NULL;
+  struct ubiq_platform_configuration * config = NULL;
+
+  int res = 0;
+
+  res = ubiq_platform_builder_create(&builder);
+  
+  res = ubiq_platform_credentials_create(&creds);
+  
+  res = ubiq_platform_configuration_create(&config);
+  
+  res = ubiq_platform_builder_set_credentials(builder, creds);
+  
+  res = ubiq_platform_builder_set_configuration(builder, config);
+  
+  res = ubiq_platform_builder_build_unstructured_encrypt(builder, &encrypt);
+  
+  // Will use the same credentials as the encrypt.
+  res = ubiq_platform_builder_build_unstructured_decrypt(builder, &decrypt);
+
+  /**
+   * Perform unstructured encrypt operations
+   * 
+   * Perform unstructured decrypt operations
+   * 
+   */
+
+  ubiq_platform_decryption_destroy(decrypt);
+  ubiq_platform_encryption_destroy(encrypt);
+
+  ubiq_platform_credentials_destroy(creds);
+  ubiq_platform_configuration_destroy(config);
+
+  ubiq_platform_builder_destroy(builder);
+```
+
+```c++
+   /* C++ */
+
+  ubiq::platform::builder builder;
+  ubiq::platform::credentials creds;
+  ubiq::platform::configuration config;
+
+  ubiq::platform::encryption e = builder.with(creds).with(config).buildUnstructuredEncryption();
+  ubiq::platform::decryption d = builder.with(creds).with(config).buildUnstructuredDecryption();
+
+
+  /**
+   * Perform unstructured encrypt operations
+   * 
+   * Perform unstructured decrypt operations
+   * 
+   */
+```
+
+
 ## Ubiq Structured Encryption
 
 ## Requirements
@@ -956,6 +1060,65 @@ catch (const std::exception& e) {
 ubiq::platform::exit();
 ```
 
+### Builder Interfaces
+
+The library also includes <b>builder</b> design pattern for creating the unstructured
+encryption and decryption objects
+```c
+  /* C */
+  struct ubiq_platform_builder * builder = NULL;
+  struct ubiq_platform_credentials * creds = NULL;
+  struct ubiq_platform_configuration * config = NULL;
+  struct ubiq_platform_structured_enc_dec_obj * structured = NULL;
+
+  int res = 0;
+
+  res = ubiq_platform_builder_create(&builder);
+
+  res = ubiq_platform_credentials_create(&creds);
+  
+  res = ubiq_platform_configuration_create(&config);
+
+  res = ubiq_platform_builder_set_credentials(builder, creds);
+
+  res = ubiq_platform_builder_set_configuration(builder, config);
+
+  res = ubiq_platform_builder_build_structured(builder, &structured);
+
+  /**
+   * Perform structured encrypt and decrypt operations
+   * 
+   */
+
+  ubiq_platform_structured_enc_dec_destroy(structured);
+
+  ubiq_platform_credentials_destroy(creds);
+
+  ubiq_platform_configuration_destroy(config);
+
+  ubiq_platform_builder_destroy(builder);
+
+```
+
+```c++
+   /* C++ */
+  ubiq::platform::builder builder;
+  ubiq::platform::credentials creds
+  ubiq::platform::configuration config;
+
+  ubiq::platform::structured::encryption e = builder.with(creds).with(config).buildStructuredEncryption();
+  ubiq::platform::structured::decryption d = builder.with(creds).with(config).buildStructuredDecryption();
+
+  /**
+   * Perform structured encrypt operations
+   * 
+   * Perform structured decrypt operations
+   * 
+   */
+
+```
+
+
 ### Custom Metadata for Usage Reporting
 There are cases where a developer would like to attach metadata to usage information reported by the application.  Both the structured and unstructured interfaces allow user_defined metadata to be sent with the usage information reported by the libraries.
 
@@ -1059,6 +1222,13 @@ The <b>key_caching</b> section contains values to control how and when keys are 
 - <b>unstructured</b> indicates whether keys will be cached when doing unstructured decryption. (default: true)
 - <b>encrypt</b> indicates if keys should be stored encrypted. If keys are encrypted, they will be harder to access via memory, but require them to be decrypted with each use. (default: false)
 
+#### IDP specific parameters
+- <b>provider</b> indicates the IDP provider, either <b>okta</b> or <b>entra</b>
+- <b>ubiq_customer_id</b> The UUID for this customer.  Will be provided by Ubiq.
+- <b>idp_token_endpoint_url</b> The endpoint needed to authenticate the user credentials, provided by Okta or Entra
+- <b>idp_tenant_id</b> contains the tenant value provided by Okta or Entra
+- <b>idp_client_secret</b> contains the client secret value provided by Okta or Entra
+
 ```json
 {
   "event_reporting": {
@@ -1073,6 +1243,13 @@ The <b>key_caching</b> section contains values to control how and when keys are 
      "unstructured" : true,
      "encrypted" : false,
      "ttl_seconds" : 1800
+  },
+   "idp": {
+    "provider": "okta",
+    "ubiq_customer_id": "f6f.....08c5",
+    "idp_token_endpoint_url": " https://dev-<domain>.okta.com/oauth2/v1/token",
+    "idp_tenant_id": "0o....d7",
+    "idp_client_secret": "yro.....2Db"
   }
 }
 ```

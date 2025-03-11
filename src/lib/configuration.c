@@ -23,6 +23,22 @@ const char * const KEY_CACHING_UNSTRUCTURED = "unstructured";
 const char * const KEY_CACHING_STRUCTURED = "structured";
 const char * const KEY_CACHING_ENCRYPT = "encrypt";
 
+const char * const IDP = "idp";
+const char * const IDP_TYPE = "provider";
+const char * const IDP_CUSTOMER_ID = "ubiq_customer_id";
+const char * const IDP_TOKEN_ENDPOINT_URL = "idp_token_endpoint_url";
+const char * const IDP_TENANT_ID = "idp_tenant_id";
+const char * const IDP_CLIENT_SECRET = "idp_client_secret";
+
+// #define UBIQ_DEBUG_ON
+#ifdef UBIQ_DEBUG_ON
+#define UBIQ_DEBUG(x,y) {x && y;}
+#else
+#define UBIQ_DEBUG(x,y)
+#endif
+
+static int debug_flag = 1;
+
 typedef struct configuration_event_reporting
 {
   int wake_interval;
@@ -40,10 +56,20 @@ typedef struct configuration_key_caching
   int encrypt;
 } configuration_key_caching_t;
 
+typedef struct configuration_idp
+{
+  char * type;
+  char * customer_id;
+  char * token_endpoint_url;
+  char * tenant_id;
+  char * client_secret;
+} configuration_idp_t;
+
 typedef struct ubiq_platform_configuration
 {
   configuration_event_reporting_t event_reporting;
   configuration_key_caching_t key_caching;
+  configuration_idp_t idp;
 } ubiq_platform_configuration_t;
 
 
@@ -62,6 +88,12 @@ ubiq_platform_configuration_init(
   c->key_caching.unstructured = 1;
   c->key_caching.structured = 1;
   c->key_caching.encrypt = 0;
+
+  c->idp.type = NULL;
+  c->idp.customer_id = NULL;
+  c->idp.token_endpoint_url = NULL;
+  c->idp.tenant_id = NULL;
+  c->idp.client_secret = NULL;
 }
 
 static
@@ -90,6 +122,41 @@ find_event_reporting_granularity(const char * const event_reporting_timestamp_gr
   }
   free(dup);
   return value;
+}
+
+// Deep copy
+int ubiq_platform_configuration_clone(
+  const struct ubiq_platform_configuration * const src,
+  struct ubiq_platform_configuration ** const config)
+{
+  static const char * csu = "ubiq_platform_configuration_clone";
+
+  UBIQ_DEBUG(debug_flag, printf("%s: %s' \n", csu, "started"));
+
+  int res = 0;
+
+  res = ubiq_platform_configuration_create(config);
+  if (!res) {
+    (*config)->event_reporting.wake_interval = src->event_reporting.wake_interval;
+    (*config)->event_reporting.minimum_count = src->event_reporting.minimum_count;
+    (*config)->event_reporting.flush_interval = src->event_reporting.flush_interval;
+    (*config)->event_reporting.trap_exceptions = src->event_reporting.trap_exceptions;
+    (*config)->event_reporting.timestamp_granularity = src->event_reporting.timestamp_granularity;
+
+    (*config)->key_caching.ttl_seconds = src->key_caching.ttl_seconds;
+    (*config)->key_caching.unstructured = src->key_caching.unstructured;
+    (*config)->key_caching.structured = src->key_caching.structured;
+    (*config)->key_caching.encrypt = src->key_caching.encrypt;
+
+    if (src->idp.type) {ubiq_platform_configuration_set_idp_type(*config, src->idp.type);}
+    if (src->idp.customer_id) {ubiq_platform_configuration_set_idp_customer_id(*config, src->idp.customer_id);}
+    if (src->idp.token_endpoint_url) {ubiq_platform_configuration_set_idp_token_endpoint_url(*config, src->idp.token_endpoint_url);}
+    if (src->idp.tenant_id) {ubiq_platform_configuration_set_idp_tenant_id(*config, src->idp.tenant_id);}
+    if (src->idp.client_secret) {ubiq_platform_configuration_set_idp_client_secret(*config, src->idp.client_secret);}
+  }
+  UBIQ_DEBUG(debug_flag, printf("%s: %d' \n", csu, res));
+
+  return res;
 }
 
 const int
@@ -152,10 +219,107 @@ ubiq_platform_configuration_get_key_caching_ttl_seconds(
   return config->key_caching.ttl_seconds;
 }
 
+const char *
+ubiq_platform_configuration_get_idp_type(
+    const struct ubiq_platform_configuration * const config)
+{
+  return config->idp.type; 
+}
+const char *
+ubiq_platform_configuration_get_idp_customer_id(
+    const struct ubiq_platform_configuration * const config)
+{
+  return config->idp.customer_id; 
+}
+const char *
+ubiq_platform_configuration_get_idp_token_endpoint_url(
+    const struct ubiq_platform_configuration * const config)
+{
+  return config->idp.token_endpoint_url; 
+}
+const char *
+ubiq_platform_configuration_get_idp_tenant_id(
+    const struct ubiq_platform_configuration * const config)
+{
+  return config->idp.tenant_id; 
+}
+const char *
+ubiq_platform_configuration_get_idp_client_secret(
+    const struct ubiq_platform_configuration * const config)
+{
+  return config->idp.client_secret; 
+}
+
+int
+ubiq_platform_configuration_is_idp_set(
+    const struct ubiq_platform_configuration * const config)
+{
+  int res = config->idp.type != NULL && config->idp.type[0] != '\0' &&
+            config->idp.customer_id != NULL && config->idp.customer_id[0] != '\0' &&
+            config->idp.token_endpoint_url != NULL && config->idp.token_endpoint_url[0] != '\0' &&
+            config->idp.tenant_id != NULL && config->idp.tenant_id[0] != '\0' &&
+            config->idp.client_secret != NULL && config->idp.client_secret[0] != '\0';
+
+  return res;
+}
+
+
+void
+ubiq_platform_configuration_set_idp_type(
+    struct ubiq_platform_configuration * const config,
+    const char * idp_type)
+{
+  free(config->idp.type);
+  UBIQ_DEBUG(debug_flag, printf("ubiq_platform_configuration_set_idp_type : %s\n", idp_type));
+
+  config->idp.type = strdup(idp_type);
+}
+void
+ubiq_platform_configuration_set_idp_customer_id(
+    struct ubiq_platform_configuration * const config,
+    const char * idp_customer_id)
+{
+  free(config->idp.customer_id);
+  UBIQ_DEBUG(debug_flag, printf("ubiq_platform_configuration_set_idp_customer_id : %s\n", idp_customer_id));
+  config->idp.customer_id = strdup(idp_customer_id);
+}    
+void
+ubiq_platform_configuration_set_idp_token_endpoint_url(
+    struct ubiq_platform_configuration * const config,
+    const char * idp_token_endpoint_url)
+{
+  free(config->idp.token_endpoint_url);
+  UBIQ_DEBUG(debug_flag, printf("ubiq_platform_configuration_set_idp_token_endpoint_url : %s\n", idp_token_endpoint_url));
+  config->idp.token_endpoint_url = strdup(idp_token_endpoint_url);
+}    
+void
+ubiq_platform_configuration_set_idp_tenant_id(
+    struct ubiq_platform_configuration * const config,
+    const char * idp_tenant_id)
+{
+  free(config->idp.tenant_id);
+  UBIQ_DEBUG(debug_flag, printf("ubiq_platform_configuration_set_idp_tenant_id : %s\n", idp_tenant_id));
+  config->idp.tenant_id = strdup(idp_tenant_id);
+}        
+void
+ubiq_platform_configuration_set_idp_client_secret(
+    struct ubiq_platform_configuration * const config,
+    const char * idp_client_secret)
+{
+  free(config->idp.client_secret);
+  UBIQ_DEBUG(debug_flag, printf("ubiq_platform_configuration_set_idp_client_secret : %s\n", idp_client_secret));
+  config->idp.client_secret = strdup(idp_client_secret);
+}
+
 void
 ubiq_platform_configuration_destroy(
     struct ubiq_platform_configuration * const config)
 {
+    free(config->idp.type);
+    free(config->idp.customer_id);
+    free(config->idp.token_endpoint_url);
+    free(config->idp.tenant_id);
+    free(config->idp.client_secret);
     free(config);
 }
 
@@ -184,7 +348,6 @@ ubiq_platform_configuration_create_explicit(
   if (event_reporting_timestamp_granularity != NULL) {
     (*config)->event_reporting.timestamp_granularity = find_event_reporting_granularity(event_reporting_timestamp_granularity);
   }
-
 
   return res;
 }
@@ -227,6 +390,40 @@ ubiq_platform_configuration_create_explicit2(
   return res;
 }
 
+int
+ubiq_platform_configuration_set_idp(
+  struct ubiq_platform_configuration * const config,
+  const char * idp_type,
+  const char * idp_customer_id,
+  const char * idp_token_endpoint_url,
+  const char * idp_tenant_id,
+  const char * idp_client_secret)
+{
+   int res;
+
+    res = -EINVAL;
+    if (idp_type && idp_customer_id && idp_token_endpoint_url && idp_tenant_id && idp_client_secret) {
+          ubiq_platform_configuration_set_idp_type(config, idp_type);
+          ubiq_platform_configuration_set_idp_customer_id(config, idp_customer_id);
+          ubiq_platform_configuration_set_idp_token_endpoint_url(config, idp_token_endpoint_url);
+          ubiq_platform_configuration_set_idp_tenant_id(config, idp_tenant_id);
+          ubiq_platform_configuration_set_idp_client_secret(config, idp_client_secret);
+
+          if (config->idp.type && config->idp.customer_id && config->idp.token_endpoint_url
+              && config->idp.client_secret && config->idp.tenant_id) {
+              res = 0;
+          } else {
+              free(config->idp.type);
+              free(config->idp.customer_id);
+              free(config->idp.token_endpoint_url);
+              free(config->idp.client_secret);
+              free(config->idp.tenant_id);
+          }
+    }
+
+    return res;
+}
+
 /*
  * try to create a set of configuration from the environment
  * and then from the default file, using the default profile.
@@ -257,13 +454,16 @@ ubiq_platform_configuration_load_configuration(
     const char * const path,
     struct ubiq_platform_configuration ** const config)
 {
+    static const char * csu = "ubiq_platform_configuration_load_configuration";
+
     const char * _path = NULL;
     int res = 1;
 
     res = ubiq_platform_configuration_create(config);
+    UBIQ_DEBUG(debug_flag, printf("%s ubiq_platform_configuration_create (%s) %d\n", csu, path, res));
 
     _path = path;
-    if (!_path) {
+    if (!_path || _path[0] == '\0') {
       static const char * const cred_path = ".ubiq/configuration";
       char * homedir;
       int err;
@@ -294,6 +494,7 @@ ubiq_platform_configuration_load_configuration(
 
         if (buffer != NULL) {
           if( 1 == fread( buffer , fp_size, 1 , fp) ) {
+            UBIQ_DEBUG(debug_flag, printf("%s buffer : %s\n", csu, buffer));
             cJSON * json = cJSON_ParseWithLength(buffer, fp_size);
             if (json != NULL) {
               const cJSON * er =  cJSON_GetObjectItem(
@@ -351,6 +552,36 @@ ubiq_platform_configuration_load_configuration(
                   (*config)->key_caching.encrypt = cJSON_IsTrue(element);
                 }
               }
+
+
+              const cJSON * idp =  cJSON_GetObjectItem(
+                          json, IDP);
+    UBIQ_DEBUG(debug_flag, printf("%s idp \n(%s) %d\n", csu, cJSON_Print(idp), res));
+              if (cJSON_IsObject(idp)) {
+                cJSON * element = NULL;
+                char * value = NULL;
+                element = cJSON_GetObjectItem(idp, IDP_TYPE);
+                if (cJSON_IsString(element)) {
+                  ubiq_platform_configuration_set_idp_type((*config),cJSON_GetStringValue(element));
+                }
+                element = cJSON_GetObjectItem(idp, IDP_CUSTOMER_ID);
+                if (cJSON_IsString(element)) {
+                  ubiq_platform_configuration_set_idp_customer_id((*config),cJSON_GetStringValue(element));
+                }
+                element = cJSON_GetObjectItem(idp, IDP_TENANT_ID);
+                if (cJSON_IsString(element)) {
+                  ubiq_platform_configuration_set_idp_tenant_id((*config),cJSON_GetStringValue(element));
+                }
+                element = cJSON_GetObjectItem(idp, IDP_CLIENT_SECRET);
+                if (cJSON_IsString(element)) {
+                  ubiq_platform_configuration_set_idp_client_secret((*config),cJSON_GetStringValue(element));
+                }
+                element = cJSON_GetObjectItem(idp, IDP_TOKEN_ENDPOINT_URL);
+                if (cJSON_IsString(element)) {
+                  ubiq_platform_configuration_set_idp_token_endpoint_url((*config),cJSON_GetStringValue(element));
+                }
+              }
+
               cJSON_Delete(json);
             }
           }

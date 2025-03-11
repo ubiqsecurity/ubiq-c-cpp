@@ -198,10 +198,11 @@ ubiq_platform_rest_header_content(
     const void * const content, const size_t length,
     char * const val, int * len)
 {
+    static const char * const csu = "ubiq_platform_rest_header_content";
     int err;
 
     err = -ENOENT;
-
+    
     if (strcmp(key, "(created)") == 0) {
         /*
          * the (created) header is a faux header that is part of
@@ -222,7 +223,6 @@ ubiq_platform_rest_header_content(
                         http_request_method_string(method),
                         url->path, url->query);
         string_tolower(val, *len, ' ');
-
         err = 0;
     } else if (strcmp(key, "Content-Length") == 0) {
         if (length != 0) {
@@ -276,6 +276,8 @@ ubiq_platform_rest_header_content(
 
         err = 0;
     }
+
+     UBIQ_DEBUG(debug_flag, printf("%s: key(%s) val(%s) len(%d) err(%d)\n", csu, key, val, *len, err ));
 
     return err;
 }
@@ -334,6 +336,8 @@ ubiq_platform_rest_request(
             sighdr, sizeof(sighdr), "%s: %s=\"%s\", %s=\"%s\"",
             "Signature", "keyId", h->papi, "algorithm", "hmac-sha512");
         hdrslen = snprintf(hdrs, sizeof(hdrs), "headers=\"");
+        UBIQ_DEBUG(debug_flag, printf("%s: sighdrlen: %d\n", csu, sighdrlen));
+        UBIQ_DEBUG(debug_flag, printf("%s: hdrslen: %d\n", csu, hdrslen));
 
         /*
          * the following code, generates http headers necessary for
@@ -347,24 +351,25 @@ ubiq_platform_rest_request(
 
         ubiq_support_hmac_init("sha512", h->sapi, strlen(h->sapi), &hctx);
 
-    UBIQ_DEBUG(debug_flag, printf("%s: after ubiq_support_hmac_init res(%d)\n", csu, res));
+        UBIQ_DEBUG(debug_flag, printf("%s: h->sapi(%s) len(strlen(h->sapi) = '%d'\n", csu, h->sapi, strlen(h->sapi), res));
 
         for (unsigned int i = 0;
              i < sizeof(key) / sizeof(*key) && res == 0;
              i++) {
-            char val[440];
+            char val[4096];
             int len = sizeof(val);
+            val[0] = '\0';
 
             /* get the content for the designated header */
-UBIQ_DEBUG(debug_flag, printf("%s: %d before  ubiq_platform_rest_header_content\n", csu, i));
+            UBIQ_DEBUG(debug_flag, printf("%s: %d before  ubiq_platform_rest_header_content\n", csu, i));
             res = ubiq_platform_rest_header_content(
                 key[i],
                 method, &url, content_type, content, length,
                 val, &len);
 
-UBIQ_DEBUG(debug_flag, printf("%s: %d after ubiq_platform_rest_header_content %s res(%d)\n", csu, i, key[i], res));
+            UBIQ_DEBUG(debug_flag, printf("%s: %d after ubiq_platform_rest_header_content %s res(%d) len(%d) val(%s)\n", csu, i, key[i], res, len, val));
             if (res == 0 && len >= 0) {
-                char hdr[512];
+                char hdr[4096];
                 int n;
 
                 /*
@@ -408,7 +413,7 @@ UBIQ_DEBUG(debug_flag, printf("%s: %d after ubiq_platform_rest_header_content %s
                 string_tolower(hdr, n, ':');
                 n += snprintf(hdr + n, sizeof(hdr) - n,  "\n");
                 ubiq_support_hmac_update(hctx, hdr, n);
-                UBIQ_DEBUG(debug_flag, printf("%s: end of loop res(%d)\n", csu, res));
+                UBIQ_DEBUG(debug_flag, printf("%s: end of loop hdr(%s), hdrslen(%d) res(%d)\n", csu, hdr, hdrslen, res));
 
             }
         }
