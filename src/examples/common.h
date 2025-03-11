@@ -26,14 +26,16 @@ ubiq_sample_getopt(
     ubiq_sample_mode_t * const mode,
     ubiq_sample_method_t * const method,
     const char ** const infile, const char ** const outfile,
-    const char ** const credfile, const char ** const profile);
+    const char ** const credfile, const char ** const profile,
+    const char ** const cfgfile);
 
 int
 ubiq_structured_getopt(
     const int argc, char * const argv[],
     ubiq_sample_mode_t * const mode,
     const char ** const ffsname, const char ** const inputstring,
-    const char ** const credfile, const char ** const profile);
+    const char ** const credfile, const char ** const profile,
+    const char ** const cfgfile);
 
 #if defined(__cplusplus)
 }

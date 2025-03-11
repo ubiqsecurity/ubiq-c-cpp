@@ -329,10 +329,16 @@ TEST_F(cpp_fpe_encrypt, invalid_specific_creds)
     ubiq_platform_credentials_get_srsa(&(*_creds)),
     "ps://api.ubiqsecurity.com");
 
-  ASSERT_ANY_THROW(_enc = ubiq::platform::fpe::encryption(creds));
+  _enc = ubiq::platform::fpe::encryption(creds);
+
+  ASSERT_ANY_THROW(
+      ct = _enc.encrypt(ffs_name, pt));
 
   // Use same PT as invalid CT.  Should fail similarly
-  ASSERT_ANY_THROW(_dec = ubiq::platform::fpe::decryption(creds));
+  _dec = ubiq::platform::fpe::decryption(creds);
+
+  ASSERT_ANY_THROW(
+      ct = _dec.decrypt(ffs_name, pt));
 
   // Completely wrong URL but a valid one
   creds = ubiq::platform::credentials

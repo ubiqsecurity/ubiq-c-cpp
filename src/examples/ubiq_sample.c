@@ -59,6 +59,7 @@ static
 int
 ubiq_sample_piecewise_encrypt(
     const struct ubiq_platform_credentials * const creds,
+    const struct ubiq_platform_configuration * const cfg,
     FILE * const ifp, FILE * const ofp)
 {
     struct ubiq_platform_encryption * ctx;
@@ -66,8 +67,8 @@ ubiq_sample_piecewise_encrypt(
     size_t olen;
     int res;
 
-    res = ubiq_platform_encryption_create(
-        creds, 1 /* want to use the key once */, &ctx);
+    res = ubiq_platform_encryption_create_with_config(
+        creds, cfg, 1 /* want to use the key once */, &ctx);
     if (res == 0) {
 
         /*
@@ -122,6 +123,7 @@ static
 int
 ubiq_sample_piecewise_decrypt(
     const struct ubiq_platform_credentials * const creds,
+    const struct ubiq_platform_configuration * const cfg,
     FILE * const ifp, FILE * const ofp)
 {
     struct ubiq_platform_decryption * ctx;
@@ -129,7 +131,7 @@ ubiq_sample_piecewise_decrypt(
     size_t olen;
     int res;
 
-    res = ubiq_platform_decryption_create(creds, &ctx);
+    res = ubiq_platform_decryption_create_with_config(creds, cfg, &ctx);
     if (res == 0) {
 
         /*
@@ -184,9 +186,10 @@ int main(const int argc, char * const argv[])
 {
     ubiq_sample_mode_t mode;
     ubiq_sample_method_t method;
-    const char * infile, * outfile, * credfile, * profile;
+    const char * infile, * outfile, * credfile, * profile, *cfgfile = NULL;
 
     struct ubiq_platform_credentials * creds;
+    struct ubiq_platform_configuration * cfg;
     FILE * ifp, * ofp;
     size_t size;
     int res;
@@ -209,7 +212,7 @@ int main(const int argc, char * const argv[])
     ubiq_sample_getopt(argc, argv,
                       &mode, &method,
                       &infile, &outfile,
-                      &credfile, &profile);
+                      &credfile, &profile, &cfgfile);
 
     /*
      * If neither `credfile` nor `profile are specified, then the
@@ -226,9 +229,13 @@ int main(const int argc, char * const argv[])
     }
 
     if (res != 0) {
-        fprintf(stderr, "unable to load credentials\n");
+        fprintf(stderr, "unable to load credentials %s %s %d\n", credfile, profile, res);
         exit(EXIT_FAILURE);
     }
+
+    if (!res) {
+      res = ubiq_platform_configuration_load_configuration(cfgfile, &cfg);
+    } 
 
     /* Open the input file */
     ifp = fopen(infile, "rb");
@@ -275,9 +282,9 @@ int main(const int argc, char * const argv[])
         }
     } else /* piecewise */{
         if (mode == UBIQ_SAMPLE_MODE_ENCRYPT) {
-            res = ubiq_sample_piecewise_encrypt(creds, ifp, ofp);
+            res = ubiq_sample_piecewise_encrypt(creds, cfg, ifp, ofp);
         } else {
-            res = ubiq_sample_piecewise_decrypt(creds, ifp, ofp);
+            res = ubiq_sample_piecewise_decrypt(creds, cfg, ifp, ofp);
         }
     }
 
@@ -289,6 +296,7 @@ int main(const int argc, char * const argv[])
     fclose(ifp);
 
     ubiq_platform_credentials_destroy(creds);
+    ubiq_platform_configuration_destroy(cfg);
 
     ubiq_platform_exit();
 

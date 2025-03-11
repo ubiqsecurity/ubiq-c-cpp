@@ -21,6 +21,7 @@ add_library(
   algorithm.c
   bn.c
   billing.c
+  builder.c
   cache.c
   common.c
   credentials.c
@@ -35,6 +36,8 @@ add_library(
   init.c
   parsing.c
   rest.c
+  rsa.c
+  sso.c
   support.c
   ${CMAKE_CURRENT_SOURCE_DIR}/../ext/cJSON/cJSON.c
   ${CMAKE_CURRENT_SOURCE_DIR}/../ext/inih/ini.c)
@@ -100,6 +103,7 @@ add_library(
 
   OBJECT
 
+  builder.cpp
   credentials.cpp
   configuration.cpp
   decrypt.cpp

@@ -3,9 +3,11 @@
 #include "ubiq/platform/internal/header.h"
 #include "ubiq/platform/internal/rest.h"
 #include "ubiq/platform/internal/credentials.h"
+#include "ubiq/platform/internal/configuration.h"
 #include "ubiq/platform/internal/common.h"
 #include "ubiq/platform/internal/support.h"
 #include "ubiq/platform/internal/billing.h"
+#include "ubiq/platform/internal/sso.h"
 
 #include <errno.h>
 #include <limits.h>
@@ -16,17 +18,24 @@
 
 #include "cJSON/cJSON.h"
 
+// #define UBIQ_DEBUG_ON
+#ifdef UBIQ_DEBUG_ON
+#define UBIQ_DEBUG(x,y) {x && y;}
+#else
+#define UBIQ_DEBUG(x,y)
+#endif
+
+static int debug_flag = 0;
 
 struct ubiq_platform_encryption
 {
     /* http[s]://host/api/v0 */
     // Order of fields is important since single alloc is performed.
     const char * restapi;
-    char * papi;
+    // char * papi;
     struct ubiq_platform_rest_handle * rest;
     struct ubiq_billing_ctx * billing_ctx;
 
-    // char * session;
     int fragment;
 
     struct {
@@ -38,7 +47,10 @@ struct ubiq_platform_encryption
 
     const struct ubiq_platform_algorithm * algo;
     struct ubiq_support_cipher_context * ctx;
-    const struct ubiq_platform_configuration * cfg;
+    struct ubiq_platform_configuration * cfg;
+
+    // Creds are needed for IDP since cert can be updated and needs to be renewed
+    struct ubiq_platform_credentials * creds;
 };
 
 void
@@ -52,44 +64,54 @@ ubiq_platform_encryption_destroy(
      * of uses
      */
 
-    ubiq_billing_ctx_destroy(e->billing_ctx);
+    if (e) {
+      ubiq_billing_ctx_destroy(e->billing_ctx);
 
-    if (e->key.raw.len) {
-      memset(e->key.raw.buf, 0, e->key.raw.len);
+      if (e->key.raw.len) {
+        memset(e->key.raw.buf, 0, e->key.raw.len);
+      }
+      if (e->key.enc.len) {
+        memset(e->key.enc.buf, 0, e->key.enc.len);
+      }
+
+
+      ubiq_platform_rest_handle_destroy(e->rest);
+
+      free(e->key.enc.buf);
+      free(e->key.raw.buf);
+
+      if (e->ctx) {
+          ubiq_support_cipher_destroy(e->ctx);
+      }
+
+      if (e->creds) {
+        ubiq_platform_credentials_destroy(e->creds);
+      }
+      if (e->cfg) {
+        ubiq_platform_configuration_destroy(e->cfg);
+      }
     }
-    if (e->key.enc.len) {
-      memset(e->key.enc.buf, 0, e->key.enc.len);
-    }
-
-
-    ubiq_platform_rest_handle_destroy(e->rest);
-
-    // free(e->key.fingerprint);
-    free(e->key.enc.buf);
-    free(e->key.raw.buf);
-
-    // free(e->session);
-
-    if (e->ctx) {
-        ubiq_support_cipher_destroy(e->ctx);
-    }
-
     free(e);
 }
 
 static
 int
 ubiq_platform_encryption_new(
-    const char * const host,
-    const char * const papi, const char * const sapi,
+    struct ubiq_platform_credentials * const creds,
     const struct ubiq_platform_configuration * const cfg,
     struct ubiq_platform_encryption ** const enc)
 {
+    static const char * const csu = "ubiq_platform_encryption_new";
+
     static const char * const api_path = "api/v0";
 
     struct ubiq_platform_encryption * e;
     size_t len;
     int res;
+
+    const char * const host = ubiq_platform_credentials_get_host(creds);
+    // const char * const papi = ubiq_platform_credentials_get_papi(creds);
+    // const char * const sapi = ubiq_platform_credentials_get_sapi(creds);
 
     res = -ENOMEM;
     len = ubiq_platform_snprintf_api_url(NULL, 0, host, api_path);
@@ -99,18 +121,52 @@ ubiq_platform_encryption_new(
     } else {
       len++;
 
-      e = calloc(1, sizeof(*e) + len + strlen(papi) + 1);
+      e = calloc(1, sizeof(*e) + len + 1);
       if (e) {
+        res = 0;
+        UBIQ_DEBUG(debug_flag, printf("%s: res %d\n", csu, res));
+        if (!res) {
+          res = ubiq_platform_configuration_clone(cfg, &(e->cfg));
+          UBIQ_DEBUG(debug_flag, printf("%s: ubiq_platform_configuration_clone %d\n", csu, res));
+        }
+        if (!res) {
+          res = ubiq_platform_credentials_clone(creds, &(e->creds));
+          UBIQ_DEBUG(debug_flag, printf("%s: ubiq_platform_credentials_clone %d\n", csu, res));
+        }
+
+        if (!res && ubiq_platform_credentials_is_idp(e->creds)) {
+            // Don't login again if the access token is already set.
+            if (ubiq_platform_credentials_get_access_token(e->creds) == NULL) {
+              if ((res = ubiq_platform_sso_login(e->creds, e->cfg)) != 0) {
+                
+              }
+            }
+          }
+        UBIQ_DEBUG(debug_flag, printf("%s: after login %d\n", csu, res));
+
+        UBIQ_DEBUG(debug_flag, printf("%s ubiq_platform_credentials_get_papi(e->creds) %s\n", csu, ubiq_platform_credentials_get_papi(e->creds)));
+
+        UBIQ_DEBUG(debug_flag, printf("%s ubiq_platform_credentials_get_sapi(e->creds) %s\n", csu, ubiq_platform_credentials_get_sapi(e->creds)));
+          
         ubiq_platform_snprintf_api_url((char *)(e + 1), len, host, api_path);
         e->restapi = (char *)(e + 1);
-        e->papi = (void *)e + sizeof(*e) + len;
-        strcpy(e->papi, papi);
+        UBIQ_DEBUG(debug_flag, printf("%s restapi %s\n", csu, e->restapi));
+        // e->papi = (void *)e + sizeof(*e) + len;
+        // strcpy(e->papi, papi);
+        // UBIQ_DEBUG(debug_flag, printf("%s papi %s\n", csu, e->papi));
 
-        res = ubiq_platform_rest_handle_create(papi, sapi, &e->rest);
+        res = ubiq_platform_rest_handle_create(
+          ubiq_platform_credentials_get_papi(e->creds),
+          ubiq_platform_credentials_get_sapi(e->creds), &e->rest);
+
 
         if (!res) {
-          res = ubiq_billing_ctx_create(&e->billing_ctx, host, papi, sapi, cfg);
+          res = ubiq_billing_ctx_create(&e->billing_ctx, host, 
+          ubiq_platform_credentials_get_papi(e->creds), 
+          ubiq_platform_credentials_get_sapi(e->creds), e->cfg);
         }
+
+
       }
     }
 
@@ -120,6 +176,7 @@ ubiq_platform_encryption_new(
     }
 
     *enc = e;
+    UBIQ_DEBUG(debug_flag, printf("%s: %d\n", csu, res));
     return res;
 }
 
@@ -197,6 +254,8 @@ int ubiq_platform_encryption_create(
 
   int ret = ubiq_platform_encryption_create_with_config(creds, cfg, uses, enc);
   ubiq_platform_configuration_destroy(cfg);
+  UBIQ_DEBUG(debug_flag, printf("ubiq_platform_encryption_create: %d\n", ret));
+
   return ret;
 
 }
@@ -208,24 +267,23 @@ int ubiq_platform_encryption_create_with_config(
     const unsigned int uses,
     struct ubiq_platform_encryption ** const enc)
 {
+    static const char * csu = "ubiq_platform_encryption_create_with_config";
+
     struct ubiq_platform_encryption * e;
     int res;
+
+    UBIQ_DEBUG(debug_flag, printf("%s: started %d\n", csu, res));
 
     // If library hasn't been initialized, fail fast.
     if (!ubiq_platform_initialized()) {
       return -EINVAL;
     }
 
-
-    const char * const host = ubiq_platform_credentials_get_host(creds);
-    const char * const papi = ubiq_platform_credentials_get_papi(creds);
-    const char * const sapi = ubiq_platform_credentials_get_sapi(creds);
-    const char * const srsa = ubiq_platform_credentials_get_srsa(creds);
+    UBIQ_DEBUG(debug_flag, printf("%s: %d \n", csu, res));
 
     // Creates e->rest
-    res = ubiq_platform_encryption_new(host, papi, sapi, cfg, &e);
+    res = ubiq_platform_encryption_new((struct ubiq_platform_credentials * const) creds, cfg, &e);
     if (res == 0) {
-        e->cfg = cfg;
         const char * const fmt = "%s/encryption/key";
 
         cJSON * json;
@@ -245,8 +303,16 @@ int ubiq_platform_encryption_create_with_config(
          */
         json = cJSON_CreateObject();
         cJSON_AddItemToObject(json, "uses", cJSON_CreateNumber(uses));
+        if (ubiq_platform_credentials_is_idp(e->creds)) {
+          ubiq_platform_sso_renewIdpCert(e->creds, e->cfg);
+          cJSON_AddStringToObject(json, "payload_cert", ubiq_platform_credentials_get_cert_b64(e->creds));
+        }
+
         str = cJSON_Print(json);
         cJSON_Delete(json);
+
+        UBIQ_DEBUG(debug_flag, printf("%s str %s\n", csu, str));
+
 
         res = ubiq_platform_rest_request(
             e->rest,
@@ -254,6 +320,9 @@ int ubiq_platform_encryption_create_with_config(
 
         free(str);
         free(url);
+
+        UBIQ_DEBUG(debug_flag, printf("ubiq_platform_rest_request - Unable to process http request: %s %s %d\n", url, str, res));
+
 
         /*
          * if the request was successful, parse the response
@@ -272,11 +341,20 @@ int ubiq_platform_encryption_create_with_config(
                 res = (json = cJSON_ParseWithLength(rsp, len)) ? 0 : INT_MIN;
 
                 if (res == 0) {
-                    res = ubiq_platform_encryption_parse_new_key(e, srsa, json);
-                    cJSON_Delete(json);
+                  // If IDP, replace the encrypted private key with the one in the credentials
+                  if (ubiq_platform_credentials_is_idp(e->creds)) {
+                    // Make sure there isn't an existing encrypted private key.  Need to use this one.
+                    cJSON_DeleteItemFromObject(json, "encrypted_private_key");
+                    cJSON_AddStringToObject(json, "encrypted_private_key", ubiq_platform_credentials_get_encrypted_private_key(e->creds));
+                  }
+
+                  const char * const srsa = ubiq_platform_credentials_get_srsa(e->creds);
+                  res = ubiq_platform_encryption_parse_new_key(e, srsa, json);
+                  cJSON_Delete(json);
                 }
             } else {
                 res = ubiq_platform_http_error(rc);
+                UBIQ_DEBUG(debug_flag, printf("ubiq_platform_encryption_create_with_config - Unable to process http request: %d\n", res));
             }
         }
     }
@@ -287,6 +365,7 @@ int ubiq_platform_encryption_create_with_config(
         ubiq_platform_encryption_destroy(e);
     }
 
+    UBIQ_DEBUG(debug_flag, printf("ubiq_platform_encryption_create_with_config: %d\n", res));
     return res;
 }
 
@@ -344,7 +423,7 @@ ubiq_platform_encryption_begin(
             if (res == 0) {
                   res = ubiq_billing_add_billing_event(
                     enc->billing_ctx,
-                    enc->papi,
+                    ubiq_platform_credentials_get_papi(enc->creds),
                     "", "",
                     ENCRYPTION,
                     1, 0 ); // key number not used for unstructured

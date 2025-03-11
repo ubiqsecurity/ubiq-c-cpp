@@ -9,6 +9,16 @@
 
 #include <curl/curl.h>
 
+// #define UBIQ_DEBUG_ON
+#ifdef UBIQ_DEBUG_ON
+#define UBIQ_DEBUG(x,y) {x && y;}
+#else
+#define UBIQ_DEBUG(x,y)
+#endif
+
+static int debug_flag = 1;
+
+
 struct ubiq_support_http_handle
 {
     CURL * ch;
@@ -174,6 +184,9 @@ ubiq_support_http_request(
 {
     int res;
 
+  UBIQ_DEBUG(debug_flag, printf("ubiq_support_http_request: urlstr: '%s'\n", urlstr));
+  UBIQ_DEBUG(debug_flag, printf("ubiq_support_http_request: content: '%s'\n", content));
+
     res = INT_MIN;
     if (curl_easy_setopt(hnd->ch, CURLOPT_URL, urlstr) == CURLE_OK) {
         /*
@@ -197,6 +210,7 @@ ubiq_support_http_request(
                 hnd->req.buf = content;
                 hnd->req.len = length;
                 hnd->req.off = 0;
+
 
                 curl_easy_setopt(
                     hnd->ch, CURLOPT_UPLOAD, 1L);

@@ -283,6 +283,9 @@ __END_DECLS
 
 namespace ubiq {
     namespace platform {
+
+      class builder;
+
         UBIQ_PLATFORM_API
         std::vector<std::uint8_t>
         encrypt(const credentials & creds,
@@ -364,7 +367,11 @@ namespace ubiq {
             add_user_defined_metadata(const std::string & jsonString);
 
         private:
+            UBIQ_PLATFORM_API
+            encryption(::ubiq_platform_encryption * e);
+
             std::shared_ptr<::ubiq_platform_encryption> _enc;
+            friend class builder;
         };
 
 
@@ -408,7 +415,7 @@ namespace ubiq {
 
             UBIQ_PLATFORM_API
             encryption(const credentials & creds,
-            configuration & cfg
+            const configuration & cfg
             );
 
             UBIQ_PLATFORM_API
@@ -455,8 +462,16 @@ namespace ubiq {
             void
             add_user_defined_metadata(const std::string & jsonString);
 
+
+          protected:
+
           private:
+            UBIQ_PLATFORM_API
+            encryption(::ubiq_platform_structured_enc_dec_obj * e);
+
             std::shared_ptr<::ubiq_platform_structured_enc_dec_obj> _enc;
+            friend class ubiq::platform::builder;
+ 
           };
         } // structured
     } // platform

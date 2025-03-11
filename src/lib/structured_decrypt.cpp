@@ -5,6 +5,10 @@
 
 using namespace ubiq::platform::structured;
 
+decryption::decryption(::ubiq_platform_structured_enc_dec_obj * d)
+{
+   _dec.reset(d, &ubiq_platform_structured_enc_dec_destroy);
+}
 
 decryption::decryption(const credentials & creds)
 {
@@ -12,6 +16,21 @@ decryption::decryption(const credentials & creds)
     int res;
 
     res = ubiq_platform_structured_enc_dec_create(&*creds, &enc);
+    if (res != 0) {
+        throw std::system_error(-res, std::generic_category(), get_error(enc));
+    }
+
+    _dec.reset(enc, &ubiq_platform_structured_enc_dec_destroy);
+}
+
+decryption::decryption(
+  const credentials & creds,
+  const configuration & cfg)
+{
+    struct ubiq_platform_structured_enc_dec_obj * enc(nullptr);
+    int res;
+
+    res = ubiq_platform_structured_enc_dec_create_with_config(&*creds, &*cfg, &enc);
     if (res != 0) {
         throw std::system_error(-res, std::generic_category(), get_error(enc));
     }
