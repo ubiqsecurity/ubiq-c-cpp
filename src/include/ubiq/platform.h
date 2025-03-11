@@ -7,7 +7,7 @@
 #include <ubiq/platform/decrypt.h>
 #include <ubiq/platform/deprecated_encrypt.h>
 #include <ubiq/platform/deprecated_decrypt.h>
-
+#include <ubiq/platform/builder.h>
 /* C interfaces */
 __BEGIN_DECLS
 

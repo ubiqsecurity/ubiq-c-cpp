@@ -88,6 +88,8 @@ Encrypt or decrypt files using the Ubiq service
   -c CREDENTIALS           Set the file name with the API credentials
                              (default: ~/.ubiq/credentials)
   -P PROFILE               Identify the profile within the credentials file
+  -g CONFIGURATION         Set the file name for loading system configuration parameters
+                              (default: ~/.ubiq/configuration)
 </pre>
 
 #### Demonstrate using the simple (-s) API interface to encrypt the README file
@@ -177,6 +179,8 @@ Encrypt or decrypt data using the Ubiq structured encryption service
   -c CREDENTIALS           Set the file name with the API credentials
                              (default: ~/.ubiq/credentials)
   -P PROFILE               Identify the profile within the credentials file
+  -g CONFIGURATION         Set the file name for loading system configuration parameters
+                              (default: ~/.ubiq/configuration)
 ```
 
 

@@ -8,6 +8,7 @@
 #include "ubiq/platform/internal/support.h"
 #include "ubiq/platform/internal/billing.h"
 #include "ubiq/platform/internal/cache.h"
+#include "ubiq/platform/internal/sso.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -22,7 +23,7 @@
 #define UBIQ_DEBUG(x,y)
 #endif
 
-static int debug_flag = 1;
+static int debug_flag = 0;
 
 
 typedef struct {
@@ -42,14 +43,14 @@ struct ubiq_platform_decryption
 {
     /* http[s]://host/api/v0 */
     const char * restapi;
-    const char * papi;
+    // const char * papi;
     struct ubiq_platform_rest_handle * rest;
     struct ubiq_billing_ctx * billing_ctx;
 
     struct ubiq_platform_cache * key_cache; // key will be the base64 encoded encrypted data key (came from KMS)
     // Payload will be a cached_key_t.  The result MAY need to be decrypted using the encrypted_private_key and the srsa value.
 
-    const char * srsa;
+    // const char * srsa;
 
     struct {
       void * buf;
@@ -64,6 +65,10 @@ struct ubiq_platform_decryption
     int key_cache_encrypt;
     int key_cache_ttl_seconds;
     int key_cache_unstructured;
+
+    // Creds are needed for IDP since cert can be updated and needs to be renewed
+    struct ubiq_platform_credentials * creds;
+    struct ubiq_platform_configuration * cfg;
 
 };
 
@@ -87,12 +92,14 @@ ubiq_platform_decryption_create_with_config(
     const struct ubiq_platform_configuration * const cfg,
     struct ubiq_platform_decryption ** const dec)
 {
+    static const char * csu = "ubiq_platform_decryption_create_with_config";
+
     static const char * const api_path = "api/v0";
 
     const char * const host = ubiq_platform_credentials_get_host(creds);
-    const char * const papi = ubiq_platform_credentials_get_papi(creds);
-    const char * const sapi = ubiq_platform_credentials_get_sapi(creds);
-    const char * const srsa = ubiq_platform_credentials_get_srsa(creds);
+    // const char * const papi = ubiq_platform_credentials_get_papi(creds);
+    // const char * const sapi = ubiq_platform_credentials_get_sapi(creds);
+    // const char * const srsa = ubiq_platform_credentials_get_srsa(creds);
 
     struct ubiq_platform_decryption * d;
     size_t len;
@@ -103,7 +110,6 @@ ubiq_platform_decryption_create_with_config(
       return -EINVAL;
     }
 
-
     res = -ENOMEM;
 
     len = ubiq_platform_snprintf_api_url(NULL, 0, host, api_path);
@@ -112,8 +118,27 @@ ubiq_platform_decryption_create_with_config(
       res = len;
     } else {
       len++;
-      d = calloc(1, sizeof(*d) + len + strlen(srsa) + 1 + strlen(papi) + 1);
+      d = calloc(1, sizeof(*d) + len + 1);
       if (d) {
+        res = 0;
+        if (!res) {
+          res = ubiq_platform_configuration_clone(cfg, &(d->cfg));
+          UBIQ_DEBUG(debug_flag, printf("%s: ubiq_platform_configuration_clone %d\n", csu, res));
+        }
+        if (!res) {
+          res = ubiq_platform_credentials_clone(creds, &(d->creds));
+          UBIQ_DEBUG(debug_flag, printf("%s: ubiq_platform_credentials_clone %d\n", csu, res));
+        }
+
+        if (!res && ubiq_platform_credentials_is_idp(d->creds)) {
+            // Don't login again if the access token is already set.
+            if (ubiq_platform_credentials_get_access_token(d->creds) == NULL) {
+              if ((res = ubiq_platform_sso_login(d->creds, d->cfg)) != 0) {
+                
+              }
+            }
+          }
+
         d->restapi = (char *)(d + 1);
         ubiq_platform_snprintf_api_url((char *)d->restapi, len, host, api_path);
 
@@ -122,22 +147,26 @@ ubiq_platform_decryption_create_with_config(
          * data key can't be retrieved (and therefore decrypted) until
          * after the cipher text has started "flowing".
          */
-        d->srsa = d->restapi + len;
-        strcpy((char *)d->srsa, srsa);
+        // d->srsa = d->restapi + len;
+        // strcpy((char *)d->srsa, srsa);
 
-        d->papi = d->restapi + len + strlen(srsa) + 1;
-        strcpy((char *)d->papi, papi);
+        // d->papi = d->restapi + len + strlen(srsa) + 1;
+        // strcpy((char *)d->papi, papi);
 
-        res = ubiq_platform_rest_handle_create(papi, sapi, &d->rest);
+        res = ubiq_platform_rest_handle_create(
+          ubiq_platform_credentials_get_papi(d->creds),
+          ubiq_platform_credentials_get_sapi(d->creds), &d->rest);
         // res = ubiq_platform_rest_handle_create(papi, sapi, &d->billing_rest);
 
         if (!res) {
-          res = ubiq_billing_ctx_create(&d->billing_ctx, host, papi, sapi, cfg);
+          res = ubiq_billing_ctx_create(&d->billing_ctx, host, 
+          ubiq_platform_credentials_get_papi(d->creds),
+          ubiq_platform_credentials_get_sapi(d->creds), d->cfg);
         }
         if (!res) {
-          d->key_cache_ttl_seconds = ubiq_platform_configuration_get_key_caching_ttl_seconds(cfg);
-          d->key_cache_unstructured = ubiq_platform_configuration_get_key_caching_unstructured_keys(cfg);
-          d->key_cache_encrypt = ubiq_platform_configuration_get_key_caching_encrypt(cfg);
+          d->key_cache_ttl_seconds = ubiq_platform_configuration_get_key_caching_ttl_seconds(d->cfg);
+          d->key_cache_unstructured = ubiq_platform_configuration_get_key_caching_unstructured_keys(d->cfg);
+          d->key_cache_encrypt = ubiq_platform_configuration_get_key_caching_encrypt(d->cfg);
           UBIQ_DEBUG(debug_flag, printf("key_cache_unstructured: %d\n", d->key_cache_unstructured));
           UBIQ_DEBUG(debug_flag, printf("key_cache_ttl_seconds: %d\n", d->key_cache_ttl_seconds));
           UBIQ_DEBUG(debug_flag, printf("key_cache_encrypt: %d\n", d->key_cache_encrypt));
@@ -155,7 +184,36 @@ ubiq_platform_decryption_create_with_config(
           // htable size 500 - means slots for 500 possible key collisions - probably way more than the 
           // number of keys being used here
           res = ubiq_platform_cache_create(500, ttl, &d->key_cache);
-      }
+        }
+
+        if (!res) {
+            char * tmp = NULL;
+            UBIQ_DEBUG(debug_flag, printf("%s: %d \n", csu, res));
+
+            UBIQ_DEBUG(debug_flag, printf("%s: %s %d \n", csu, "ubiq_platform_credentials_is_idp", ubiq_platform_credentials_is_idp(d->creds)));
+
+            if (ubiq_platform_credentials_is_idp(d->creds)) {
+            UBIQ_DEBUG(debug_flag, printf("%s: ubiq_platform_credentials_get_encrypted_private_key: %s\n", csu, ubiq_platform_credentials_get_encrypted_private_key(d->creds)));
+
+              tmp = strdup(ubiq_platform_credentials_get_encrypted_private_key(d->creds));
+              UBIQ_DEBUG(debug_flag, printf("%s: dup: %s\n", csu, tmp));
+              UBIQ_DEBUG(debug_flag, printf("%s: len: %d\n", csu, strlen(tmp)));
+            }
+            // Deep copy of credentials
+
+            // res = ubiq_platform_credentials_clone(creds, &(d->creds));
+            // res = ubiq_platform_configuration_clone(cfg, &(d->cfg));
+
+            UBIQ_DEBUG(debug_flag, printf("%s: %s \n", csu, "after d->creds"));
+            if (ubiq_platform_credentials_is_idp(d->creds)) {
+              UBIQ_DEBUG(debug_flag, printf("%s: is_idp\n", csu));
+
+              d->encrypted_private_key.buf = tmp;
+              d->encrypted_private_key.len = strlen(tmp);
+            }
+            UBIQ_DEBUG(debug_flag, printf("%s: after is_idp\n", csu));
+            UBIQ_DEBUG(debug_flag, printf("%s: %s \n", csu, "after ubiq_platform_credentials_is_idp"));
+        }
 
       }
     }
@@ -243,6 +301,10 @@ ubiq_platform_decryption_new_key(
           json = cJSON_CreateObject();
           cJSON_AddItemToObject(
               json, "encrypted_data_key", cJSON_CreateStringReference(base64_encrypted_data_key));
+          if (ubiq_platform_credentials_is_idp(d->creds)) {
+            ubiq_platform_sso_renewIdpCert(d->creds, d->cfg);
+            cJSON_AddStringToObject(json, "payload_cert", ubiq_platform_credentials_get_cert_b64(d->creds));
+          }
           str = cJSON_Print(json);
           cJSON_Delete(json);
 
@@ -273,6 +335,13 @@ ubiq_platform_decryption_new_key(
                   res = 0;
                   json = cJSON_ParseWithLength(rsp, len);
                   if (json) {
+                    if (ubiq_platform_credentials_is_idp(d->creds)) {
+                      // Make sure there isn't an existing encrypted private key.  Need to use this one.
+                      cJSON_DeleteItemFromObject(json, "encrypted_private_key");
+                      cJSON_AddStringToObject(json, "encrypted_private_key", ubiq_platform_credentials_get_encrypted_private_key(d->creds));
+                    }
+
+
                     const cJSON * j = NULL;
                     // Extract encrypted_private_key and stored in dec object.  
                     // Since private key is tied to API Key, it will always be the same, regardless of 
@@ -303,7 +372,7 @@ ubiq_platform_decryption_new_key(
                         UBIQ_DEBUG(debug_flag, printf("Key Decrypted before cache\n"));
                         res = ubiq_platform_common_decrypt_wrapped_key(
                           d->encrypted_private_key.buf,
-                          d->srsa,
+                          ubiq_platform_credentials_get_srsa(d->creds),
                           (*key)->wrapped_data_key.buf,
                           &((*key)->decrypted_data_key.buf),
                           &((*key)->decrypted_data_key.len));
@@ -334,13 +403,20 @@ void
 ubiq_platform_decryption_destroy(
     struct ubiq_platform_decryption * const d)
 {
-    ubiq_platform_decryption_reset(d);
-    ubiq_billing_ctx_destroy(d->billing_ctx);
-    ubiq_platform_rest_handle_destroy(d->rest);
-    ubiq_platform_cache_destroy(d->key_cache);
-    free(d->encrypted_private_key.buf);
+  if (d) {
 
-    free(d->buf);
+      ubiq_platform_decryption_reset(d);
+      ubiq_billing_ctx_destroy(d->billing_ctx);
+      ubiq_platform_rest_handle_destroy(d->rest);
+      ubiq_platform_cache_destroy(d->key_cache);
+
+      ubiq_platform_credentials_destroy(d->creds);
+      ubiq_platform_configuration_destroy(d->cfg);
+
+      free(d->encrypted_private_key.buf);
+
+      free(d->buf);
+    }
 
     free(d);
 }
@@ -370,6 +446,8 @@ ubiq_platform_decryption_update(
     const void * const ctbuf, const size_t ctlen,
     void ** const ptbuf, size_t * const ptlen)
 {
+    static const char * csu = "ubiq_platform_decryption_update";
+
     void * buf;
     size_t off;
     int res;
@@ -465,7 +543,7 @@ ubiq_platform_decryption_update(
                           mem_manage_decryption_key = 1;
                           res = ubiq_platform_common_decrypt_wrapped_key(
                           dec->encrypted_private_key.buf,
-                          dec->srsa,
+                          ubiq_platform_credentials_get_srsa(dec->creds),
                           cached_key->wrapped_data_key.buf,
                           &decryption_key.buf,
                           &decryption_key.len);
@@ -476,6 +554,8 @@ ubiq_platform_decryption_update(
                      * if the key is present now, create the
                      * decryption context
                      */
+                    UBIQ_DEBUG(debug_flag, printf("%s res(%d)\n", csu, res));
+
                     if (res == 0 && decryption_key.len) {
                         const void * aadbuf;
                         size_t aadlen;
@@ -496,6 +576,8 @@ ubiq_platform_decryption_update(
                             aadbuf, aadlen,
                             &dec->ctx);
 
+                        UBIQ_DEBUG(debug_flag, printf("%s after %s res(%d)\n", csu, "ubiq_support_decryption_init", res));
+
                         if (mem_manage_decryption_key) {
                                 UBIQ_DEBUG(debug_flag, printf("Freeing decryption_key.buf\n"));
                           free(decryption_key.buf);
@@ -505,12 +587,13 @@ ubiq_platform_decryption_update(
                         if (res == 0) {
                             res = ubiq_billing_add_billing_event(
                                 dec->billing_ctx,
-                                dec->papi,
+                                ubiq_platform_credentials_get_papi(dec->creds),
                                 "", "",
                                 DECRYPTION,
                                 1, 0 ); // key number not used for unstructured
 
                         }
+                        UBIQ_DEBUG(debug_flag, printf("%s after %s res(%d)\n", csu, "ubiq_billing_add_billing_event", res));
                     }
                 }
             }
@@ -540,6 +623,8 @@ ubiq_platform_decryption_update(
                 dec->len = dec->algo->len.tag;
             }
         }
+                        UBIQ_DEBUG(debug_flag, printf("%s after %s res(%d)\n", csu, "ubiq_support_decryption_update", res));
+
     }
 
     return res;

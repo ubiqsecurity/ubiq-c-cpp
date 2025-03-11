@@ -9,8 +9,9 @@
 #include "ubiq/platform/internal/parsing.h"
 #include "ubiq/platform/internal/billing.h"
 #include "ubiq/platform/internal/cache.h"
-#include <ubiq/platform/internal/ff1.h>
-#include <ubiq/platform/internal/ffx.h>
+#include "ubiq/platform/internal/ff1.h"
+#include "ubiq/platform/internal/ffx.h"
+#include "ubiq/platform/internal/sso.h"
 
 #include "ubiq/platform/internal/bn.h"
 
@@ -46,7 +47,7 @@
 #define UBIQ_DEBUG(x,y)
 #endif
 
-static int debug_flag = 0;
+static int debug_flag = 1;
 
 // Need to capture value of res, not test value
 // since it may be a function and don't want it to get executed
@@ -135,9 +136,9 @@ struct ubiq_platform_structured_enc_dec_obj
 {
     /* http[s]://host/api/v0 */
     char * restapi;
-    char * papi;
+    // char * papi;
     char * encoded_papi;
-    char * srsa;
+    // char * srsa;
 
     struct {
       void * buf;
@@ -166,6 +167,10 @@ struct ubiq_platform_structured_enc_dec_obj
     int key_cache_encrypt;
     int key_cache_ttl_seconds;
     int key_cache_structured;
+
+    // Creds are needed for IDP since cert can be updated and needs to be renewed
+    struct ubiq_platform_credentials * creds;
+    struct ubiq_platform_configuration * cfg;
 };
 
 struct ffs {
@@ -1173,9 +1178,7 @@ create_and_add_ctx_cache(
 static
 int
 ubiq_platform_structured_encryption(
-    const char * const host,
-    const char * const papi, const char * const sapi,
-    const char * const srsa,
+    const struct ubiq_platform_credentials * const creds,
     const struct ubiq_platform_configuration * const cfg,
     struct ubiq_platform_structured_enc_dec_obj ** const enc)
 {
@@ -1186,10 +1189,18 @@ ubiq_platform_structured_encryption(
     size_t len;
     int res;
     res = -ENOMEM;
+
+    const char * const host = ubiq_platform_credentials_get_host(creds);
+    // const char * const papi = ubiq_platform_credentials_get_papi(creds);
+    // const char * const sapi = ubiq_platform_credentials_get_sapi(creds);
+    // const char * const srsa = ubiq_platform_credentials_get_srsa(creds);
+
     e = calloc(1, sizeof(*e));
     if (e) {
       // Just a way to determine if it has been created correctly later
       // e->process_billing_thread = pthread_self();
+
+
 
       len = ubiq_platform_snprintf_api_url(NULL, 0, host, api_path);
       if (((int)len) <= 0) { // error of some sort
@@ -1197,30 +1208,54 @@ ubiq_platform_structured_encryption(
       } else {
         len++; // null terminator
         e->restapi = calloc(len, 1);
-        ubiq_platform_snprintf_api_url(e->restapi, len, host, api_path);
-        res = ubiq_platform_rest_handle_create(papi, sapi, &e->rest);
-      }
-      if (!res) {
-        res = ubiq_platform_rest_uri_escape(e->rest, papi, &e->encoded_papi);
-      }
+        res = 0;
+        if (!res) {
+          res = ubiq_platform_credentials_clone(creds, &(e->creds));
+        }
+        if (!res) {
+          res = ubiq_platform_configuration_clone(cfg, &(e->cfg));
+        }
+
+        }
+
+        if (!res && ubiq_platform_credentials_is_idp(e->creds)) {
+          // Don't login again if the access token is already set.
+          if (ubiq_platform_credentials_get_access_token(e->creds) == NULL) {
+            if ((res = ubiq_platform_sso_login(e->creds, e->cfg)) != 0) {
+              
+            }
+          }
+        }
+
+        if (!res) {
+          ubiq_platform_snprintf_api_url(e->restapi, len, host, api_path);
+          res = ubiq_platform_rest_handle_create(
+            ubiq_platform_credentials_get_papi(e->creds),
+            ubiq_platform_credentials_get_sapi(e->creds), &e->rest);
+        }
+
+        if (!res) {
+          res = ubiq_platform_rest_uri_escape(e->rest, ubiq_platform_credentials_get_papi(e->creds), &e->encoded_papi);
+        }
+
+
+      // if (!res) {
+      //   e->srsa = strdup(srsa);
+      //   if (e->srsa == NULL) {
+      //     res = -ENOMEM;
+      //   }
+      // }
+      // if (!res) {
+      //   e->papi = strdup(papi);
+      //   if (e->papi == NULL) {
+      //     res = -ENOMEM;
+      //   }
+      // }
 
       if (!res) {
-        e->srsa = strdup(srsa);
-        if (e->srsa == NULL) {
-          res = -ENOMEM;
-        }
-      }
-      if (!res) {
-        e->papi = strdup(papi);
-        if (e->papi == NULL) {
-          res = -ENOMEM;
-        }
-      }
-
-      if (!res) {
-          e->key_cache_ttl_seconds = ubiq_platform_configuration_get_key_caching_ttl_seconds(cfg);
-          e->key_cache_structured = ubiq_platform_configuration_get_key_caching_structured_keys(cfg);
-          e->key_cache_encrypt = ubiq_platform_configuration_get_key_caching_encrypt(cfg);
+          e->key_cache_ttl_seconds = ubiq_platform_configuration_get_key_caching_ttl_seconds(e->cfg);
+          e->key_cache_structured = ubiq_platform_configuration_get_key_caching_structured_keys(e->cfg);
+          e->key_cache_encrypt = ubiq_platform_configuration_get_key_caching_encrypt(e->cfg);
       }
 
       if (!res) {
@@ -1254,7 +1289,9 @@ ubiq_platform_structured_encryption(
         res = ubiq_platform_cache_create(500, ttl, &e->stuctured_key_cache);
       }
       if (!res) {
-        res = ubiq_billing_ctx_create(&e->billing_ctx, host, papi, sapi, cfg);
+        res = ubiq_billing_ctx_create(&e->billing_ctx, host, 
+              ubiq_platform_credentials_get_papi(e->creds),
+              ubiq_platform_credentials_get_sapi(e->creds), e->cfg);
       }
     }
 
@@ -1341,7 +1378,14 @@ get_structured_key(
       }
     }
     free(encoded_name);
-
+    
+    if (!res && ubiq_platform_credentials_is_idp(e->creds)) {
+      ubiq_platform_sso_renewIdpCert(e->creds, e->cfg);
+      size_t len = strlen(url);
+      url = realloc(url, len + 1 + strlen("&payload_cert=") + strlen(ubiq_platform_credentials_get_cert_b64(e->creds)));
+      strcat(url, "&payload_cert=");
+      strcat(url, ubiq_platform_credentials_get_cert_b64(e->creds));
+    }
     if (!res) {
       UBIQ_DEBUG(debug_flag, printf("%s url %s\n", csu, url));
       res = ubiq_platform_rest_request(
@@ -1364,8 +1408,14 @@ get_structured_key(
       } else {
         const void * rsp = ubiq_platform_rest_response_content(e->rest, &len);
         res = (rsp_json = cJSON_ParseWithLength(rsp, len)) ? 0 : INT_MIN;
-      UBIQ_DEBUG(debug_flag, printf("%s ubiq_platform_rest_response_content rsp(%.*s)\n", csu, len, rsp));
-  
+        UBIQ_DEBUG(debug_flag, printf("%s ubiq_platform_rest_response_content rsp(%.*s)\n", csu, len, rsp));
+        if (rsp_json) {
+          if (ubiq_platform_credentials_is_idp(e->creds)) {
+            // Make sure there isn't an existing encrypted private key.  Need to use this one.
+            cJSON_DeleteItemFromObject(rsp_json, "encrypted_private_key");
+            cJSON_AddStringToObject(rsp_json, "encrypted_private_key", ubiq_platform_credentials_get_encrypted_private_key(e->creds));
+          }
+        }
       }
     }
 
@@ -1398,7 +1448,7 @@ get_structured_key(
     if (!res && !e->key_cache_encrypt) {
       res = ubiq_platform_common_decrypt_wrapped_key(
           e->encrypted_private_key.buf,
-          e->srsa,
+          ubiq_platform_credentials_get_srsa(e->creds),
           tmp_key->wrapped_data_key.buf,
           &tmp_key->decrypted_data_key.buf,
           &tmp_key->decrypted_data_key.len);
@@ -1437,7 +1487,7 @@ get_structured_key(
         UBIQ_DEBUG(debug_flag, printf("%s wrapped data key being decrypted\n", csu));
         ubiq_platform_common_decrypt_wrapped_key(
           e->encrypted_private_key.buf,
-          e->srsa,
+          ubiq_platform_credentials_get_srsa(e->creds),
           tmp_key->wrapped_data_key.buf,
           &key->buf,
           &key->len);  
@@ -2041,6 +2091,14 @@ int
   url = malloc(len + 1);
   snprintf(url, len + 1, fmt, e->restapi, encoded_name, e->encoded_papi);
 
+  if (!res && ubiq_platform_credentials_is_idp(e->creds)) {
+    ubiq_platform_sso_renewIdpCert(e->creds, e->cfg);
+    size_t len = strlen(url);
+    url = realloc(url, len + 1 + strlen("&payload_cert=") + strlen(ubiq_platform_credentials_get_cert_b64(e->creds)));
+    strcat(url, "&payload_cert=");
+    strcat(url, ubiq_platform_credentials_get_cert_b64(e->creds));
+  }
+
   UBIQ_DEBUG(debug_flag, printf("%s url(%s)\n",csu, url));
 
   free(encoded_name);
@@ -2079,6 +2137,12 @@ int
           if (!cJSON_IsObject(top_lvl)) {
             printf("cJSON_GetObjectItemCaseSensitive(ffs_name\n");
             return -EINVAL;
+          }
+
+          if (ubiq_platform_credentials_is_idp(e->creds)) {
+            // Make sure there isn't an existing encrypted private key.  Need to use this one.
+            cJSON_DeleteItemFromObject(top_lvl, "encrypted_private_key");
+            cJSON_AddStringToObject(top_lvl, "encrypted_private_key", ubiq_platform_credentials_get_encrypted_private_key(e->creds));
           }
 
           cJSON * ffs_json = cJSON_GetObjectItemCaseSensitive(top_lvl, "ffs");
@@ -2137,7 +2201,7 @@ int
 
                 cJSON * key = cJSON_GetArrayItem(keys, i);
                 res = ubiq_platform_common_decrypt_wrapped_key(
-                  prvpem, e->srsa,
+                  prvpem, ubiq_platform_credentials_get_srsa(e->creds),
                   key->valuestring,
                   &k->buf, &k->len);
 
@@ -2229,7 +2293,7 @@ ubiq_platform_structured_encrypt_data_prealloc(
 
     res = ubiq_billing_add_billing_event(
       enc->billing_ctx,
-      enc->papi,
+      ubiq_platform_credentials_get_papi(enc->creds),
       ffs_name, dataset_groups_name,
       ENCRYPTION,
       1, key_number );
@@ -2328,7 +2392,7 @@ ubiq_platform_structured_decrypt_data_prealloc(
 
     res = ubiq_billing_add_billing_event(
       enc->billing_ctx,
-      enc->papi,
+      ubiq_platform_credentials_get_papi(enc->creds),
       ffs_name, dataset_groups_name,
       DECRYPTION,
       1, key_number );
@@ -2398,18 +2462,13 @@ ubiq_platform_structured_enc_dec_create_with_config(
     struct ubiq_platform_structured_enc_dec_obj * e;
     int res;
 
-    const char * const host = ubiq_platform_credentials_get_host(creds);
-    const char * const papi = ubiq_platform_credentials_get_papi(creds);
-    const char * const sapi = ubiq_platform_credentials_get_sapi(creds);
-    const char * const srsa = ubiq_platform_credentials_get_srsa(creds);
-
     // If library hasn't been initialized, fail fast.
     if (!ubiq_platform_initialized()) {
       return -EINVAL;
     }
 
     // This function will actually create and initialize the object
-    res = ubiq_platform_structured_encryption(host, papi, sapi, srsa, cfg, &e);
+    res = ubiq_platform_structured_encryption(creds, cfg, &e);
 
     if (res == 0) {
         *enc = e;
@@ -2436,12 +2495,15 @@ ubiq_platform_structured_enc_dec_destroy(
     ubiq_billing_ctx_destroy(e->billing_ctx);
     ubiq_platform_rest_handle_destroy(e->rest);
     free(e->restapi);
-    free(e->papi);
+    // free(e->papi);
     free(e->encoded_papi);
-    free(e->srsa);
+    // free(e->srsa);
     ubiq_platform_cache_destroy(e->ffs_cache);
     ubiq_platform_cache_destroy(e->ff1_ctx_cache);
     ubiq_platform_cache_destroy(e->stuctured_key_cache);
+    ubiq_platform_credentials_destroy(e->creds);
+    ubiq_platform_configuration_destroy(e->cfg);
+
     free(e->encrypted_private_key.buf);
     free(e->error.err_msg);
   }
@@ -2530,7 +2592,7 @@ ubiq_platform_structured_encrypt_data_for_search_prealloc(
     if (!res) {
       res = ubiq_billing_add_billing_event(
         enc->billing_ctx,
-        enc->papi,
+        ubiq_platform_credentials_get_papi(enc->creds),
         ffs_name, dataset_groups_name,
         ENCRYPTION,
         1, i );

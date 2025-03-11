@@ -3,7 +3,6 @@
 #include <ubiq/platform/compat/cdefs.h>
 #include <stddef.h>
 
-#include <ubiq/platform.h>
 #include <ubiq/platform/credentials.h>
 #include <ubiq/platform/configuration.h>
 
@@ -189,6 +188,10 @@ __END_DECLS
 
 namespace ubiq {
     namespace platform {
+
+      class builder;
+
+
         UBIQ_PLATFORM_API
         std::vector<std::uint8_t>
         decrypt(const credentials & creds,
@@ -268,7 +271,12 @@ namespace ubiq {
             add_user_defined_metadata(const std::string & jsonString);
 
         private:
+            UBIQ_PLATFORM_API
+            decryption(::ubiq_platform_decryption * d);
+
             std::shared_ptr<::ubiq_platform_decryption> _dec;
+
+            friend class builder;
         };
 
 
@@ -307,6 +315,9 @@ namespace ubiq {
             decryption(const credentials & creds);
 
             UBIQ_PLATFORM_API
+            decryption(const credentials & creds, const configuration & cfg);
+
+            UBIQ_PLATFORM_API
             virtual
             std::string
             decrypt(
@@ -334,7 +345,12 @@ namespace ubiq {
             add_user_defined_metadata(const std::string & jsonString);
 
           private:
+            UBIQ_PLATFORM_API
+            decryption(ubiq_platform_structured_enc_dec_obj * d);
+
             std::shared_ptr<::ubiq_platform_structured_enc_dec_obj> _dec;
+
+            friend class ubiq::platform::builder;
 
           }; // class decryption
 

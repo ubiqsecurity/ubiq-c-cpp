@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.2.2.0 - 2025-01-22
+* Added support for IDP integration using Okta and Entra
+* Added builder design pattern for creating both
+  encryption and decryption objects for either structured or unstructured data elements
+
 ## 2.2.1.0 - 2024-10-02
 * Key caching improvement for unstructured decryption
 * Key caching options got structured encryption / decryption

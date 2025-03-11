@@ -5,8 +5,14 @@
 
 using namespace ubiq::platform::structured;
 
+encryption::encryption(::ubiq_platform_structured_enc_dec_obj * e)
+{
+   _enc.reset(e, &ubiq_platform_structured_enc_dec_destroy);
+}
+
+
 encryption::encryption(const credentials & creds,
-  configuration & cfg
+  const configuration & cfg
 ) {
     struct ubiq_platform_structured_enc_dec_obj * enc(nullptr);
     int res;

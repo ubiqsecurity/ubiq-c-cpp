@@ -2,11 +2,23 @@
 #include "ubiq/platform/internal/credentials.h"
 #include "ubiq/platform.h"
 
+#include <openssl/pem.h>
+
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
 
 #include "inih/ini.h"
+
+
+// #define UBIQ_DEBUG_ON
+#ifdef UBIQ_DEBUG_ON
+#define UBIQ_DEBUG(x,y) {x && y;}
+#else
+#define UBIQ_DEBUG(x,y)
+#endif
+
+static int debug_flag = 0;
 
 #define GETENV(VAR, NAME)                       \
     do {                                        \
@@ -18,8 +30,20 @@
 
 struct ubiq_platform_credentials
 {
-    char * papi, * sapi, *srsa, * host;
+    char * papi, * sapi, *srsa, * host; // User
+    char * idp_username, * idp_password; // User
+    char * access_token;
+    char * cert_pem;
+    char * cert_b64;
+    char * encrypted_private_pem;
+    char * csr_pem;
+    size_t token_duration_seconds;
+    time_t cert_expiration;
 };
+
+static int ubiq_platform_credentials_create_struct(
+  struct ubiq_platform_credentials ** const creds);
+
 
 static
 void
@@ -27,6 +51,9 @@ ubiq_platform_credentials_init(
     struct ubiq_platform_credentials * const c)
 {
     c->host = c->srsa = c->sapi = c->papi = NULL;
+    c->idp_username = c->idp_password = NULL;
+    c->access_token = NULL;
+    c->cert_pem = c->cert_b64 = c->encrypted_private_pem = c->csr_pem = NULL;
 }
 
 static
@@ -38,14 +65,53 @@ ubiq_platform_credentials_clear(
     free(c->srsa);
     free(c->sapi);
     free(c->papi);
+    free(c->idp_username);
+    free(c->idp_password);
+    free(c->access_token);
+    free(c->cert_pem);
+    free(c->cert_b64);
+    free(c->encrypted_private_pem);
+    free(c->csr_pem);
     ubiq_platform_credentials_init(c);
 }
 
+// Deep copy
+int ubiq_platform_credentials_clone(
+  const struct ubiq_platform_credentials * const src,
+  struct ubiq_platform_credentials ** const creds)
+{
+  static const char * csu = "ubiq_platform_credentials_clone";
+
+  UBIQ_DEBUG(debug_flag, printf("%s: %s' \n", csu, "started"));
+
+  int res = 0;
+
+  res = ubiq_platform_credentials_create_struct(creds);
+  if (!res) {
+    if (src->papi) (*creds)->papi = strdup(src->papi);
+    if (src->sapi) (*creds)->sapi = strdup(src->sapi);
+    if (src->srsa) (*creds)->srsa = strdup(src->srsa);
+    if (src->host) (*creds)->host = strdup(src->host);
+    if (src->idp_username) (*creds)->idp_username = strdup(src->idp_username);
+    if (src->idp_password) (*creds)->idp_password = strdup(src->idp_password);
+    if (src->access_token) (*creds)->access_token = strdup(src->access_token);
+    if (src->cert_pem) (*creds)->cert_pem = strdup(src->cert_pem);
+    if (src->cert_b64) (*creds)->cert_b64 = strdup(src->cert_b64);
+    if (src->encrypted_private_pem) (*creds)->encrypted_private_pem = strdup(src->encrypted_private_pem);
+    if (src->csr_pem) (*creds)->csr_pem = strdup(src->csr_pem);
+    if (src->token_duration_seconds) (*creds)->token_duration_seconds = src->token_duration_seconds;
+    (*creds)->cert_expiration = src->cert_expiration;
+  }
+  UBIQ_DEBUG(debug_flag, printf("%s: %d' \n", csu, res));
+
+  return res;
+}
 
 const char *
 ubiq_platform_credentials_get_host(
     const struct ubiq_platform_credentials * const creds)
 {
+    UBIQ_DEBUG(debug_flag, printf("ubiq_platform_credentials_get_host: %s\n", creds->host));
     return creds->host;
 }
 
@@ -70,6 +136,136 @@ ubiq_platform_credentials_get_srsa(
     return creds->srsa;
 }
 
+const char *
+ubiq_platform_credentials_get_idp_username(
+    const struct ubiq_platform_credentials * const creds)
+{
+    return creds->idp_username;
+}
+
+const char *
+ubiq_platform_credentials_get_idp_password(
+    const struct ubiq_platform_credentials * const creds)
+{
+    return creds->idp_password;
+}
+
+const char *
+ubiq_platform_credentials_get_access_token(
+      const struct ubiq_platform_credentials * const creds)
+{
+  return creds->access_token;
+}
+
+size_t
+ubiq_platform_credentials_get_access_token_duration_seconds(
+      const struct ubiq_platform_credentials * const creds)
+{
+  return creds->token_duration_seconds;
+}
+
+const char *
+ubiq_platform_credentials_get_csr(
+      const struct ubiq_platform_credentials * const creds)
+{
+  return creds->csr_pem;
+}
+
+const char *
+ubiq_platform_credentials_get_cert_b64(
+      const struct ubiq_platform_credentials * const creds)
+{
+  return creds->cert_b64;
+}
+
+const char *
+ubiq_platform_credentials_get_encrypted_private_key(
+      const struct ubiq_platform_credentials * const creds)
+{
+  UBIQ_DEBUG(debug_flag, printf("in ubiq_platform_credentials_get_encrypted_private_key\n"));
+  UBIQ_DEBUG(debug_flag, printf("in encrypted_private_pem %s\n", creds->encrypted_private_pem));
+  return creds->encrypted_private_pem;
+}
+
+const time_t
+ubiq_platform_credentials_get_cert_expiration(
+      const struct ubiq_platform_credentials * const creds)
+{
+  return creds->cert_expiration;
+}
+void
+ubiq_platform_credentials_set_host(
+    struct ubiq_platform_credentials * const creds,
+    const char * host)
+{
+    static const struct {
+        const char * http;
+        const char * https;
+    } scheme = {
+        .http = "http://",
+        .https = "https://",
+    };
+
+    free(creds->host);
+
+    // Does it begin with http or https ?
+    if (strncmp(host, scheme.http, strlen(scheme.http)) == 0 ||
+        strncmp(host, scheme.https, strlen(scheme.https)) == 0) {
+        creds->host = strdup(host);
+      // 
+    } else { // Else, add the https prefix
+        size_t len = strlen(scheme.https) + strlen(host) + 1;
+        creds->host = calloc(len, sizeof(char));
+        snprintf(creds->host, len, "%s%s", scheme.https, host);
+    } 
+}
+
+void
+ubiq_platform_credentials_set_papi(
+     struct ubiq_platform_credentials * const creds,
+     const char * papi)
+{
+    free(creds->papi);
+    creds->papi = strdup(papi);
+}
+
+void
+ubiq_platform_credentials_set_sapi(
+     struct ubiq_platform_credentials * const creds,
+     const char * sapi)
+{
+    free(creds->sapi);
+    creds->sapi = strdup(sapi);
+}
+
+void
+ubiq_platform_credentials_set_srsa(
+     struct ubiq_platform_credentials * const creds,
+     const char * srsa)
+{
+    free(creds->srsa);
+    creds->srsa = strdup(srsa);
+}
+
+void
+ubiq_platform_credentials_set_idp_username(
+     struct ubiq_platform_credentials * const creds,
+     const char * idp_username)
+{
+    free(creds->idp_username);
+    creds->idp_username = strdup(idp_username);
+}
+
+void
+ubiq_platform_credentials_set_idp_password(
+    struct ubiq_platform_credentials * const creds,
+    const char * idp_password)
+{
+    free(creds->idp_password);
+    creds->idp_password = strdup(idp_password);
+}
+
+
 void
 ubiq_platform_credentials_destroy(
     struct ubiq_platform_credentials * const creds)
@@ -83,10 +279,17 @@ void
 ubiq_platform_credentials_from_env(
     struct ubiq_platform_credentials * const c)
 {
+    static const char * csu = "ubiq_platform_credentials_from_env";
+
     GETENV(c->papi, "UBIQ_ACCESS_KEY_ID");
     GETENV(c->sapi, "UBIQ_SECRET_SIGNING_KEY");
     GETENV(c->srsa, "UBIQ_SECRET_CRYPTO_ACCESS_KEY");
     GETENV(c->host, "UBIQ_SERVER");
+    GETENV(c->idp_username, "UBIQ_IDP_USERNAME");
+    GETENV(c->idp_password, "UBIQ_IDP_PASSWORD");
+    UBIQ_DEBUG(debug_flag, printf("%s: %s %s\n", csu, "UBIQ_IDP_USERNAME", c->idp_username));
+    UBIQ_DEBUG(debug_flag, printf("%s: %s %s\n", csu, "UBIQ_IDP_PASSWORD", c->idp_password));
+    UBIQ_DEBUG(debug_flag, printf("%s: %s %s\n", csu, "UBIQ_SERVER", c->host));
 }
 
 struct ubiq_platform_credentials_list
@@ -186,6 +389,12 @@ ubiq_platform_credentials_param_handler(
             } else if (strcmp(name, "SERVER") == 0) {
                 free(e->creds.host);
                 e->creds.host = strdup(value);
+            } else if (strcmp(name, "IDP_USERNAME") == 0) {
+                free(e->creds.idp_username);
+                e->creds.idp_username = strdup(value);
+            } else if (strcmp(name, "IDP_PASSWORD") == 0) {
+                free(e->creds.idp_password);
+                e->creds.idp_password = strdup(value);
             }
         }
     }
@@ -247,7 +456,15 @@ ubiq_platform_credentials_from_list(
                 c->host = strdup(
                     fnd->creds.host ? fnd->creds.host : def->creds.host);
             }
-        }
+        } else if ((fnd->creds.idp_password || (def && def->creds.idp_password)) &&
+            (fnd->creds.idp_username || (def && def->creds.idp_username))) {
+              c->idp_password = strdup(fnd->creds.idp_password ? fnd->creds.idp_password : def->creds.idp_password);
+              c->idp_username = strdup(fnd->creds.idp_username ? fnd->creds.idp_username : def->creds.idp_username);
+            if (fnd->creds.host || (def && def->creds.host)) {
+                c->host = strdup(
+                    fnd->creds.host ? fnd->creds.host : def->creds.host);
+            }
+          }
     }
 }
 
@@ -328,6 +545,30 @@ ubiq_platform_credentials_merge(
         into->host = from->host;
         from->host = NULL;
     }
+    if (!into->idp_username) {
+        into->idp_username = from->idp_username;
+        from->idp_username = NULL;
+    }
+    if (!into->idp_password) {
+        into->idp_password = from->idp_password;
+        from->idp_password = NULL;
+    }
+}
+
+static int ubiq_platform_credentials_create_struct(
+  struct ubiq_platform_credentials ** const creds)
+{
+  int res;
+
+  res = -ENOMEM;
+  struct ubiq_platform_credentials * c;
+
+  c = calloc(1, sizeof(*c));
+  if (c) {
+    *creds = c;
+    res = 0;
+  }
+  return res;
 }
 
 /*
@@ -358,6 +599,14 @@ ubiq_platform_credentials_create(
     if (into.papi && into.sapi && into.srsa) {
         res = ubiq_platform_credentials_create_explicit(
             into.papi, into.sapi, into.srsa, into.host, creds);
+    } else if (into.idp_password && into.idp_username) {
+      if ((res = ubiq_platform_credentials_create_struct(creds)) == 0) {
+        if ((res = ubiq_platform_credentials_set_idp(*creds,
+          into.idp_username, into.idp_password, into.host)) != 0) {
+            ubiq_platform_credentials_destroy(*creds);
+            *creds = NULL;
+          }
+      }
     }
 
     ubiq_platform_credentials_clear(&from);
@@ -395,7 +644,13 @@ ubiq_platform_credentials_create_specific(
     if (c.papi && c.sapi && c.srsa) {
         res = ubiq_platform_credentials_create_explicit(
             c.papi, c.sapi, c.srsa, c.host, creds);
+    } else if (c.idp_password && c.idp_password) {
+        if ((res = ubiq_platform_credentials_create_struct(creds)) == 0) {
+           res = ubiq_platform_credentials_set_idp(*creds,
+                    c.idp_username, c.idp_password, c.host);
+        }
     }
+
 
     ubiq_platform_credentials_clear(&c);
     ubiq_platform_credentials_list_clear(&l);
@@ -414,32 +669,183 @@ ubiq_platform_credentials_create_explicit(
     const char * const host,
     struct ubiq_platform_credentials ** const creds)
 {
-    int res;
+  static const char * csu = "ubiq_platform_credentials_create_explicit";
+  int res;
 
-    res = -EINVAL;
-    if (papi && sapi && srsa) {
-        struct ubiq_platform_credentials * c;
+  res = -EINVAL;
+  if (papi && sapi && srsa) {
+      struct ubiq_platform_credentials * c;
 
-        res = -ENOMEM;
-        c = calloc(1, sizeof(*c));
-        if (c) {
-            c->papi = strdup(papi);
-            c->sapi = strdup(sapi);
-            c->srsa = strdup(srsa);
-            c->host = strdup(host ? host : "api.ubiqsecurity.com");
+      res = -ENOMEM;
+      c = calloc(1, sizeof(*c));
+      if (c) {
+        ubiq_platform_credentials_set_papi(c, papi);
+        ubiq_platform_credentials_set_sapi(c, sapi);
+        ubiq_platform_credentials_set_srsa(c, srsa);
+        ubiq_platform_credentials_set_host(c, host ? host : "api.ubiqsecurity.com");
 
-            if (c->papi && c->sapi && c->srsa && c->host) {
-                *creds = c;
-                res = 0;
-            } else {
-                free(c->host);
-                free(c->srsa);
-                free(c->sapi);
-                free(c->papi);
-                free(c);
-            }
+        UBIQ_DEBUG(debug_flag, printf("%s: %s '%s' \n", csu, "papi", c->papi));
+        UBIQ_DEBUG(debug_flag, printf("%s: %s '%s' \n", csu, "sapi", c->sapi));
+        UBIQ_DEBUG(debug_flag, printf("%s: %s '%s' \n", csu, "srsa", c->srsa));
+        UBIQ_DEBUG(debug_flag, printf("%s: %s '%s' \n", csu, "host", c->host));
+
+
+          if (c->papi && c->sapi && c->srsa && c->host) {
+              *creds = c;
+              res = 0;
+          } else {
+              free(c->host);
+              free(c->srsa);
+              free(c->sapi);
+              free(c->papi);
+              free(c);
+          }
+      }
+  }
+  UBIQ_DEBUG(debug_flag, printf("%s: %d\n", csu, res));
+
+  return res;
+}
+
+int
+ubiq_platform_credentials_set_idp(
+struct ubiq_platform_credentials * const creds,
+    const char * const username, 
+    const char * const password,
+    const char * const host)
+{
+  static const char * csu = "ubiq_platform_credentials_set_idp";
+
+  int res;
+
+  res = -EINVAL;
+  if (username && password && creds) {
+        ubiq_platform_credentials_set_idp_username(creds, username);
+        ubiq_platform_credentials_set_idp_password(creds, password);
+        ubiq_platform_credentials_set_host(creds, host ? host : "api.ubiqsecurity.com");
+
+        UBIQ_DEBUG(debug_flag, printf("%s: %s '%s' \n", csu, "username", creds->idp_username));
+        UBIQ_DEBUG(debug_flag, printf("%s: %s '%s' \n", csu, "password", creds->idp_password));
+        UBIQ_DEBUG(debug_flag, printf("%s: %s '%s' \n", csu, "host", creds->host));
+
+        if (creds->idp_username && creds->idp_password && creds->host) {
+            res = 0;
+        } else {
+            free(creds->idp_username);
+            free(creds->idp_password);
+            free(creds->host);
         }
-    }
+  }
+  UBIQ_DEBUG(debug_flag, printf("%s: res(%d)\n", csu, res));
 
-    return res;
+  return res;
+
+}
+
+int ubiq_platform_credentials_is_idp(
+  const struct ubiq_platform_credentials * const creds
+)
+{
+  static const char * csu = "ubiq_platform_credentials_is_idp";
+  int res = 0;
+  UBIQ_DEBUG(debug_flag, printf("%s: NULL ? %d\n", csu, (creds->idp_username == NULL)));
+  UBIQ_DEBUG(debug_flag, printf("%s: idp_username ? %s\n", csu, creds->idp_username));
+  if (creds->idp_username && *(creds->idp_username) != '\0') {
+    res = 1;
+  }
+  UBIQ_DEBUG(debug_flag, printf("%s: %d\n", csu, res));
+  return res;
+}
+
+int ubiq_platform_credentials_set_access_token(
+    struct ubiq_platform_credentials * const creds,
+    const char * access_token,
+    const size_t duration_seconds)
+{
+  static const char * csu = "ubiq_platform_credentials_set_access_token";
+  int res = -ENOMEM;
+
+  free(creds->access_token);
+  creds->access_token = strdup(access_token);
+  creds->token_duration_seconds = duration_seconds;
+  
+  if (creds->access_token) {
+    res = 0;
+  }
+
+  UBIQ_DEBUG(debug_flag, printf("%s: %d\n", csu, res));
+  return res;
+}
+
+int ubiq_platform_credentials_set_rsa_keys(
+    struct ubiq_platform_credentials * const creds,
+    const char * srsa_b64,
+    const char * encrypted_private_pem,
+    const char * csr_pem)
+ {
+  static const char * csu = "ubiq_platform_credentials_set_rsa_keys";
+  int res = -ENOMEM;
+  
+  free(creds->encrypted_private_pem);
+  free(creds->csr_pem);
+  free(creds->srsa);
+
+  creds->encrypted_private_pem = strdup(encrypted_private_pem);
+  creds->csr_pem = strdup(csr_pem);
+  creds->srsa = strdup(srsa_b64);
+
+  if (creds->encrypted_private_pem && creds->csr_pem && creds->srsa) {
+    res = 0;
+  }
+
+  UBIQ_DEBUG(debug_flag, printf("%s: %d\n", csu, res));
+  return res;
+}
+
+int ubiq_platform_credentials_set_rsa_cert(
+    struct ubiq_platform_credentials * const creds,
+    const char * cert_pem)
+ {
+  static const char * csu = "ubiq_platform_credentials_set_rsa_keys";
+  int res = -ENOMEM;
+  time_t expires_at = 0;
+
+  free(creds->cert_pem);
+  creds->cert_pem = strdup(cert_pem);
+  free(creds->cert_b64);
+  
+  ubiq_support_base64_encode(&(creds->cert_b64), cert_pem, strlen(cert_pem));
+
+  {
+      BIO *cert_bio = BIO_new_mem_buf((void *)cert_pem, -1); // -1 means read all
+
+      if (!cert_bio) {
+          res = -EINVAL;
+      } else {
+        res = 0;
+      }
+      if (!res) {
+        X509 *cert = PEM_read_bio_X509(cert_bio, NULL, NULL, NULL);
+        BIO_free(cert_bio);
+        if (!cert) {
+          res = -EINVAL;
+        }
+        if (!res) {
+
+          ASN1_TIME *not_after = X509_get_notAfter(cert);
+          struct tm tm;
+        
+          ASN1_TIME_to_tm(not_after, &tm);
+          creds->cert_expiration = mktime(&tm) - 60; // Subtract 60 seconds to avoid edge cases
+          // Need to free AFTER not_after is no longer needed
+          X509_free(cert);
+        }
+      }
+  }
+  if (creds->cert_pem && creds->cert_b64 && creds->cert_expiration) {
+    res = 0;
+  }
+
+  UBIQ_DEBUG(debug_flag, printf("%s: %d\n", csu, res));
+  return res;
 }

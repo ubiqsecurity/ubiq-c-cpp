@@ -45,10 +45,11 @@ static
 void
 ubiq_sample_piecewise_encrypt(
     const ubiq::platform::credentials & creds,
+    const ubiq::platform::configuration & cfg,
     std::ifstream & ifs, std::ofstream & ofs)
 {
     ubiq::platform::encryption enc(
-        creds, 1 /* want to use the key once */);
+        creds, cfg, 1 /* want to use the key once */);
     std::vector<std::uint8_t> obuf;
 
     /*
@@ -84,9 +85,10 @@ static
 void
 ubiq_sample_piecewise_decrypt(
     const ubiq::platform::credentials & creds,
+    const ubiq::platform::configuration & cfg,
     std::ifstream & ifs, std::ofstream & ofs)
 {
-    ubiq::platform::decryption dec(creds);
+    ubiq::platform::decryption dec(creds, cfg);
     std::vector<std::uint8_t> obuf;
 
     /*
@@ -122,9 +124,11 @@ int main(const int argc, char * const argv[])
 {
     ubiq_sample_mode_t mode;
     ubiq_sample_method_t method;
-    const char * infile, * outfile, * credfile, * profile;
+    const char * infile, * outfile, * credfile, * profile, * cfgfile = NULL;
 
     ubiq::platform::credentials creds;
+    ubiq::platform::configuration cfg;
+
     std::ifstream ifs;
     std::ofstream ofs;
     std::size_t size;
@@ -147,7 +151,7 @@ int main(const int argc, char * const argv[])
     ubiq_sample_getopt(argc, argv,
                       &mode, &method,
                       &infile, &outfile,
-                      &credfile, &profile);
+                      &credfile, &profile, &cfgfile);
 
     /*
      * When `creds` was declared above, it loaded the default
@@ -168,6 +172,10 @@ int main(const int argc, char * const argv[])
     if (!creds) {
         std::cerr << "unable to load credentials" << std::endl;
         std::exit(EXIT_FAILURE);
+    }
+
+    if (cfgfile) {
+      cfg = ubiq::platform::configuration(cfgfile);
     }
 
     /* Open the input file */
@@ -213,9 +221,9 @@ int main(const int argc, char * const argv[])
         }
     } else {
         if (mode == UBIQ_SAMPLE_MODE_ENCRYPT) {
-            ubiq_sample_piecewise_encrypt(creds, ifs, ofs);
+            ubiq_sample_piecewise_encrypt(creds, cfg, ifs, ofs);
         } else /* decrypt */{
-            ubiq_sample_piecewise_decrypt(creds, ifs, ofs);
+            ubiq_sample_piecewise_decrypt(creds, cfg, ifs, ofs);
         }
     }
 
