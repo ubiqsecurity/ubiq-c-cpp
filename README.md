@@ -1122,7 +1122,7 @@ encryption and decryption objects
 ### Custom Metadata for Usage Reporting
 There are cases where a developer would like to attach metadata to usage information reported by the application.  Both the structured and unstructured interfaces allow user_defined metadata to be sent with the usage information reported by the libraries.
 
-The *<b>_add_user_defined_metadata</b> function accepts a string in JSON format that will be stored in the database with the usage records.  The string must be less than 1024 characters and be a valid JSON format.  The string must include both the <b>{</b> and <b>}</b> symbols.  The supplied value will be used until the object goes out of scope.  Due to asynchronous processing, changing the value may be immediately reflected in subsequent usage.  If immediate changes to the values are required, it would be safer to create a new encrypt / decrypt object and call the appropriate *<b>_add_user_defined_metadata</b> function with the new values.
+The *<b>_add_user_defined_metadata</b> function accepts a string in JSON format that will be stored in the database with the usage records.  The string must be less than 1024 characters and be a valid JSON format.  The string must include both the <b>\{</b> and <b>\}</b> symbols.  The supplied value will be used until the object goes out of scope.  Due to asynchronous processing, changing the value may be immediately reflected in subsequent usage.  If immediate changes to the values are required, it would be safer to create a new encrypt / decrypt object and call the appropriate *<b>_add_user_defined_metadata</b> function with the new values.
 
 Examples are shown below.
 ```c
