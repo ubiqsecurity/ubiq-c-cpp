@@ -12,7 +12,8 @@ ubiq_structured_encrypt(
     const struct ubiq_platform_credentials * const creds,
     const struct ubiq_platform_configuration * const cfg,
     const char * const dataset_name,
-    const char * const pt)
+    const char * const pt,
+    const int encryptForSearch)
 {
   struct ubiq_platform_structured_enc_dec_obj *enc = NULL;
   char * ctbuf = NULL;
@@ -22,11 +23,26 @@ ubiq_structured_encrypt(
   res = ubiq_platform_structured_enc_dec_create_with_config(creds, cfg, &enc);
 
   if (!res) {
-    res = ubiq_platform_structured_encrypt_data(enc,
-      dataset_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
-    if (!res) {
-      printf("Structured Encryption Data Results => '%.*s'\n", ctlen, ctbuf);
+    if (encryptForSearch) {
+      char ** ctbuf;
+      size_t count;
+      res = ubiq_platform_structured_encrypt_data_for_search(enc,
+        dataset_name, NULL, 0, pt, strlen(pt), &ctbuf, &count);
+      if (!res) {
+        printf("EncryptForSearch results:\n");
+        for (int i = 0; i < count; i++) {
+            printf("\t%s\n", ctbuf[i]);
+        }
+      }
+      free(ctbuf);
     } else {
+      res = ubiq_platform_structured_encrypt_data(enc,
+        dataset_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
+      if (!res) {
+        printf("Structured Encryption Data Results => '%.*s'\n", ctlen, ctbuf);
+      }
+    }
+    if (res) {
       int err_num;
       char * err_msg = NULL;
       res = ubiq_platform_structured_get_last_error(enc, &err_num, &err_msg);
@@ -77,6 +93,7 @@ int main(const int argc, char * const argv[])
 {
     ubiq_sample_mode_t mode;
     const char * inputstring, * dataset_name, * credfile, * profile, *cfgfile;
+    int encryptForSearch;
 
     struct ubiq_platform_credentials * creds;
     struct ubiq_platform_configuration * cfg;
@@ -102,8 +119,12 @@ int main(const int argc, char * const argv[])
     ubiq_structured_getopt(argc, argv,
                       &mode, 
                       &dataset_name, &inputstring,
-                      &credfile, &profile, &cfgfile);
+                      &credfile, &profile, &cfgfile, &encryptForSearch);
 
+    if (encryptForSearch && mode != UBIQ_SAMPLE_MODE_ENCRYPT) {
+      fprintf(stderr, "EncryptForSearch is only compatible when encrypting data\n");
+      exit(EXIT_FAILURE);
+    }
     /*
      * If neither `credfile` nor `profile are specified, then the
      * credentials found in the environment or specified in
@@ -128,7 +149,7 @@ int main(const int argc, char * const argv[])
     } 
 
     if (mode == UBIQ_SAMPLE_MODE_ENCRYPT) {
-        res = ubiq_structured_encrypt(creds, cfg, dataset_name, inputstring);
+        res = ubiq_structured_encrypt(creds, cfg, dataset_name, inputstring, encryptForSearch);
     } else {
         res = ubiq_structured_decrypt(creds, cfg, dataset_name, inputstring);
     }
