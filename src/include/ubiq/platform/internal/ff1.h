@@ -4,6 +4,8 @@
 #include <sys/cdefs.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <ubiq/platform/internal/bn.h>
+
 
 __BEGIN_DECLS
 
@@ -101,6 +103,10 @@ int ff1_decrypt(struct ff1_ctx * const ctx,
  * @ctx: The pointer returned by the create function
  */
 void ff1_ctx_destroy(struct ff1_ctx * const ctx);
+
+unsigned int calculate_b(const unsigned int radix, const unsigned int v);
+
+unsigned int bitlen(const bigint_t * const radix_pow_v);
 
 __END_DECLS
 
