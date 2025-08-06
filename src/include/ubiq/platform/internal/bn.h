@@ -36,6 +36,12 @@ void bigint_set_ui(bigint_t * const x, const unsigned int n)
     mpz_set_ui(*x, n);
 }
 
+static inline
+void bigint_set(bigint_t * const rop, const bigint_t * const op)
+{
+    mpz_set(*rop, *op);
+}
+
 int __u32_bigint_set_str(bigint_t * const x,
                     const uint32_t * const str, const uint32_t * const alpha);
 
@@ -124,6 +130,13 @@ void bigint_sub(bigint_t * const res,
 }
 
 static inline
+void bigint_sub_ui(bigint_t * const res,
+                const bigint_t * const top, unsigned long int op2)
+{
+    mpz_sub_ui(*res, *top, op2);
+}
+
+static inline
 void bigint_mul_ui(bigint_t * const res,
                    const bigint_t * const m1, const unsigned int m2)
 {
@@ -150,6 +163,31 @@ void bigint_mod(bigint_t * const res,
 {
     mpz_mod(*res, *num, *den);
 }
+
+static inline
+void bigint_tdiv_q_2exp(bigint_t * q, const bigint_t * const n, const mp_bitcnt_t * const b)
+{
+  mpz_tdiv_q_2exp(*q, *n, *b);
+}
+
+static inline
+void bigint_ui_pow_ui(bigint_t * rop, unsigned long int base, unsigned long int exp)
+{
+  mpz_ui_pow_ui(*rop, base, exp);
+}
+
+static inline
+int bigint_sgn(const bigint_t * const op)
+{
+  return mpz_sgn(*op);
+}
+
+static inline
+int bigint_cmp_ui(const bigint_t * const op, unsigned long int op2)
+{
+  return mpz_cmp_ui(*op, op2);
+}
+
 
 int map_characters(
     char * const dst, 

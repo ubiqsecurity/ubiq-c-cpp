@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.2.3.0 - 2025-07-23
+* Updated structured encryption to match algorithms in Second Public Draft - https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-38Gr1.2pd.pdf
+
+
 ## 2.2.2.0 - 2025-01-22
 * Added support for IDP integration using Okta and Entra
 * Added builder design pattern for creating both
