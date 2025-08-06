@@ -301,6 +301,8 @@ ubiq_structured_usage(
     fprintf(stderr, "  -P PROFILE               Identify the profile within the credentials file\n");
     fprintf(stderr, "  -g CONFIGURATION         Set the file name with the configuration\n");
     fprintf(stderr, "                             (default: ~/.ubiq/configuration)\n");
+    fprintf(stderr, "  -s                       Perform EncryptForSearch\n");
+    fprintf(stderr, "                             Only compatible with the -e option\n");
 }
 
 int
@@ -309,7 +311,7 @@ ubiq_structured_getopt(
     ubiq_sample_mode_t * const mode,
     const char ** const ffsname, const char ** const inputstring,
     const char ** const credfile, const char ** const profile,
-    const char ** const cfgfile)
+    const char ** const cfgfile, int * const encryptForSearch)
 {
     int opt;
 
@@ -318,8 +320,9 @@ ubiq_structured_getopt(
 
     *mode = UBIQ_SAMPLE_MODE_UNSPEC;
     *inputstring = *ffsname = *credfile = *profile = NULL;
+    *encryptForSearch = 0;
 
-    while ((opt = getopt(argc, argv, "+:hVe:d:c:P:n:g:")) != -1) {
+    while ((opt = getopt(argc, argv, "+:hVe:d:c:P:n:g:s")) != -1) {
         switch (opt) {
         case 'h':
             ubiq_structured_usage(argv[0], NULL);
@@ -381,6 +384,9 @@ ubiq_structured_getopt(
 
             *cfgfile = optarg;
 
+            break;
+        case 's':
+            *encryptForSearch = 1;
             break;
         case '?':
             fprintf(stderr, "unrecognized option: %s\n\n", argv[optind - 1]);

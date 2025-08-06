@@ -181,6 +181,8 @@ Encrypt or decrypt data using the Ubiq structured encryption service
   -P PROFILE               Identify the profile within the credentials file
   -g CONFIGURATION         Set the file name for loading system configuration parameters
                               (default: ~/.ubiq/configuration)
+  -s                       Perform EncryptForSearch
+                             Only compatible with the -e option
 ```
 
 
@@ -188,11 +190,11 @@ Encrypt or decrypt data using the Ubiq structured encryption service
 #### Demonstrate encrypting a social security number and returning a cipher text
 
 ```console
-$ ./ubiq_sample_structured-c -e '123-45-6789' -n ALPHANUM_SSN -s
+$ ./ubiq_sample_structured-c -e '123-45-6789' -n ALPHANUM_SSN
 ```
 
 #### Demonstrate decrypting a social security number and returning the plain text
 
 ```console
-$ ./ubiq_sample_structured-c -d 'W#]-iV-`,"j' -n ALPHANUM_SSN -s
+$ ./ubiq_sample_structured-c -d 'W#]-iV-`,"j' -n ALPHANUM_SSN
 ```
