@@ -10,15 +10,25 @@ ubiq_structured_encrypt(
   const ubiq::platform::credentials & creds,
   const ubiq::platform::configuration & cfg,
   const char * const dataset_name,
-  const char * const pt)
+  const char * const pt,
+  const int encryptForSearch)
 {
-  std::string ct;
 
   ubiq::platform::structured::encryption enc(creds, cfg);
 
-  ct = enc.encrypt(dataset_name, pt);
+  if (encryptForSearch) {
+    std::vector<std::string> ct;
+    ct = enc.encrypt_for_search(dataset_name, pt);
+    std::cout << "EncryptForSearch results:" << std::endl;
+    for (std::string c : ct) {
+      std::cout << "\t" << c << std::endl;
+    }
+  } else {
+    std::string ct;
+    ct = enc.encrypt(dataset_name, pt);
 
-  std::cout << "Structured Encryption Data Results => '" << ct << "'" << std::endl;
+    std::cout << "Structured Encryption Data Results => '" << ct << "'" << std::endl;
+  }
 
 }
 
@@ -41,6 +51,7 @@ int main(const int argc, char * const argv[])
 {
     ubiq_sample_mode_t mode;
     const char * inputstring, * dataset_name, * credfile, * profile, *cfgfile = NULL;
+    int encryptForSearch;
 
     ubiq::platform::credentials creds;
     ubiq::platform::configuration cfg;
@@ -64,7 +75,7 @@ int main(const int argc, char * const argv[])
       ubiq_structured_getopt(argc, argv,
                         &mode, 
                         &dataset_name, &inputstring,
-                        &credfile, &profile, &cfgfile);
+                        &credfile, &profile, &cfgfile, &encryptForSearch);
 
       /*
        * When `creds` was declared above, it loaded the default
@@ -82,6 +93,11 @@ int main(const int argc, char * const argv[])
              std::string(profile ? profile : ""));
       }
 
+      if (encryptForSearch && mode != UBIQ_SAMPLE_MODE_ENCRYPT) {
+        std::cerr << "EncryptForSearch is only compatible when encrypting data" << std::endl;
+        std::exit(EXIT_FAILURE);
+      }
+
       if (!creds) {
           std::cerr << "unable to load credentials" << std::endl;
           std::exit(EXIT_FAILURE);
@@ -92,7 +108,7 @@ int main(const int argc, char * const argv[])
       }
 
       if (mode == UBIQ_SAMPLE_MODE_ENCRYPT) {
-          ubiq_structured_encrypt(creds, cfg, dataset_name, inputstring);
+          ubiq_structured_encrypt(creds, cfg, dataset_name, inputstring, encryptForSearch);
       } else {
           ubiq_structured_decrypt(creds, cfg, dataset_name, inputstring);
       }
