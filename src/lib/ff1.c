@@ -11,6 +11,55 @@ struct ff1_ctx
     struct ffx_ctx ffx;
 };
 
+// Return the number of bits to store N if N was an unsigned integer.
+// Since it may not be possible to represent n  as a typical integer,
+// use log2 to approximate the number of bits and then verify / adjust due to 
+// possible rounding issues of log2.
+
+unsigned int calculate_b(const unsigned int radix, const unsigned int v) {
+  bigint_t radix_pow_v;
+
+  bigint_init(&radix_pow_v);
+
+  unsigned long int b = 1;
+
+  bigint_ui_pow_ui(&radix_pow_v, radix, v);
+  STRUCTURED_DEBUG(debug_flag, printf("radix_pow_v: "));
+  STRUCTURED_DEBUG(debug_flag, mpz_out_str(stdout, 10, radix_pow_v));
+  bigint_sub_ui(&radix_pow_v, &radix_pow_v, 1);
+  STRUCTURED_DEBUG(debug_flag, printf("\n(radix_pow_v - 1): "));
+  STRUCTURED_DEBUG(debug_flag, mpz_out_str(stdout, 10, radix_pow_v));
+  STRUCTURED_DEBUG(debug_flag, printf("\n"));
+
+  unsigned bits = bitlen(&radix_pow_v);
+
+  bits = (unsigned int)ceil((bits + 7) / 8);
+
+  bigint_deinit(&radix_pow_v);
+  return bits;
+}
+
+unsigned int bitlen(const bigint_t * const radix_pow_v) {
+  bigint_t left_shift;
+
+  bigint_init(&left_shift);
+  bigint_set(&left_shift, radix_pow_v);
+
+  unsigned long int b = 1;
+
+  unsigned bits = 0;
+  while (bigint_cmp_ui(&left_shift, 0) != 0) {
+    bigint_tdiv_q_2exp(&left_shift, &left_shift, &b);
+    STRUCTURED_DEBUG(debug_flag, printf("\n(bigint_tdiv_q_2exp): "));
+    STRUCTURED_DEBUG(debug_flag, mpz_out_str(stdout, 10, left_shift));
+    bits++;
+    STRUCTURED_DEBUG(debug_flag, printf("\n bits(%d)\n", bits));
+  }
+
+  bigint_deinit(&left_shift);
+  return bits;
+}
+
 int ff1_ctx_create(struct ff1_ctx ** const ctx,
                    const uint8_t * const keybuf, const size_t keylen,
                    const uint8_t * const twkbuf, const size_t twklen,
@@ -126,8 +175,15 @@ int ff1_cipher(struct ff1_ctx * const ctx,
     const unsigned int u = n / 2, v = n - u;
 
     /* Step 3, 4 */
-    const unsigned int b =
-        ((unsigned int)ceil(log2(ctx->ffx.radix) * v) + 7) / 8;
+
+    // + 7 is needed because of int vs double handling and division.
+    // Could also be solved by using / 8.0, but that is just slightly slower
+    STRUCTURED_DEBUG(debug_flag,printf("radix: %d \t v: %d \n", ctx->ffx.radix, v));
+
+    const unsigned int b = calculate_b(ctx->ffx.radix, v);
+//  original calc from NIST spec      (unsigned int)ceil((bitlen(powl(ctx->ffx.radix, v) - 1) + 7) / 8);
+    STRUCTURED_DEBUG(debug_flag,printf("radix: %d \t v: %d \t b: %d\n", ctx->ffx.radix, v, b));
+
     const unsigned int d = 4 * ((b + 3) / 4) + 4;
 
     const unsigned int p = 16;

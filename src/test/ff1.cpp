@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include <ubiq/platform/internal/ff1.h>
 #include <ubiq/platform/internal/bn.h>
+#include <math.h>
 
 #include <unistr.h>
 
@@ -777,4 +778,51 @@ TEST(ff1, unicode_c)
     const char radix[] =   " ÊËÌÍÎÏðñòóôĵĶķĸĹϺϻϼϽϾϿ0123456789abcABC";
 
     ff1_test_custom_radix(K, sizeof(K), T, sizeof(T), PT, CT, radix);
+}
+
+TEST(ff1, bitlen)
+{
+  bigint_t tmp;
+
+  bigint_init(&tmp);
+  bigint_ui_pow_ui(&tmp, 2, 1);
+  bigint_sub_ui(&tmp, &tmp, 1);
+
+  unsigned int i = bitlen(&tmp);
+  ASSERT_EQ(i, 1);
+  bigint_deinit(&tmp);
+}
+
+TEST(ff1, bitlen_2)
+{
+  bigint_t tmp;
+
+  unsigned int b = 10;
+  bigint_init(&tmp);
+  bigint_ui_pow_ui(&tmp, 2, 10);
+  bigint_sub_ui(&tmp, &tmp, 1);
+
+  unsigned int i = bitlen(&tmp);
+  ASSERT_EQ(i, b);
+  bigint_deinit(&tmp);
+}
+TEST(ff1, bitlen_3)
+{
+  bigint_t tmp;
+  bigint_t tmp2;
+  bigint_init(&tmp);
+  bigint_init(&tmp2);
+  for (unsigned int b = 1; b < 100; b++) {
+    bigint_ui_pow_ui(&tmp, 2, b);
+    bigint_ui_pow_ui(&tmp2, 2, b);
+    bigint_sub_ui(&tmp2, &tmp2, 1);
+
+    unsigned int i = bitlen(&tmp);
+    unsigned int j = bitlen(&tmp2);
+    ASSERT_EQ(j, b );
+    ASSERT_EQ(i, j+1 );
+  }
+  bigint_deinit(&tmp);
+  bigint_deinit(&tmp2);
+
 }
