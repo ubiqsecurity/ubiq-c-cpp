@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.2.4.0 - 2025-09-22
+* Added threadsafe interfaces for unstructured encryption
+
 ## 2.2.3.0 - 2025-07-23
 * Updated structured encryption to match algorithms in Second Public Draft - https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-38Gr1.2pd.pdf
 

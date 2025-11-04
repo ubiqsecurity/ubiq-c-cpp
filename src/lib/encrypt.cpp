@@ -17,7 +17,7 @@ encryption::encryption(const credentials & creds, const unsigned int uses)
 
     res = ubiq_platform_encryption_create(&*creds, uses, &enc);
     if (res != 0) {
-        throw std::system_error(-res, std::generic_category());
+        throw std::system_error(-res, std::generic_category(), "during ubiq_platform_encryption_create");
     }
 
     _enc.reset(enc, &ubiq_platform_encryption_destroy);
@@ -30,7 +30,7 @@ encryption::encryption(const credentials & creds, const configuration & cfg, uns
 
     res = ubiq_platform_encryption_create_with_config(&*creds, &*cfg, uses, &enc);
     if (res != 0) {
-        throw std::system_error(-res, std::generic_category());
+        throw std::system_error(-res, std::generic_category(), "during ubiq_platform_encryption_create_with_config");
     }
 
     _enc.reset(enc, &ubiq_platform_encryption_destroy);
@@ -38,14 +38,22 @@ encryption::encryption(const credentials & creds, const configuration & cfg, uns
 std::vector<std::uint8_t>
 encryption::begin(void)
 {
+
+  _session = encryption_session(*this); //.reset(encryption_session(*this),  &ubiq_platform_encryption_destroy_session);
+  return begin(_session);
+}
+
+std::vector<std::uint8_t>
+encryption::begin(encryption_session & session)
+{
     std::vector<std::uint8_t> v;
     void * ctbuf;
     size_t ctlen;
     int res;
 
-    res = ubiq_platform_encryption_begin(_enc.get(), &ctbuf, &ctlen);
+    res = ubiq_platform_encryption_beginTS(_enc.get(), session._session.get(), &ctbuf, &ctlen);
     if (res != 0) {
-        throw std::system_error(-res, std::generic_category());
+        throw std::system_error(-res, std::generic_category(), "during ubiq_platform_encryption_beginTS");
     }
 
     v.resize(ctlen);
@@ -54,19 +62,24 @@ encryption::begin(void)
 
     return v;
 }
-
 std::vector<std::uint8_t>
 encryption::update(const void * ptbuf, std::size_t ptlen)
+{
+  return update(_session, ptbuf, ptlen);
+}
+
+std::vector<std::uint8_t>
+encryption::update(encryption_session & session, const void * ptbuf, std::size_t ptlen)
 {
     std::vector<std::uint8_t> v;
     void * ctbuf;
     size_t ctlen;
     int res;
 
-    res = ubiq_platform_encryption_update(
-        _enc.get(), ptbuf, ptlen, &ctbuf, &ctlen);
+    res = ubiq_platform_encryption_updateTS(
+        _enc.get(),session._session.get(), ptbuf, ptlen, &ctbuf, &ctlen);
     if (res != 0) {
-        throw std::system_error(-res, std::generic_category());
+        throw std::system_error(-res, std::generic_category(), "during ubiq_platform_encryption_updateTS");
     }
 
     v.resize(ctlen);
@@ -79,14 +92,20 @@ encryption::update(const void * ptbuf, std::size_t ptlen)
 std::vector<std::uint8_t>
 encryption::end(void)
 {
+  return end(_session);
+}
+
+std::vector<std::uint8_t>
+encryption::end(encryption_session & session)
+{
     std::vector<std::uint8_t> v;
     void * ctbuf;
     size_t ctlen;
     int res;
 
-    res = ubiq_platform_encryption_end(_enc.get(), &ctbuf, &ctlen);
+    res = ubiq_platform_encryption_endTS(_enc.get(), session._session.get(), &ctbuf, &ctlen);
     if (res != 0) {
-        throw std::system_error(-res, std::generic_category());
+        throw std::system_error(-res, std::generic_category(), "during ubiq_platform_encryption_endTS");
     }
 
     v.resize(ctlen);
@@ -107,7 +126,7 @@ ubiq::platform::encrypt(
 
     res = ubiq_platform_encrypt(&*creds, ptbuf, ptlen, &ctbuf, &ctlen);
     if (res != 0) {
-        throw std::system_error(-res, std::generic_category());
+        throw std::system_error(-res, std::generic_category(), "during ubiq_platform_encrypt");
     }
 
     v.resize(ctlen);
@@ -127,7 +146,7 @@ encryption::get_copy_of_usage(void)
 
     res = ubiq_platform_encryption_get_copy_of_usage(_enc.get(), &ctbuf, &ctlen);
     if (res != 0) {
-        throw std::system_error(-res, std::generic_category());
+        throw std::system_error(-res, std::generic_category(), "during ubiq_platform_encryption_get_copy_of_usage");
     }
 
     v.resize(ctlen);
@@ -143,7 +162,7 @@ encryption::add_user_defined_metadata(const std::string & jsonString)
     int res = ubiq_platform_encryption_add_user_defined_metadata(_enc.get(), 
     jsonString.data());
     if (res != 0) {
-        throw std::system_error(-res, std::generic_category());
+        throw std::system_error(-res, std::generic_category(), "during ubiq_platform_encryption_add_user_defined_metadata");
     }
 }
 

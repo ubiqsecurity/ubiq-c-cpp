@@ -13,18 +13,15 @@ public:
     void TearDown(void);
     void test_batch_rt(  
       const std::string &dataset_name,
-      const std::string &pt,
-      const std::string &expected_ct);
+      const std::string &pt);
 
     void test_rt(  
       const std::string &dataset_name,
-      const std::string &pt,
-      const std::string &expected_ct);
+      const std::string &pt);
 
     void search(  
       const std::string &dataset_name,
-      const std::string &pt,
-      const std::string &expected_ct);
+      const std::string &pt);
 
 protected:
     ubiq::platform::credentials _creds;
@@ -43,13 +40,16 @@ void cpp_structured_encrypt::TearDown(void)
 
 void cpp_structured_encrypt::search(
   const std::string &dataset_name,
-  const std::string &pt,
-  const std::string &expected_ct) {
+  const std::string &pt) {
 
   std::vector<std::string> ct, ct2;
+  std::string ct_tmp;
 
   _enc = ubiq::platform::structured::encryption(_creds);
   _dec = ubiq::platform::structured::decryption(_creds);
+
+  ASSERT_NO_THROW(
+      ct_tmp = _enc.encrypt(dataset_name, pt));
 
 
   ASSERT_NO_THROW(
@@ -64,7 +64,7 @@ void cpp_structured_encrypt::search(
   // data has been rotated
   bool found_ct(false);
   for (auto x : ct) {
-      found_ct = found_ct || (expected_ct == x);
+      found_ct = found_ct || (ct_tmp == x);
       std::string ptbuf = _dec.decrypt(dataset_name, x);
       EXPECT_EQ(pt, ptbuf);
   }
@@ -74,8 +74,7 @@ void cpp_structured_encrypt::search(
 
 void cpp_structured_encrypt::test_batch_rt(
   const std::string &dataset_name,
-  const std::string &pt,
-  const std::string &expected_ct) {
+  const std::string &pt) {
   std::string ct;
   std::string rt;
 
@@ -91,11 +90,6 @@ void cpp_structured_encrypt::test_batch_rt(
 
   EXPECT_EQ(rt, pt);
 
-  // Decrypt the expected value - will address issue when source data key has been rotated
-  ASSERT_NO_THROW(
-      rt = _dec.decrypt(dataset_name, expected_ct));
-  EXPECT_EQ(rt, pt);
-
   std::vector<std::string> ct_arr, ct2_arr;
   ASSERT_NO_THROW(
       ct_arr = _enc.encrypt_for_search(dataset_name, pt));
@@ -108,7 +102,7 @@ void cpp_structured_encrypt::test_batch_rt(
       // std::cout << "  pt: " << pt << std::endl;
   bool found_ct(false);
   for (auto x : ct_arr) {
-      found_ct = found_ct || (expected_ct == x);
+      found_ct = found_ct || (ct == x);
       std::string ptbuf = _dec.decrypt(dataset_name, x);
       // std::cout << "  ct: " << x << std::endl;
       // std::cout << "  ptbuf: " << ptbuf << std::endl;
@@ -120,10 +114,9 @@ void cpp_structured_encrypt::test_batch_rt(
 
 void cpp_structured_encrypt::test_rt(
   const std::string &dataset_name,
-  const std::string &pt,
-  const std::string &expected_ct) {
+  const std::string &pt) {
 
-  test_batch_rt(dataset_name, pt, expected_ct);
+  test_batch_rt(dataset_name, pt);
 
 }
 
@@ -137,7 +130,7 @@ TEST_F(cpp_structured_encrypt, none)
 
 TEST_F(cpp_structured_encrypt, ALPHANUM_SSN_rt)
 {
-  test_rt("ALPHANUM_SSN", ";0123456-789ABCDEF|", ";!!!E7`+-ai1ykOp8r|");
+  test_rt("ALPHANUM_SSN", ";0123456-789ABCDEF|");
 }
 
 // TEST_F(cpp_structured_encrypt, ALPHANUM_SSN_dev_rt)
@@ -148,22 +141,22 @@ TEST_F(cpp_structured_encrypt, ALPHANUM_SSN_rt)
 
 TEST_F(cpp_structured_encrypt, BIRTH_DATE_rt)
 {
-  test_rt("BIRTH_DATE", ";01\\02-1960|", ";!!\\!!-oKzi|");
+  test_rt("BIRTH_DATE", ";01\\02-1960|");
 }
 
 TEST_F(cpp_structured_encrypt, SSN_rt)
 {
-  test_rt("SSN", "-0-1-2-3-4-5-6-7-8-9-", "-0-0-0-0-1-I-L-8-j-D-");
+  test_rt("SSN", "-0-1-2-3-4-5-6-7-8-9-");
 }
 
 TEST_F(cpp_structured_encrypt, UTF8_STRING_COMPLEX_rt)
 {
-  test_rt("UTF8_STRING_COMPLEX", "ÑÒÓķĸĹϺϻϼϽϾÔÕϿは世界abcdefghijklmnopqrstuvwxyzこんにちÊʑʒʓËÌÍÎÏðñòóôĵĶʔʕ", "ÑÒÓにΪΪΪΪΪΪ3ÔÕoeϽΫAÛMĸOZphßÚdyÌô0ÝϼPtĸTtSKにVÊϾέÛはʑʒʓÏRϼĶufÝK3MXaʔʕ");
+  test_rt("UTF8_STRING_COMPLEX", "ÑÒÓķĸĹϺϻϼϽϾÔÕϿは世界abcdefghijklmnopqrstuvwxyzこんにちÊʑʒʓËÌÍÎÏðñòóôĵĶʔʕ");
 }
 
 TEST_F(cpp_structured_encrypt, UTF8_STRING_COMPLEX_rt_1)
 {
-  test_rt("UTF8_STRING_COMPLEX", "ķĸĹϺϻϼϽϾϿは世界abcdefghijklmnopqrstuvwxyzこんにちÊËÌÍÎÏðñòóôĵĶ", "にΪΪΪΪΪΪ3oeϽΫAÛMĸOZphßÚdyÌô0ÝϼPtĸTtSKにVÊϾέÛはÏRϼĶufÝK3MXa");
+  test_rt("UTF8_STRING_COMPLEX", "ķĸĹϺϻϼϽϾϿは世界abcdefghijklmnopqrstuvwxyzこんにちÊËÌÍÎÏðñòóôĵĶ");
 }
 
 // TEST_F(cpp_structured_encrypt, UTF8_STRING_COMPLEX_dev_rt)
@@ -378,8 +371,7 @@ TEST_F(cpp_structured_encrypt, invalid_keynum)
 static
 void c_test_batch_rt(
   const char * const dataset_name,
-  const char * const pt,
-  const char * const expected_ct) {
+  const char * const pt) {
 
     struct ubiq_platform_credentials * creds;
     struct ubiq_platform_structured_enc_dec_obj *enc;
@@ -417,7 +409,7 @@ void c_test_batch_rt(
     bool found_ct(false);
     for (int i = 0; i < ctcount; i++) {
 
-      found_ct = found_ct || (strcmp(ct_arr[i], expected_ct) == 0);
+      found_ct = found_ct || (strcmp(ct_arr[i], ctbuf) == 0);
 
       char * ptbuf = NULL;
       size_t ptlen = 0;
@@ -453,37 +445,36 @@ void c_test_batch_rt(
 static
 void c_test_rt(
   const char * const dataset_name,
-  const char * const pt,
-  const char * const expected_ct) {
+  const char * const pt) {
 
-  c_test_batch_rt(dataset_name, pt, expected_ct);
+  c_test_batch_rt(dataset_name, pt);
 
 }
 
 
 TEST(c_structured_encrypt, ALPHANUM_SSN_rt)
 {
-  c_test_rt("ALPHANUM_SSN", ";0123456-789ABCDEF|", ";!!!E7`+-ai1ykOp8r|");
+  c_test_rt("ALPHANUM_SSN", ";0123456-789ABCDEF|");
 }
 
 TEST(c_structured_encrypt, UTF8_STRING_COMPLEX_rt)
 {
-  c_test_rt("UTF8_STRING_COMPLEX", "ÑÒÓķĸĹϺϻϼϽϾÔÕϿは世界abcdefghijklmnopqrstuvwxyzこんにちÊʑʒʓËÌÍÎÏðñòóôĵĶʔʕ", "ÑÒÓにΪΪΪΪΪΪ3ÔÕoeϽΫAÛMĸOZphßÚdyÌô0ÝϼPtĸTtSKにVÊϾέÛはʑʒʓÏRϼĶufÝK3MXaʔʕ");
+  c_test_rt("UTF8_STRING_COMPLEX", "ÑÒÓķĸĹϺϻϼϽϾÔÕϿは世界abcdefghijklmnopqrstuvwxyzこんにちÊʑʒʓËÌÍÎÏðñòóôĵĶʔʕ");
 }
 
 TEST(c_structured_encrypt, UTF8_STRING_COMPLEX_rt_1)
 {
-  c_test_rt("UTF8_STRING_COMPLEX", "ķĸĹϺϻϼϽϾϿは世界abcdefghijklmnopqrstuvwxyzこんにちÊËÌÍÎÏðñòóôĵĶ", "にΪΪΪΪΪΪ3oeϽΫAÛMĸOZphßÚdyÌô0ÝϼPtĸTtSKにVÊϾέÛはÏRϼĶufÝK3MXa");
+  c_test_rt("UTF8_STRING_COMPLEX", "ķĸĹϺϻϼϽϾϿは世界abcdefghijklmnopqrstuvwxyzこんにちÊËÌÍÎÏðñòóôĵĶ");
 }
 
 TEST(c_structured_encrypt, BIRTH_DATE_rt)
 {
-  c_test_rt("BIRTH_DATE", ";01\\02-1960|", ";!!\\!!-oKzi|");
+  c_test_rt("BIRTH_DATE", ";01\\02-1960|");
 }
 
 TEST(c_structured_encrypt, SSN_rt)
 {
-  c_test_rt("SSN", "-0-1-2-3-4-5-6-7-8-9-", "-0-0-0-0-1-I-L-8-j-D-");
+  c_test_rt("SSN", "-0-1-2-3-4-5-6-7-8-9-");
 }
 
 

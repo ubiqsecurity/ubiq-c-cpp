@@ -16,7 +16,9 @@
 #define UBIQ_DEBUG(x,y)
 #endif
 
-static int debug_flag = 1;
+static int debug_flag = 0;
+
+#define UBIQ_CURL_CHECK(x,y) { CURLcode _rc; if ( (_rc = x) != CURLE_OK) {UBIQ_DEBUG(debug_flag, printf("%s rc(%d) %s \n",y, _rc, curl_easy_strerror(_rc)));}}
 
 
 struct ubiq_support_http_handle
@@ -183,12 +185,15 @@ ubiq_support_http_request(
     void ** const rspbuf, size_t * const rsplen)
 {
     int res;
+    static const char * const csu = "ubiq_support_http_request";
+    CURLcode rc;
 
-  UBIQ_DEBUG(debug_flag, printf("ubiq_support_http_request: urlstr: '%s'\n", urlstr));
-  UBIQ_DEBUG(debug_flag, printf("ubiq_support_http_request: content: '%s'\n", content));
+    UBIQ_DEBUG(debug_flag, printf("ubiq_support_http_request: urlstr: '%s'\n", urlstr));
+    UBIQ_DEBUG(debug_flag, printf("ubiq_support_http_request: content: '%s'\n", content));
 
     res = INT_MIN;
-    if (curl_easy_setopt(hnd->ch, CURLOPT_URL, urlstr) == CURLE_OK) {
+    if ((rc = curl_easy_setopt(hnd->ch, CURLOPT_URL, urlstr)) == CURLE_OK) {
+
         /*
          * disable the expect header. otherwise curl will wait
          * for a 100 Continue response from the server (for up to
@@ -198,8 +203,8 @@ ubiq_support_http_request(
         if (res == 0) {
             CURLcode rc;
 
-            curl_easy_setopt(
-                hnd->ch, CURLOPT_USERAGENT, ubiq_support_user_agent);
+            UBIQ_CURL_CHECK(curl_easy_setopt(
+                hnd->ch, CURLOPT_USERAGENT, ubiq_support_user_agent),"ubiq_support_http_request CURLOPT_USERAGENT");
 
             if (length != 0) {
                 /*
@@ -212,37 +217,40 @@ ubiq_support_http_request(
                 hnd->req.off = 0;
 
 
-                curl_easy_setopt(
-                    hnd->ch, CURLOPT_UPLOAD, 1L);
-                curl_easy_setopt(
-                    hnd->ch, CURLOPT_READDATA, hnd);
-                curl_easy_setopt(
+                UBIQ_CURL_CHECK(curl_easy_setopt(
+                    hnd->ch, CURLOPT_UPLOAD, 1L),"ubiq_support_http_request CURLOPT_UPLOAD");
+                UBIQ_CURL_CHECK(curl_easy_setopt(
+                    hnd->ch, CURLOPT_READDATA, hnd),"ubiq_support_http_request CURLOPT_READDATA");
+                UBIQ_CURL_CHECK(curl_easy_setopt(
                     hnd->ch, CURLOPT_READFUNCTION,
-                    &ubiq_support_http_upload);
-                curl_easy_setopt(
-                    hnd->ch, CURLOPT_INFILESIZE, length);
+                    &ubiq_support_http_upload),"ubiq_support_http_request CURLOPT_READFUNCTION");
+                UBIQ_CURL_CHECK(curl_easy_setopt(
+                    hnd->ch, CURLOPT_INFILESIZE, length),"ubiq_support_http_request CURLOPT_INFILESIZE");
             }
 
             /* add headers to the request */
-            rc = curl_easy_setopt(hnd->ch, CURLOPT_HTTPHEADER, hnd->hlist);
+            UBIQ_CURL_CHECK(rc = curl_easy_setopt(hnd->ch, CURLOPT_HTTPHEADER, hnd->hlist),"ubiq_support_http_request CURLOPT_HTTPHEADER");
             if (rc == CURLE_OK) {
                 /* set the request method: GET, POST, PUT, etc. */
-                curl_easy_setopt(
+                UBIQ_CURL_CHECK(curl_easy_setopt(
                     hnd->ch, CURLOPT_CUSTOMREQUEST,
-                    http_request_method_string(method));
+                    http_request_method_string(method)),"ubiq_support_http_request CURLOPT_CUSTOMREQUEST");
 
                 /* add callbacks for receiving the response payload */
-                curl_easy_setopt(
-                    hnd->ch, CURLOPT_WRITEDATA, hnd);
-                curl_easy_setopt(
+                UBIQ_CURL_CHECK(curl_easy_setopt(
+                    hnd->ch, CURLOPT_WRITEDATA, hnd),"ubiq_support_http_request CURLOPT_WRITEDATA");
+                UBIQ_CURL_CHECK(curl_easy_setopt(
                     hnd->ch, CURLOPT_WRITEFUNCTION,
-                    &ubiq_support_http_download);
+                    &ubiq_support_http_download),"ubiq_support_http_request CURLOPT_WRITEFUNCTION");
 
                 hnd->rsp.buf = NULL;
                 hnd->rsp.len = 0;
 
+                UBIQ_CURL_CHECK(curl_easy_setopt(hnd->ch, CURLOPT_NOSIGNAL, 1L),"ubiq_support_http_request CURLOPT_NOSIGNAL");
+
+
                 /* send it! */
-                rc = curl_easy_perform(hnd->ch);
+                UBIQ_CURL_CHECK(rc = curl_easy_perform(hnd->ch),"ubiq_support_http_request curl_easy_perform");
 
                 *rspbuf = hnd->rsp.buf;
                 *rsplen = hnd->rsp.len;

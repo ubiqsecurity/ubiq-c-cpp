@@ -442,6 +442,7 @@ ptbuf = ubiq::platform::decrypt(creds, ctbuf, ctlen);
 #### Unstructured encryption of a large data element where data is loaded in chunks
 
 - Create an encryption object using the credentials.
+- Call the ```ubiq_platform_encryption_init_session``` method.
 - Call the encryption instance begin method
 - Call the encryption instance update method repeatedly until all the data is processed
 - Call the encryption instance end method
@@ -456,13 +457,16 @@ ptbuf = ubiq::platform::decrypt(creds, ctbuf, ctlen);
 
 struct ubiq_platform_credentials * credentials = NULL;
 struct ubiq_platform_encryption * enc = NULL;
+struct ubiq_platform_encryption_session * session = NULL;
+
 void * ctbuf = NULL, * buf = NULL;
 size_t ctlen = 0, len = 0;
 
 ubiq_platform_credentials_create(&credentials);
 ubiq_platform_encryption_create(credentials, 1, &enc);
+ubiq_platform_encryption_init_session(enc, &session);
 
-ubiq_platform_encryption_begin(enc, &buf, &len);
+ubiq_platform_encryption_begin(enc, session, &buf, &len);
 ctbuf = realloc(ctbuf, ctlen + len);
 memcpy(ctbuf + ctlen, buf, len);
 ctlen += len;
@@ -473,19 +477,20 @@ while (!feof(infp)) {
     size_t ptsize;
 
     ptsize = fread(ptbuf, 1, BLOCK_SIZE, infp);
-    ubiq_platform_encryption_update(enc, ptbuf, ptsize, &buf, &len);
+    ubiq_platform_encryption_update(enc, session, ptbuf, ptsize, &buf, &len);
     ctbuf = realloc(ctbuf, ctlen + len);
     memcpy(ctbuf + ctlen, buf, len);
     ctlen += len;
     free(buf);
 }
 
-ubiq_platform_encryption_end(enc, &buf, &len);
+ubiq_platform_encryption_end(enc, session, &buf, &len);
 ctbuf = realloc(ctbuf, ctlen + len);
 memcpy(ctbuf + ctlen, buf, len);
 ctlen += len;
 free(buf);
 
+ubiq_platform_encryption_destroy_session(session);
 ubiq_platform_encryption_destroy(enc);
 ubiq_platform_credentials_destroy(credentials);
 ```
@@ -498,20 +503,22 @@ ubiq_platform_credentials_destroy(credentials);
 
 ubiq::platform::credentials credentials;
 ubiq::platform::encryption enc(credentials, 1);
+ubiq::platform::encryption_session session(enc);
+
 std::vector<std::uint8_t> ctbuf, buf;
 
-ctbuf = enc.begin();
+ctbuf = enc.begin(session);
 
 while (!infile.eof()) {
     std::vector<char> ptbuf(BLOCK_SIZE);
 
     infile.read(ptbuf.data(), ptbuf.size());
     ptbuf.resize(infile.gcount());
-    buf = enc.update(ptbuf.data(), ptbuf.size());
+    buf = enc.update(session, ptbuf.data(), ptbuf.size());
     ctbuf.insert(ctbuf.end(), buf.begin(), buf.end());
 }
 
-buf = enc.end();
+buf = enc.end(session);
 ctbuf.insert(ctbuf.end(), buf.begin(), buf.end());
 ```
 
@@ -520,11 +527,12 @@ ctbuf.insert(ctbuf.end(), buf.begin(), buf.end());
 In this example, the same data encryption key is used to encrypt several different plain text objects, object1 .. objectn.  In each case, a different initialization vector, IV, is automatically used but the ubiq platform is not called to obtain a new data encryption key, resulting in better throughput.  For data security reasons, you should limit n to be less than 2^32 (4,294,967,296) for each unique data encryption key.
 
 1. Create an encryption object using the credentials.
-2. Repeat following three steps as many times as appropriate
+2. Initialize the encryption session object
+3. Repeat following three steps as many times as appropriate
 *  Call the encryption instance begin method
 *  Call the encryption instance update method repeatedly until a single object's data is processed
 *  Call the encryption instance end method
-3. Call the encryption instance close method
+4. Call the encryption instance close method
 
 
 ```c
@@ -536,6 +544,7 @@ In this example, the same data encryption key is used to encrypt several differe
 
 struct ubiq_platform_credentials * credentials = NULL;
 struct ubiq_platform_encryption * enc = NULL;
+struct ubiq_platform_encryption_session * session = NULL;
 void * ctbuf = NULL, * buf = NULL;
 size_t ctlen = 0, len = 0;
 
@@ -543,11 +552,12 @@ size_t ctlen = 0, len = 0;
 
     ubiq_platform_credentials_create(&credentials);
     ubiq_platform_encryption_create(credentials, 1, &enc);
+    ubiq_platform_encryption_init_session(enc, &session);
 
     ...
 
     // Process Object 1
-    ubiq_platform_encryption_begin(enc, &buf, &len);
+    ubiq_platform_encryption_begin(enc, session, &buf, &len);
     ctbuf = realloc(ctbuf, ctlen + len);
     memcpy(ctbuf + ctlen, buf, len);
     ctlen += len;
@@ -557,13 +567,13 @@ size_t ctlen = 0, len = 0;
     size_t ptsize;
 
     // Fill ptbuf with some data to encrypt.  Repeat next few lines as needed
-    ubiq_platform_encryption_update(enc, ptbuf, ptsize, &buf, &len);
+    ubiq_platform_encryption_update(enc, session, ptbuf, ptsize, &buf, &len);
     ctbuf = realloc(ctbuf, ctlen + len);
     memcpy(ctbuf + ctlen, buf, len);
     ctlen += len;
     free(buf);
 
-    ubiq_platform_encryption_end(enc, &buf, &len);
+    ubiq_platform_encryption_end(enc, session, &buf, &len);
     ctbuf = realloc(ctbuf, ctlen + len);
     memcpy(ctbuf + ctlen, buf, len);
     ctlen += len;
@@ -576,14 +586,20 @@ size_t ctlen = 0, len = 0;
     ctlen = 0;
 
     // Process Object 2 
-    ubiq_platform_encryption_begin(enc, &buf, &len);
+    ubiq_platform_encryption_begin(enc, session, &buf, &len);
     ctbuf = realloc(ctbuf, ctlen + len);
     memcpy(ctbuf + ctlen, buf, len);
     ctlen += len;
     free(buf);
 
     // Fill ptbuf with some data to encrypt.  Repeat next few lines as needed
-    ubiq_platform_encryption_update(enc, ptbuf, ptsize, &buf, &len);
+    ubiq_platform_encryption_update(enc, session, ptbuf, ptsize, &buf, &len);
+    ctbuf = realloc(ctbuf, ctlen + len);
+    memcpy(ctbuf + ctlen, buf, len);
+    ctlen += len;
+    free(buf);
+
+    ubiq_platform_encryption_end(enc, session, &buf, &len);
     ctbuf = realloc(ctbuf, ctlen + len);
     memcpy(ctbuf + ctlen, buf, len);
     ctlen += len;
@@ -596,20 +612,20 @@ size_t ctlen = 0, len = 0;
     ctlen = 0;
 
     // Process Object n 
-    ubiq_platform_encryption_begin(enc, &buf, &len);
+    ubiq_platform_encryption_begin(enc, session, &buf, &len);
     ctbuf = realloc(ctbuf, ctlen + len);
     memcpy(ctbuf + ctlen, buf, len);
     ctlen += len;
     free(buf);
 
     // Fill ptbuf with some data to encrypt.  Repeat next few lines as needed
-    ubiq_platform_encryption_update(enc, ptbuf, ptsize, &buf, &len);
+    ubiq_platform_encryption_update(enc, session, ptbuf, ptsize, &buf, &len);
     ctbuf = realloc(ctbuf, ctlen + len);
     memcpy(ctbuf + ctlen, buf, len);
     ctlen += len;
     free(buf);
 
-    ubiq_platform_encryption_end(enc, &buf, &len);
+    ubiq_platform_encryption_end(enc, session, &buf, &len);
     ctbuf = realloc(ctbuf, ctlen + len);
     memcpy(ctbuf + ctlen, buf, len);
     ctlen += len;
@@ -618,6 +634,7 @@ size_t ctlen = 0, len = 0;
 
     ...
 
+    ubiq_platform_encryption_destroy_session(session);
     ubiq_platform_encryption_destroy(enc);
     ubiq_platform_credentials_destroy(credentials);
     ubiq_platform_exit();
@@ -632,40 +649,42 @@ size_t ctlen = 0, len = 0;
 ubiq::platform::init();
 ubiq::platform::credentials credentials;
 ubiq::platform::encryption enc(credentials, 1);
+ubiq::platform::encryption_session session(enc);
+
 std::vector<std::uint8_t> ctbuf, buf;
     std::vector<char> ptbuf(BLOCK_SIZE);
 
     // process object 1
-    ctbuf = enc.begin();
+    ctbuf = enc.begin(session);
 
     // Populate ptbuf with data to encrypt.  Repeat as needed for all data chunks
-    buf = enc.update(ptbuf.data(), ptbuf.size());
+    buf = enc.update(session, ptbuf.data(), ptbuf.size());
     ctbuf.insert(ctbuf.end(), buf.begin(), buf.end());
 
-    buf = enc.end();
+    buf = enc.end(session);
     ctbuf.insert(ctbuf.end(), buf.begin(), buf.end());
     // Do something with the encrypted data ctbuf
 
     // Process Object 2
-    ctbuf = enc.begin();
+    ctbuf = enc.begin(session);
 
     // Populate ptbuf with data to encrypt.  Repeat as needed for all data chunks
-    buf = enc.update(ptbuf.data(), ptbuf.size());
+    buf = enc.update(session, ptbuf.data(), ptbuf.size());
     ctbuf.insert(ctbuf.end(), buf.begin(), buf.end());
 
-    buf = enc.end();
+    buf = enc.end(session);
     ctbuf.insert(ctbuf.end(), buf.begin(), buf.end());
     // Do something with the encrypted data ctbuf
 
     ...
     // Process Object n
-    ctbuf = enc.begin();
+    ctbuf = enc.begin(session);
 
     // Populate ptbuf with data to encrypt.  Repeat as needed for all data chunks
-    buf = enc.update(ptbuf.data(), ptbuf.size());
+    buf = enc.update(session, ptbuf.data(), ptbuf.size());
     ctbuf.insert(ctbuf.end(), buf.begin(), buf.end());
 
-    buf = enc.end();
+    buf = enc.end(session);
     ctbuf.insert(ctbuf.end(), buf.begin(), buf.end());
     // Do something with the encrypted data ctbuf
 
@@ -690,13 +709,15 @@ ubiq::platform::exit();
 
 struct ubiq_platform_credentials * credentials = NULL;
 struct ubiq_platform_decryption * dec = NULL;
+struct ubiq_platform_decryption_session * session = NULL;
 void * ptbuf = NULL, * buf = NULL;
 size_t ptlen = 0, len = 0;
 
 ubiq_platform_credentials_create(&credentials);
 ubiq_platform_decryption_create(credentials, &dec);
+ubiq_platform_decryption_init_session(dec, &session);
 
-ubiq_platform_decryption_begin(dec, &buf, &len);
+ubiq_platform_decryption_begin(dec, session, &buf, &len);
 ptbuf = realloc(ptbuf, ptlen + len);
 memcpy(ptbuf + ptlen, buf, len);
 ptlen += len;
@@ -707,19 +728,20 @@ while (!feof(infp)) {
     size_t ctsize;
 
     ctsize = fread(ctbuf, 1, BLOCK_SIZE, infp);
-    ubiq_platform_decryption_update(dec, ctbuf, ctsize, &buf, &len);
+    ubiq_platform_decryption_update(dec, session, ctbuf, ctsize, &buf, &len);
     ptbuf = realloc(ptbuf, ptlen + len);
     memcpy(ptbuf + ptlen, buf, len);
     ptlen += len;
     free(buf);
 }
 
-ubiq_platform_decryption_end(dec, &buf, &len);
+ubiq_platform_decryption_end(dec, session, &buf, &len);
 ptbuf = realloc(ptbuf, ptlen + len);
 memcpy(ptbuf + ptlen, buf, len);
 ptlen += len;
 free(buf);
 
+ubiq_platform_decryption_destroy_session(session);
 ubiq_platform_decryption_destroy(dec);
 ubiq_platform_credentials_destroy(credentials);
 ```
@@ -732,20 +754,21 @@ ubiq_platform_credentials_destroy(credentials);
 
 ubiq::platform::credentials credentials;
 ubiq::platform::decryption dec(credentials);
+ubiq::platform::decryption_session session(dec);
 std::vector<std::uint8_t> ptbuf, buf;
 
-ptbuf = dec.begin();
+ptbuf = dec.begin(session);
 
 while (!infile.eof()) {
     std::vector<char> ctbuf(BLOCK_SIZE);
 
     infile.read(ctbuf.data(), ctbuf.size());
     ctbuf.resize(infile.gcount());
-    buf = dec.update(ctbuf.data(), ctbuf.size());
+    buf = dec.update(session, ctbuf.data(), ctbuf.size());
     ptbuf.insert(ptbuf.end(), buf.begin(), buf.end());
 }
 
-buf = dec.end();
+buf = dec.end(session);
 ptbuf.insert(ptbuf.end(), buf.begin(), buf.end());
 ```
 

@@ -36,6 +36,8 @@ ubiq_platform_decrypt(
 /* Opaque decryption object */
 struct ubiq_platform_decryption;
 
+struct ubiq_platform_decryption_session;
+
 /*
  * Create a decryption object that can be used to decrypt any number
  * of separate cipher texts.
@@ -95,6 +97,13 @@ ubiq_platform_decryption_begin(
     struct ubiq_platform_decryption * const dec,
     void ** const ptbuf, size_t * const ptlen);
 
+UBIQ_PLATFORM_API
+int
+ubiq_platform_decryption_beginTS(
+    struct ubiq_platform_decryption * const dec,
+    struct ubiq_platform_decryption_session * const session,
+    void ** const ptbuf, size_t * const ptlen);
+
 /*
  * Decrypt a portion of cipher text.
  *
@@ -110,6 +119,14 @@ UBIQ_PLATFORM_API
 int
 ubiq_platform_decryption_update(
     struct ubiq_platform_decryption * const dec,
+    const void * const ctbuf, const size_t ctlen,
+    void ** const ptbuf, size_t * const ptlen);
+
+UBIQ_PLATFORM_API
+int
+ubiq_platform_decryption_updateTS(
+    struct ubiq_platform_decryption * const dec,
+    struct ubiq_platform_decryption_session * const session,
     const void * const ctbuf, const size_t ctlen,
     void ** const ptbuf, size_t * const ptlen);
 
@@ -139,6 +156,14 @@ ubiq_platform_decryption_end(
 
 UBIQ_PLATFORM_API
 int
+ubiq_platform_decryption_endTS(
+    struct ubiq_platform_decryption * const dec,
+    struct ubiq_platform_decryption_session * const session,
+    void ** const ptbuf, size_t * const ptlen);
+
+
+UBIQ_PLATFORM_API
+int
 ubiq_platform_decryption_add_user_defined_metadata(
     struct ubiq_platform_decryption * const dec,
     const char * const jsonString);
@@ -148,6 +173,16 @@ int
 ubiq_platform_decryption_get_copy_of_usage(
     struct ubiq_platform_decryption * const dec,
     char ** const buffer, size_t * const buffer_len);
+
+UBIQ_PLATFORM_API
+int
+ubiq_platform_decryption_init_session(
+struct ubiq_platform_decryption * const dec,
+struct ubiq_platform_decryption_session ** const session);
+
+UBIQ_PLATFORM_API
+void ubiq_platform_decryption_destroy_session(
+  struct ubiq_platform_decryption_session * const session);
 
 /*
  * *******************************************
@@ -190,7 +225,44 @@ namespace ubiq {
     namespace platform {
 
       class builder;
+      class decryption_session;
+      class decryption;
 
+        class decryption_session {
+          public:
+
+          UBIQ_PLATFORM_API
+          decryption_session();
+
+          UBIQ_PLATFORM_API
+          decryption_session(decryption &decryption);
+
+          UBIQ_PLATFORM_API
+          virtual ~decryption_session(void) = default;
+
+
+          UBIQ_PLATFORM_API
+          decryption_session(const decryption_session &) = default;
+          UBIQ_PLATFORM_API
+          decryption_session(decryption_session &&) =  default;
+
+          UBIQ_PLATFORM_API
+          decryption_session & operator =(const decryption_session &) = default;
+          UBIQ_PLATFORM_API
+          decryption_session & operator =(decryption_session &&) = default;
+
+        /*
+          * Gives access to the underlying C object
+          */
+        UBIQ_PLATFORM_API
+        ::ubiq_platform_decryption_session & operator *(void) const;
+
+          private:
+          std::shared_ptr<::ubiq_platform_decryption_session> _session;
+
+          friend class decryption;
+
+        };
 
         UBIQ_PLATFORM_API
         std::vector<std::uint8_t>
@@ -240,7 +312,13 @@ namespace ubiq {
             std::vector<std::uint8_t>
             begin(void)
                 override;
-            /*
+
+            UBIQ_PLATFORM_API
+            virtual
+            std::vector<std::uint8_t>
+            begin(decryption_session &session);
+
+             /*
              * This function is equivalent to ubiq_platform_decryption_update();
              * however, it returns the generated cipher text in a vector and
              * throws an exception on failure.
@@ -250,6 +328,12 @@ namespace ubiq {
             std::vector<std::uint8_t>
             update(const void * ctbuf, std::size_t ctlen)
                 override;
+
+            UBIQ_PLATFORM_API
+            virtual
+            std::vector<std::uint8_t>
+            update(decryption_session &session, const void * ctbuf, std::size_t ctlen);
+
             /*
              * This function is equivalent to ubiq_platform_decryption_end();
              * however, it returns the generated cipher text in a vector and
@@ -260,6 +344,11 @@ namespace ubiq {
             std::vector<std::uint8_t>
             end(void)
                 override;
+
+            UBIQ_PLATFORM_API
+            virtual
+            std::vector<std::uint8_t>
+            end(decryption_session &session);
 
             UBIQ_PLATFORM_API
             std::string
@@ -275,8 +364,10 @@ namespace ubiq {
             decryption(::ubiq_platform_decryption * d);
 
             std::shared_ptr<::ubiq_platform_decryption> _dec;
+            decryption_session _session;
 
             friend class builder;
+            friend class decryption_session;
         };
 
 

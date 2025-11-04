@@ -50,13 +50,15 @@ ubiq_sample_piecewise_encrypt(
 {
     ubiq::platform::encryption enc(
         creds, cfg, 1 /* want to use the key once */);
+    ubiq::platform::encryption_session session(enc);
+
     std::vector<std::uint8_t> obuf;
 
     /*
      * Start by calling the begin() function. It may produce
      * some data which needs to be written to the output.
      */
-    obuf = enc.begin();
+    obuf = enc.begin(session);
     ofs.write((const char *)obuf.data(), obuf.size());
 
     /*
@@ -69,7 +71,7 @@ ubiq_sample_piecewise_encrypt(
 
         ifs.read(ibuf.data(), ibuf.size());
         ibuf.resize((std::size_t)ifs.gcount());
-        obuf = enc.update(ibuf.data(), ibuf.size());
+        obuf = enc.update(session, ibuf.data(), ibuf.size());
         ofs.write((const char *)obuf.data(), obuf.size());
     }
 
@@ -77,7 +79,7 @@ ubiq_sample_piecewise_encrypt(
      * Finally, call end() to complete the operation and
      * write any data produced by the call to the output file
      */
-    obuf = enc.end();
+    obuf = enc.end(session);
     ofs.write((const char *)obuf.data(), obuf.size());
 }
 
@@ -89,13 +91,14 @@ ubiq_sample_piecewise_decrypt(
     std::ifstream & ifs, std::ofstream & ofs)
 {
     ubiq::platform::decryption dec(creds, cfg);
+    ubiq::platform::decryption_session session(dec);
     std::vector<std::uint8_t> obuf;
 
     /*
      * Start by calling the begin() function. It may produce
      * some data which needs to be written to the output.
      */
-    obuf = dec.begin();
+    obuf = dec.begin(session);
     ofs.write((const char *)obuf.data(), obuf.size());
 
     /*
@@ -108,7 +111,7 @@ ubiq_sample_piecewise_decrypt(
 
         ifs.read(ibuf.data(), ibuf.size());
         ibuf.resize((std::size_t)ifs.gcount());
-        obuf = dec.update(ibuf.data(), ibuf.size());
+        obuf = dec.update(session, ibuf.data(), ibuf.size());
         ofs.write((const char *)obuf.data(), obuf.size());
     }
 
@@ -116,7 +119,7 @@ ubiq_sample_piecewise_decrypt(
      * Finally, call end() to complete the operation and
      * write any data produced by the call to the output file
      */
-    obuf = dec.end();
+    obuf = dec.end(session);
     ofs.write((const char *)obuf.data(), obuf.size());
 }
 

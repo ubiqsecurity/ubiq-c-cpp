@@ -25,7 +25,7 @@ configuration::configuration(
         path.empty() ? nullptr : path.c_str(),
         &config);
     if (res != 0) {
-        throw std::system_error(-res, std::generic_category());
+        throw std::system_error(-res, std::generic_category(), "in configuration during ubiq_platform_configuration_load_configuration");
     }
 
     _config.reset(config, &ubiq_platform_configuration_destroy);
@@ -49,7 +49,7 @@ configuration::configuration(
         event_reporting_timestamp_granularity.data(),
         &config);
     if (res != 0) {
-        throw std::system_error(-res, std::generic_category());
+        throw std::system_error(-res, std::generic_category(), "in configuration during ubiq_platform_configuration_create_explicit");
     }
 
     _config.reset(config, &ubiq_platform_configuration_destroy);
@@ -81,7 +81,7 @@ configuration::configuration(
         key_caching_ttl_seconds,
         &config);
     if (res != 0) {
-        throw std::system_error(-res, std::generic_category());
+        throw std::system_error(-res, std::generic_category(), "in configuration during ubiq_platform_configuration_create_explicit2");
     }
 
     _config.reset(config, &ubiq_platform_configuration_destroy);
@@ -115,6 +115,6 @@ void configuration::set_idp_parameters(
   );
 
   if (res != 0) {
-    throw std::system_error(-res, std::generic_category());
+    throw std::system_error(-res, std::generic_category(), "in set_idp_parameters during ubiq_platform_configuration_set_idp");
   }
 }

@@ -108,6 +108,8 @@ add_library(
   configuration.cpp
   decrypt.cpp
   encrypt.cpp
+  encrypt_session.cpp
+  decrypt_session.cpp
   deprecated_encrypt.cpp
   deprecated_decrypt.cpp
   structured_encrypt.cpp
