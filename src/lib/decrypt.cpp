@@ -17,7 +17,7 @@ decryption::decryption(const credentials & creds)
 
     res = ubiq_platform_decryption_create(&*creds, &dec);
     if (res != 0) {
-        throw std::system_error(-res, std::generic_category());
+        throw std::system_error(-res, std::generic_category(), "during ubiq_platform_decryption_create");
     }
 
     _dec.reset(dec, &ubiq_platform_decryption_destroy);
@@ -30,7 +30,7 @@ decryption::decryption(const credentials & creds, const configuration & cfg)
 
     res = ubiq_platform_decryption_create_with_config(&*creds, &*cfg, &dec);
     if (res != 0) {
-        throw std::system_error(-res, std::generic_category());
+        throw std::system_error(-res, std::generic_category(), "during ubiq_platform_decryption_create_with_config");
     }
 
     _dec.reset(dec, &ubiq_platform_decryption_destroy);
@@ -40,14 +40,21 @@ decryption::decryption(const credentials & creds, const configuration & cfg)
 std::vector<std::uint8_t>
 decryption::begin(void)
 {
+  _session = decryption_session(*this);
+  return begin(_session);
+}
+
+std::vector<std::uint8_t>
+decryption::begin(decryption_session &session)
+{
     std::vector<std::uint8_t> v;
     void * ptbuf;
     size_t ptlen;
     int res;
 
-    res = ubiq_platform_decryption_begin(_dec.get(), &ptbuf, &ptlen);
+    res = ubiq_platform_decryption_beginTS(_dec.get(), session._session.get(), &ptbuf, &ptlen);
     if (res != 0) {
-        throw std::system_error(-res, std::generic_category());
+        throw std::system_error(-res, std::generic_category(), "during ubiq_platform_decryption_beginTS");
     }
 
     v.resize(ptlen);
@@ -60,15 +67,21 @@ decryption::begin(void)
 std::vector<std::uint8_t>
 decryption::update(const void * ctbuf, std::size_t ctlen)
 {
+  return update(_session, ctbuf, ctlen);
+}
+
+std::vector<std::uint8_t>
+decryption::update(decryption_session &session, const void * ctbuf, std::size_t ctlen)
+{
     std::vector<std::uint8_t> v;
     void * ptbuf;
     size_t ptlen;
     int res;
 
-    res = ubiq_platform_decryption_update(
-        _dec.get(), ctbuf, ctlen, &ptbuf, &ptlen);
+    res = ubiq_platform_decryption_updateTS(
+        _dec.get(), session._session.get(), ctbuf, ctlen, &ptbuf, &ptlen);
     if (res != 0) {
-        throw std::system_error(-res, std::generic_category());
+        throw std::system_error(-res, std::generic_category(), "during ubiq_platform_decryption_updateTS");
     }
 
     v.resize(ptlen);
@@ -81,14 +94,20 @@ decryption::update(const void * ctbuf, std::size_t ctlen)
 std::vector<std::uint8_t>
 decryption::end(void)
 {
+  return end(_session);
+}
+
+std::vector<std::uint8_t>
+decryption::end(decryption_session &session)
+{
     std::vector<std::uint8_t> v;
     void * ptbuf;
     size_t ptlen;
     int res;
 
-    res = ubiq_platform_decryption_end(_dec.get(), &ptbuf, &ptlen);
+    res = ubiq_platform_decryption_endTS(_dec.get(), session._session.get(), &ptbuf, &ptlen);
     if (res != 0) {
-        throw std::system_error(-res, std::generic_category());
+        throw std::system_error(-res, std::generic_category(), "during ubiq_platform_decryption_endTS");
     }
 
     v.resize(ptlen);
@@ -109,7 +128,7 @@ ubiq::platform::decrypt(const credentials & creds,
 
     res = ubiq_platform_decrypt(&*creds, ctbuf, ctlen, &ptbuf, &ptlen);
     if (res != 0) {
-        throw std::system_error(-res, std::generic_category());
+        throw std::system_error(-res, std::generic_category(), "during ubiq_platform_decrypt");
     }
 
     v.resize(ptlen);
@@ -130,7 +149,7 @@ decryption::get_copy_of_usage(void)
 
     res = ubiq_platform_decryption_get_copy_of_usage(_dec.get(), &buf, &len);
     if (res != 0) {
-        throw std::system_error(-res, std::generic_category());
+        throw std::system_error(-res, std::generic_category(), "during ubiq_platform_decryption_get_copy_of_usage");
     }
 
     v.resize(len);
@@ -146,6 +165,6 @@ decryption::add_user_defined_metadata(const std::string & jsonString)
     int res = ubiq_platform_decryption_add_user_defined_metadata(_dec.get(), 
     jsonString.data());
     if (res != 0) {
-        throw std::system_error(-res, std::generic_category());
+        throw std::system_error(-res, std::generic_category(), "during add_user_defined_metadata");
     }
 }

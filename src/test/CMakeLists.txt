@@ -20,11 +20,14 @@ add_executable(
   structured_encrypt.cpp
   structured_decrypt.cpp
   structured_encrypt_new.cpp
+  structured_threadsafe.cpp
   global.cpp
   hashtable.cpp
   parsing.cpp
   request.cpp
-  rsa.cpp)
+  rsa.cpp
+  unstructured_threadsafe.cpp
+)
 # link against the static libraries which avoids
 # having to export certain internal interfaces
 # on windows to make them available for testing

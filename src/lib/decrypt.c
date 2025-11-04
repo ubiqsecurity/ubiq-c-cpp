@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
+#include <pthread.h>
 
 #include "cJSON/cJSON.h"
 // #define UBIQ_DEBUG_ON
@@ -25,6 +26,20 @@
 
 static int debug_flag = 0;
 
+
+struct ubiq_platform_decryption_session
+{
+    struct ubiq_support_cipher_context * ctx;
+    const struct ubiq_platform_algorithm * algo;
+    // Rest calls are not thread safe so if decrypt needs to get a different key
+    // we need separate http handles
+    struct ubiq_platform_rest_handle * rest;
+
+    void * buf;
+    size_t len;
+
+    int inProgress;
+};
 
 typedef struct {
      void * buf;
@@ -43,24 +58,18 @@ struct ubiq_platform_decryption
 {
     /* http[s]://host/api/v0 */
     const char * restapi;
-    // const char * papi;
-    struct ubiq_platform_rest_handle * rest;
+
     struct ubiq_billing_ctx * billing_ctx;
+
+    pthread_mutex_t key_cache_lock; // Used when reading / writing.  Reading will check expiration and can cause a delete
 
     struct ubiq_platform_cache * key_cache; // key will be the base64 encoded encrypted data key (came from KMS)
     // Payload will be a cached_key_t.  The result MAY need to be decrypted using the encrypted_private_key and the srsa value.
-
-    // const char * srsa;
 
     struct {
       void * buf;
       size_t len;
     } encrypted_private_key;
-
-    const struct ubiq_platform_algorithm * algo;
-    struct ubiq_support_cipher_context * ctx;
-    void * buf;
-    size_t len;
 
     int key_cache_encrypt;
     int key_cache_ttl_seconds;
@@ -69,6 +78,9 @@ struct ubiq_platform_decryption
     // Creds are needed for IDP since cert can be updated and needs to be renewed
     struct ubiq_platform_credentials * creds;
     struct ubiq_platform_configuration * cfg;
+
+    // Session information for threadsafe operations
+    struct ubiq_platform_decryption_session * session;
 
 };
 
@@ -147,18 +159,8 @@ ubiq_platform_decryption_create_with_config(
          * data key can't be retrieved (and therefore decrypted) until
          * after the cipher text has started "flowing".
          */
-        // d->srsa = d->restapi + len;
-        // strcpy((char *)d->srsa, srsa);
 
-        // d->papi = d->restapi + len + strlen(srsa) + 1;
-        // strcpy((char *)d->papi, papi);
-
-        res = ubiq_platform_rest_handle_create(
-          ubiq_platform_credentials_get_papi(d->creds),
-          ubiq_platform_credentials_get_sapi(d->creds), &d->rest);
-        // res = ubiq_platform_rest_handle_create(papi, sapi, &d->billing_rest);
-
-        if (!res) {
+         if (!res) {
           res = ubiq_billing_ctx_create(&d->billing_ctx, host, 
           ubiq_platform_credentials_get_papi(d->creds),
           ubiq_platform_credentials_get_sapi(d->creds), d->cfg);
@@ -170,6 +172,9 @@ ubiq_platform_decryption_create_with_config(
           UBIQ_DEBUG(debug_flag, printf("key_cache_unstructured: %d\n", d->key_cache_unstructured));
           UBIQ_DEBUG(debug_flag, printf("key_cache_ttl_seconds: %d\n", d->key_cache_ttl_seconds));
           UBIQ_DEBUG(debug_flag, printf("key_cache_encrypt: %d\n", d->key_cache_encrypt));
+          if ((res = pthread_mutex_init(&d->key_cache_lock, NULL)) != 0) {
+            res = -errno;
+          }
         }
 
         if (!res) {
@@ -183,7 +188,10 @@ ubiq_platform_decryption_create_with_config(
           UBIQ_DEBUG(debug_flag, printf("ttl: %d\n", ttl));
           // htable size 500 - means slots for 500 possible key collisions - probably way more than the 
           // number of keys being used here
+          pthread_mutex_lock(&d->key_cache_lock);
           res = ubiq_platform_cache_create(500, ttl, &d->key_cache);
+          pthread_mutex_unlock(&d->key_cache_lock);
+
         }
 
         if (!res) {
@@ -230,12 +238,12 @@ ubiq_platform_decryption_create_with_config(
 static
 void
 ubiq_platform_decryption_reset(
-    struct ubiq_platform_decryption * const d)
+    struct ubiq_platform_decryption_session * const session)
 {
-    d->algo = NULL;
-    if (d->ctx) {
-        UBIQ_DEBUG(debug_flag, printf("d->ctx != NULL\n"));
-        ubiq_support_cipher_destroy(d->ctx);
+    session->algo = NULL;
+    if (session->ctx) {
+        UBIQ_DEBUG(debug_flag, printf("session->ctx != NULL\n"));
+        ubiq_support_cipher_destroy(session->ctx);
     }
 }
 
@@ -259,6 +267,43 @@ key_cache_element_destroy(void * const e) {
   free(e);
 }
 
+static
+int clone_key(ubiq_key_t src, ubiq_key_t * dest)
+{
+  int debug_flag = 0;
+  static const char * csu = "clone_key";
+
+  UBIQ_DEBUG(debug_flag, printf("%s start buf(%p) len(%d)\n",csu, src.buf, src.len));
+  int res = -ENOMEM;
+  if (src.buf) {
+    if (dest->buf = malloc(src.len))
+    {
+      dest->len = src.len;
+      memcpy(dest->buf, src.buf, src.len);
+      res = 0;
+    }
+  }
+  UBIQ_DEBUG(debug_flag, printf("%s res(%d)\n",csu, res));
+
+  return res;
+}
+
+static 
+int clone_cached_key(cached_key_t * src, cached_key_t ** dest)
+{
+  int debug_flag = 0;
+  static const char * csu = "clone_cached_key";
+  int res = 0;
+  UBIQ_DEBUG(debug_flag, printf("%s start \n",csu));
+  res = key_cache_element_create(dest);
+  UBIQ_DEBUG(debug_flag, printf("%s key_cache_element_create res(%d) \n",csu, res));
+
+  if (!res) {res = clone_key(src->decrypted_data_key, &(*dest)->decrypted_data_key);}
+  if (!res) {res = clone_key(src->wrapped_data_key, &(*dest)->wrapped_data_key);}
+  UBIQ_DEBUG(debug_flag, printf("%s res(%d)\n",csu, res));
+  return res;
+}
+
 /*
  * send the encrypted data key to the server to
  * be decrypted
@@ -267,29 +312,36 @@ static
 int
 ubiq_platform_decryption_new_key(
     struct ubiq_platform_decryption * const d,
+    struct ubiq_platform_decryption_session * const session,
     const void * const enckey, const size_t keylen,
     cached_key_t ** key)
 {
+    static const char * csu = "ubiq_platform_decryption_new_key";
     const char * const fmt = "%s/decryption/key";
 
     char * base64_encrypted_data_key;
-    int res;
+    int res = 0;
 
     // Encode the encrypted key to base64 for the cache key lookup
     ubiq_support_base64_encode(&base64_encrypted_data_key, enckey, keylen);
 
     // Does the key already exist ?
-    cached_key_t * cached_key = (cached_key_t *)ubiq_platform_cache_find_element(d->key_cache, base64_encrypted_data_key);
+    pthread_mutex_lock(&d->key_cache_lock);
+    cached_key_t * cached_key_original = (cached_key_t *)ubiq_platform_cache_find_element(d->key_cache, base64_encrypted_data_key);
+    if (cached_key_original != NULL) {
+    }
 
     // Key doesn't exist
-    if (NULL != cached_key) {
+    if (NULL != cached_key_original) {
+      res = clone_cached_key(cached_key_original, key);
+      pthread_mutex_unlock(&d->key_cache_lock);
       UBIQ_DEBUG(debug_flag, printf("Key found\n"));
-      *key = cached_key;
     } else {
+      pthread_mutex_unlock(&d->key_cache_lock);
       UBIQ_DEBUG(debug_flag, printf("Key NOT found\n"));
       cJSON * json;
-      res = key_cache_element_create(key);
-      UBIQ_DEBUG(debug_flag, printf("Key(%p) res(%d)\n", *key, res));
+      res = key_cache_element_create(&cached_key_original);
+      UBIQ_DEBUG(debug_flag, printf("Key(%p) res(%d)\n", *cached_key_original, res));
       if (0 == res) {
           char * url, * str;
           size_t len = 0;
@@ -312,23 +364,23 @@ ubiq_platform_decryption_new_key(
           UBIQ_DEBUG(debug_flag, printf("str(%s) \n", str));
           
           res = ubiq_platform_rest_request(
-              d->rest,
+              session->rest,
               HTTP_RM_POST, url, "application/json", str, strlen(str));
 
-          UBIQ_DEBUG(debug_flag, printf("res(%d)\n" ,res));
+          UBIQ_DEBUG(debug_flag, printf("ubiq_platform_rest_request res(%d)\n" ,res));
 
           free(str);
           free(url);
           if (res == 0) {
               const http_response_code_t rc =
-                  ubiq_platform_rest_response_code(d->rest);
+                  ubiq_platform_rest_response_code(session->rest);
 
               UBIQ_DEBUG(debug_flag, printf("rc %d\n" ,rc));
 
               if (rc == HTTP_RC_OK) {
                   size_t len = 0;
                   const void * rsp =
-                      ubiq_platform_rest_response_content(d->rest, &len);
+                      ubiq_platform_rest_response_content(session->rest, &len);
 
                   UBIQ_DEBUG(debug_flag, printf("rsp %.*s\n" ,len, rsp));
 
@@ -362,10 +414,10 @@ ubiq_platform_decryption_new_key(
                     j = cJSON_GetObjectItemCaseSensitive(
                           json, "wrapped_data_key");
                     if (cJSON_IsString(j) && j->valuestring != NULL) {
-                      (*key)->wrapped_data_key.buf = strdup(j->valuestring);
-                      (*key)->wrapped_data_key.len = strlen((*key)->wrapped_data_key.buf);
+                      (cached_key_original)->wrapped_data_key.buf = strdup(j->valuestring);
+                      (cached_key_original)->wrapped_data_key.len = strlen((cached_key_original)->wrapped_data_key.buf);
 
-                          UBIQ_DEBUG(debug_flag, printf("(*key)->wrapped_data_key.buf %.*s\n" ,(*key)->wrapped_data_key.len, (*key)->wrapped_data_key.buf));
+                          UBIQ_DEBUG(debug_flag, printf("(*cached_key_original)->wrapped_data_key.buf %.*s\n" ,(cached_key_original)->wrapped_data_key.len, (cached_key_original)->wrapped_data_key.buf));
 
                       // If caching unencrypted data, decrypt wrapped data key and store that in cache_key
                       if (!d->key_cache_encrypt) {
@@ -373,14 +425,19 @@ ubiq_platform_decryption_new_key(
                         res = ubiq_platform_common_decrypt_wrapped_key(
                           d->encrypted_private_key.buf,
                           ubiq_platform_credentials_get_srsa(d->creds),
-                          (*key)->wrapped_data_key.buf,
-                          &((*key)->decrypted_data_key.buf),
-                          &((*key)->decrypted_data_key.len));
+                          (cached_key_original)->wrapped_data_key.buf,
+                          &((cached_key_original)->decrypted_data_key.buf),
+                          &((cached_key_original)->decrypted_data_key.len));
+
                       }
                       UBIQ_DEBUG(debug_flag, printf("BEFORE ubiq_platform_cache_add_element res(%d)\n", res));
                       if (!res) {
+                        res = clone_cached_key(cached_key_original, key);
+                        pthread_mutex_lock(&d->key_cache_lock);
                         res = ubiq_platform_cache_add_element(d->key_cache, base64_encrypted_data_key, 
-                          *key, &key_cache_element_destroy);
+                          cached_key_original, &key_cache_element_destroy);
+                        pthread_mutex_unlock(&d->key_cache_lock);
+
                         UBIQ_DEBUG(debug_flag, printf("Key ADDED res(%d)\n",res));
                       }
                     } else {
@@ -388,9 +445,10 @@ ubiq_platform_decryption_new_key(
                     }
                   }
                   cJSON_Delete(json);
-              } else {
+              } else { // RES == 0 but RC != OK
                   res = ubiq_platform_http_error(rc);
               }
+            } else { // RES != 0
             }
           }
     }
@@ -403,22 +461,37 @@ void
 ubiq_platform_decryption_destroy(
     struct ubiq_platform_decryption * const d)
 {
+  static const char * csu = "ubiq_platform_decryption_destroy";
+  UBIQ_DEBUG(debug_flag, printf("%s: start \n", csu));
+
   if (d) {
 
-      ubiq_platform_decryption_reset(d);
+      if (d->session) {
+          UBIQ_DEBUG(debug_flag, printf("%s: before ubiq_platform_decryption_reset \n", csu));
+          ubiq_platform_decryption_reset(d->session);
+       }
       ubiq_billing_ctx_destroy(d->billing_ctx);
-      ubiq_platform_rest_handle_destroy(d->rest);
+      // ubiq_platform_rest_handle_destroy(d->rest);
+
+      pthread_mutex_lock(&d->key_cache_lock);
       ubiq_platform_cache_destroy(d->key_cache);
+      pthread_mutex_unlock(&d->key_cache_lock);
+      pthread_mutex_destroy(&d->key_cache_lock);
 
       ubiq_platform_credentials_destroy(d->creds);
       ubiq_platform_configuration_destroy(d->cfg);
+     if (d->session) {
+          UBIQ_DEBUG(debug_flag, printf("%s: before ubiq_platform_encryption_destroy_session \n", csu));
+          ubiq_platform_decryption_destroy_session(d->session);
+       }
+
 
       free(d->encrypted_private_key.buf);
-
-      free(d->buf);
     }
 
     free(d);
+    UBIQ_DEBUG(debug_flag, printf("%s: start \n", csu));
+
 }
 
 int
@@ -426,16 +499,44 @@ ubiq_platform_decryption_begin(
     struct ubiq_platform_decryption * const dec,
     void ** const ptbuf, size_t * const ptlen)
 {
-    int res;
+    static const char * const csu = "ubiq_platform_decryption_begin";
 
-    if (dec->ctx) {
+    int res = 0;
+    UBIQ_DEBUG(debug_flag, printf("%s: start %d\n", csu, res));
+
+    res = ubiq_platform_decryption_init_session(dec, &(dec->session));
+    UBIQ_DEBUG(debug_flag, printf("%s: after ubiq_platform_decryption_init_session %d\n", csu, res));
+
+    if (!res) {
+      res = ubiq_platform_decryption_beginTS(dec, dec->session, ptbuf, ptlen);
+    }
+
+    UBIQ_DEBUG(debug_flag, printf("%s: end %d\n", csu, res));
+    
+    return res;
+}
+
+int
+ubiq_platform_decryption_beginTS(
+    struct ubiq_platform_decryption * const dec,
+    struct ubiq_platform_decryption_session * const session,
+    void ** const ptbuf, size_t * const ptlen)
+{
+    static const char * const csu = "ubiq_platform_decryption_beginTS";
+    int res = 0;
+    UBIQ_DEBUG(debug_flag, printf("%s: start %d  session(%p)\n", csu, res, dec));
+
+    UBIQ_DEBUG(debug_flag, printf("%s: session->inProgress %d \n", csu, session->inProgress));
+    if (session->inProgress) {
         res = -EINPROGRESS;
     } else {
+        session->inProgress = 1;
         *ptbuf = NULL;
         *ptlen = 0;
 
         res = 0;
     }
+    UBIQ_DEBUG(debug_flag, printf("%s: end %d\n", csu, res));
 
     return res;
 }
@@ -446,14 +547,47 @@ ubiq_platform_decryption_update(
     const void * const ctbuf, const size_t ctlen,
     void ** const ptbuf, size_t * const ptlen)
 {
+  int debug_flag = 0;
     static const char * csu = "ubiq_platform_decryption_update";
+    int res = 0;
+
+    UBIQ_DEBUG(debug_flag, printf("%s: start %d\n", csu, res));
+
+    res = -ESRCH;
+
+    if (dec->session) {
+      res = ubiq_platform_decryption_updateTS(
+          dec, dec->session, ctbuf, ctlen, ptbuf, ptlen);
+    }
+
+    UBIQ_DEBUG(debug_flag, printf("%s: end %d\n", csu, res));
+
+    return res;
+}
+
+int
+ubiq_platform_decryption_updateTS(
+    struct ubiq_platform_decryption * const dec,
+    struct ubiq_platform_decryption_session * const session,
+    const void * const ctbuf, const size_t ctlen,
+    void ** const ptbuf, size_t * const ptlen)
+{
+  int debug_flag = 0;
+    static const char * csu = "ubiq_platform_decryption_updateTS";
 
     void * buf;
     size_t off;
-    int res;
+    
+    int res = 0;
+    UBIQ_DEBUG(debug_flag, printf("%s: start %d\n", csu, res));
+
+    if (!session->inProgress) {
+      /* decryption is not already in progress */
+      res = -EINVAL;
+    }
 
     off = 0;
-    res = 0;
+    UBIQ_DEBUG(debug_flag, printf("%s session->buf(%p) session->len(%d) ctbuf(%p) ctlen(%d)\n", csu, session->buf, session->len, ctbuf, ctlen));
 
     /*
      * this function works by appending incoming
@@ -464,37 +598,47 @@ ubiq_platform_decryption_update(
      * and then decryption can begin in earnest.
      */
 
-    buf = realloc(dec->buf, dec->len + ctlen);
+    buf = realloc(session->buf, session->len + ctlen);
     if (!buf) {
         return -ENOMEM;
     }
+    UBIQ_DEBUG(debug_flag, printf("%s session->buf(%p) buf(%p) ctbuf(%p) ctlen(%d)\n", csu, session->buf, buf, ctbuf, ctlen));
 
-    dec->buf = buf;
-    memcpy((char *)dec->buf + dec->len, ctbuf, ctlen);
-    dec->len += ctlen;
+    session->buf = buf;
+    memcpy((char *)session->buf + session->len, ctbuf, ctlen);
+    session->len += ctlen;
+    UBIQ_DEBUG(debug_flag, printf("%s session->buf(%p) session->len(%d) ctbuf(%p) ctlen(%d)\n", csu, session->buf, session->len, ctbuf, ctlen));
 
-    if (!dec->ctx) {
-        const union ubiq_platform_header * const h = dec->buf;
+    if (!session->ctx) {
+        const union ubiq_platform_header * const h = session->buf;
 
         /* has the header "preamble" been received? */
-        if (dec->len >= sizeof(h->pre)) {
+        if (session->len >= sizeof(h->pre)) {
             if (h->pre.version != 0) {
+                UBIQ_DEBUG(debug_flag, printf("%s h->pre.version != 0 %d res(%d)\n", csu, h->pre.version, res));
                 return -EBADMSG;
             }
 
             /* has the fixed-size portion of the header been received? */
-            if (dec->len >= sizeof(h->v0)) {
-                const struct ubiq_platform_algorithm * algo;
+            if (session->len >= sizeof(h->v0)) {
+                // const struct ubiq_platform_algorithm * algo;
                 unsigned int ivlen, keylen;
                 int err;
 
                 if ((h->v0.flags & ~UBIQ_HEADER_V0_FLAG_AAD) != 0) {
+                    UBIQ_DEBUG(debug_flag, printf("%s ((h->v0.flags & ~UBIQ_HEADER_V0_FLAG_AAD) != 0) res(%d)\n", csu, res));
                     return -EBADMSG;
                 }
 
+                // Reset the session algo and ctx info before setting it based on this data
+                ubiq_platform_decryption_reset(session);
+                UBIQ_DEBUG(debug_flag, printf("%s BEFORE session->algo(%p) err(%d)\n", csu, session->algo, err));
+
                 err = ubiq_platform_algorithm_get_byid(
-                    h->v0.algorithm, &algo);
+                    h->v0.algorithm, &(session->algo));
+                UBIQ_DEBUG(debug_flag, printf("%s AFTER session->algo(%p) err(%d)\n", csu, session->algo, err));
                 if (err) {
+                    UBIQ_DEBUG(debug_flag, printf("%s ubiq_platform_algorithm_get_byid res(%d)\n", csu, res));
                     return err;
                 }
 
@@ -504,7 +648,9 @@ ubiq_platform_decryption_update(
                 off += sizeof(h->v0);
 
                 /* has the entire header been received? */
-                if (dec->len >= sizeof(h->v0) + ivlen + keylen) {
+                if (session->len >= sizeof(h->v0) + ivlen + keylen) {
+                    UBIQ_DEBUG(debug_flag, printf("%s session->len >= session->algo(%p)\n", csu, session->algo));
+
                     cached_key_t * cached_key = NULL;
                     const void * iv = NULL, * key = NULL;
 
@@ -516,13 +662,14 @@ ubiq_platform_decryption_update(
                     // Decrypt the key or retrieve from the cache.
                     // key and keylen are raw bytes
                     res = ubiq_platform_decryption_new_key(
-                            dec, key, keylen, &cached_key);
+                            dec, session, key, keylen, &cached_key);
 
-                    UBIQ_DEBUG(debug_flag, printf("ubiq_platform_decryption_new_key res(%d)\n", res));
+                    UBIQ_DEBUG(debug_flag, printf("%s ubiq_platform_decryption_new_key session->algo(%p) res(%d)\n", csu, session->algo, res));
 
-                    // ubiq_platform_decryption_reset(dec);
+                    // ubiq_platform_decryption_reset(session);
 
                     ubiq_key_t decryption_key;
+                    decryption_key.len = 0;
                     int mem_manage_decryption_key = 0;
 
                     if (!res && cached_key != NULL) {
@@ -554,13 +701,13 @@ ubiq_platform_decryption_update(
                      * if the key is present now, create the
                      * decryption context
                      */
-                    UBIQ_DEBUG(debug_flag, printf("%s res(%d)\n", csu, res));
+                    UBIQ_DEBUG(debug_flag, printf("%s decryption_key.len(%d) res(%d)\n", csu, decryption_key.len, res));
 
                     if (res == 0 && decryption_key.len) {
                         const void * aadbuf;
                         size_t aadlen;
 
-                        dec->algo = algo;
+                        // session->algo = algo;
 
                         aadbuf = NULL;
                         aadlen = 0;
@@ -568,13 +715,14 @@ ubiq_platform_decryption_update(
                             aadbuf = h;
                             aadlen = sizeof(*h) + ivlen + keylen;
                         }
+                    UBIQ_DEBUG(debug_flag, printf("%s BEFORE ubiq_support_decryption_init algo(%p) res(%d)\n", csu, session->algo, res));
 
                         res = ubiq_support_decryption_init(
-                            algo,
+                            session->algo,
                             decryption_key.buf, decryption_key.len,
                             iv, ivlen,
                             aadbuf, aadlen,
-                            &dec->ctx);
+                            &session->ctx);
 
                         UBIQ_DEBUG(debug_flag, printf("%s after %s res(%d)\n", csu, "ubiq_support_decryption_init", res));
 
@@ -595,12 +743,13 @@ ubiq_platform_decryption_update(
                         }
                         UBIQ_DEBUG(debug_flag, printf("%s after %s res(%d)\n", csu, "ubiq_billing_add_billing_event", res));
                     }
+                    key_cache_element_destroy(cached_key);
                 }
             }
         }
     }
 
-    if (res == 0 && dec->ctx) {
+    if (res == 0 && session->ctx) {
         /*
          * decrypt whatever data is available, but always leave
          * enough data in the buffer to form a complete tag. the
@@ -609,23 +758,26 @@ ubiq_platform_decryption_update(
          * has to assume that the last bytes are the tag.
          */
 
-        const int declen = dec->len - (off + dec->algo->len.tag);
+        const int declen = session->len - (off + session->algo->len.tag);
 
         if (declen > 0) {
             res = ubiq_support_decryption_update(
-                dec->ctx,
-                (char *)dec->buf + off, declen,
+                session->ctx,
+                (char *)session->buf + off, declen,
                 ptbuf, ptlen);
             if (res == 0) {
-                memmove(dec->buf,
-                        (char *)dec->buf + off + declen,
-                        dec->algo->len.tag);
-                dec->len = dec->algo->len.tag;
+                memmove(session->buf,
+                        (char *)session->buf + off + declen,
+                        session->algo->len.tag);
+                session->len = session->algo->len.tag;
             }
         }
-                        UBIQ_DEBUG(debug_flag, printf("%s after %s res(%d)\n", csu, "ubiq_support_decryption_update", res));
+
+        // debug_flag = 1;                    
+        UBIQ_DEBUG(debug_flag, printf("%s after %s res(%d)\n", csu, "ubiq_support_decryption_update", res));
 
     }
+    UBIQ_DEBUG(debug_flag, printf("%s: end %d\n", csu, res));
 
     return res;
 }
@@ -635,11 +787,40 @@ ubiq_platform_decryption_end(
     struct ubiq_platform_decryption * const dec,
     void ** const ptbuf, size_t * const ptlen)
 {
-    int res;
+    static const char * csu = "ubiq_platform_decryption_end";
+
+    int res = 0;
+    UBIQ_DEBUG(debug_flag, printf("%s: start %d\n", csu, res));
 
     res = -ESRCH;
-    if (dec->ctx) {
-        const int sz = dec->len - dec->algo->len.tag;
+
+    if (dec->session) {
+      res = ubiq_platform_decryption_endTS(dec, dec->session, ptbuf, ptlen);
+      ubiq_platform_decryption_destroy_session(dec->session);
+      dec->session = NULL;
+    }
+
+    UBIQ_DEBUG(debug_flag, printf("%s: end %d\n", csu, res));
+
+    return res;
+}
+
+int
+ubiq_platform_decryption_endTS(
+    struct ubiq_platform_decryption * const dec,
+    struct ubiq_platform_decryption_session * const session,
+    void ** const ptbuf, size_t * const ptlen)
+{
+    static const char * csu = "ubiq_platform_decryption_endTS";
+
+    int res = 0;
+    UBIQ_DEBUG(debug_flag, printf("%s: start %d\n", csu, res));
+
+    if (!session->inProgress) {
+      /* decryption is not already in progress */
+      res = -EINVAL;
+    } else {
+        const int sz = session->len - session->algo->len.tag;
 
         if (sz != 0) {
             /*
@@ -651,18 +832,17 @@ ubiq_platform_decryption_end(
             res = -ENODATA;
         } else {
             res = ubiq_support_decryption_finalize(
-                dec->ctx,
-                dec->buf, dec->len,
+                session->ctx,
+                session->buf, session->len,
                 ptbuf, ptlen);
-            if (res == 0) {
-                free(dec->buf);
-                dec->buf = NULL;
-                dec->len = 0;
-
-                dec->ctx = NULL;
-            }
+            // Finalize will free the ctx so set to NULL, otherwise cleanup manually
+            if (0 == res) {
+              session->ctx = NULL;
+            } 
         }
     }
+
+    UBIQ_DEBUG(debug_flag, printf("%s: end %d\n", csu, res));
 
     return res;
 }
@@ -675,7 +855,7 @@ ubiq_platform_decrypt(
 {
     struct ubiq_platform_decryption * dec;
     int res;
-
+    int debug_flag = 0;
     struct {
         void * buf;
         size_t len;
@@ -742,4 +922,56 @@ ubiq_platform_decryption_get_copy_of_usage(
       return -EINVAL;
     }
     return ubiq_billing_get_copy_of_usage(dec->billing_ctx, buffer, buffer_len);
+}
+
+int ubiq_platform_decryption_init_session(
+struct ubiq_platform_decryption * const dec,
+struct ubiq_platform_decryption_session ** const session)
+{
+  static const char * csu = "ubiq_platform_decryption_init_session";
+
+  struct ubiq_platform_decryption_session * s;
+  int res = 0;
+
+  UBIQ_DEBUG(debug_flag, printf("%s: begin %d\n", csu, res));
+  res = -ENOMEM;
+  s = calloc(1, sizeof(struct ubiq_platform_decryption_session));
+  if (s) {
+    *session = s;
+    res = 0;
+    UBIQ_DEBUG(debug_flag, printf("%s: after calloc %d  session(%p)\n", csu, res, s));
+    res = ubiq_platform_rest_handle_create(
+      ubiq_platform_credentials_get_papi(dec->creds),
+      ubiq_platform_credentials_get_sapi(dec->creds), &s->rest);
+    UBIQ_DEBUG(debug_flag, printf("%s: after ubiq_platform_rest_handle_create %d\n", csu, res));
+  } 
+  UBIQ_DEBUG(debug_flag, printf("%s: end %d\n", csu, res));
+
+  return res;
+}
+
+void ubiq_platform_decryption_destroy_session(
+  struct ubiq_platform_decryption_session * const session)
+{
+  static const char * csu = "ubiq_platform_decryption_destroy_session";
+
+    UBIQ_DEBUG(debug_flag, printf("%s: start \n", csu));
+
+    if (session) {
+      if (session->ctx) {
+        UBIQ_DEBUG(debug_flag, printf("%s: before ubiq_support_cipher_destroy \n", csu));
+        ubiq_support_cipher_destroy(session->ctx);
+      }
+      if (session->buf) {
+        free(session->buf);
+        session->buf = NULL;
+      }
+      ubiq_platform_rest_handle_destroy(session->rest);
+
+      session->inProgress = 0;
+      session->ctx = NULL;
+      UBIQ_DEBUG(debug_flag, printf("%s: before free(session) \n", csu));
+      free(session);
+    }
+    UBIQ_DEBUG(debug_flag, printf("%s: end \n", csu));
 }

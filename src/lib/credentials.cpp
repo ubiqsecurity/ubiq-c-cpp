@@ -26,7 +26,7 @@ credentials::credentials(
         profile.empty() ? nullptr : profile.c_str(),
         &creds);
     if (res != 0) {
-        throw std::system_error(-res, std::generic_category());
+        throw std::system_error(-res, std::generic_category(), "in credentials during ubiq_platform_credentials_create_specific");
     }
 
     _cred.reset(creds, &ubiq_platform_credentials_destroy);
@@ -46,7 +46,7 @@ credentials::credentials(
         host.empty() ? nullptr : host.c_str(),
         &creds);
     if (res != 0) {
-        throw std::system_error(-res, std::generic_category());
+        throw std::system_error(-res, std::generic_category(), "in credentials during ubiq_platform_credentials_create_explicit");
     }
 
     _cred.reset(creds, &ubiq_platform_credentials_destroy);
@@ -76,6 +76,6 @@ void credentials::set_idp_parameters(
   );
 
   if (res != 0) {
-    throw std::system_error(-res, std::generic_category());
+    throw std::system_error(-res, std::generic_category(), "in set_idp_parameters during ubiq_platform_credentials_set_idp");
   }
 }              

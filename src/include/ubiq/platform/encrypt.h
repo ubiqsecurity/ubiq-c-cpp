@@ -32,6 +32,9 @@ ubiq_platform_encrypt(
     void ** const ctbuf, size_t * const ctlen);
 
 
+struct ubiq_platform_encryption_session;
+
+
 /* Opaque encryption object */
 struct ubiq_platform_encryption;
 
@@ -94,6 +97,12 @@ ubiq_platform_encryption_begin(
     struct ubiq_platform_encryption * const enc,
     void ** const ctbuf, size_t * const ctlen);
 
+UBIQ_PLATFORM_API
+int
+ubiq_platform_encryption_beginTS(
+    const struct ubiq_platform_encryption * const enc,
+    struct ubiq_platform_encryption_session * const session,
+    void ** const ctbuf, size_t * const ctlen); 
 /*
  * Encrypt a portion of plain text.
  *
@@ -110,6 +119,14 @@ int
 ubiq_platform_encryption_update(
     struct ubiq_platform_encryption * const enc,
     const void * ptbuf, const size_t ptlen,
+    void ** const ctbuf, size_t * const ctlen);
+
+UBIQ_PLATFORM_API
+int    
+ubiq_platform_encryption_updateTS(
+    const struct ubiq_platform_encryption * const enc,
+    struct ubiq_platform_encryption_session * const session,
+    const void * const ptbuf, const size_t ptlen,
     void ** const ctbuf, size_t * const ctlen);
 
 /*
@@ -135,6 +152,13 @@ ubiq_platform_encryption_end(
 
 UBIQ_PLATFORM_API
 int
+ubiq_platform_encryption_endTS(
+    struct ubiq_platform_encryption * const enc,
+    struct ubiq_platform_encryption_session  * const session,
+    void ** const ctbuf, size_t * const ctlen);
+
+UBIQ_PLATFORM_API
+int
 ubiq_platform_encryption_add_user_defined_metadata(
     struct ubiq_platform_encryption * const enc,
     const char * const jsonString);
@@ -144,6 +168,15 @@ int
 ubiq_platform_encryption_get_copy_of_usage(
     struct ubiq_platform_encryption * const enc,
     char ** const buffer, size_t * const buffer_len);
+
+UBIQ_PLATFORM_API
+void ubiq_platform_encryption_destroy_session(
+  struct ubiq_platform_encryption_session  * const session);
+
+UBIQ_PLATFORM_API
+int ubiq_platform_encryption_init_session(
+struct ubiq_platform_encryption * const enc,
+struct ubiq_platform_encryption_session ** const session);
 
 /*
  * *******************************************
@@ -285,11 +318,50 @@ namespace ubiq {
     namespace platform {
 
       class builder;
+      class encryption_session;
+      class encryption;
 
         UBIQ_PLATFORM_API
         std::vector<std::uint8_t>
         encrypt(const credentials & creds,
                 const void * ptbuf, std::size_t ptlen);
+
+
+        class encryption_session {
+          public:
+
+          UBIQ_PLATFORM_API
+          encryption_session();
+
+          UBIQ_PLATFORM_API
+          encryption_session(encryption &encryption);
+
+          UBIQ_PLATFORM_API
+          virtual ~encryption_session(void) = default;
+
+
+          UBIQ_PLATFORM_API
+          encryption_session(const encryption_session &) = default;
+          UBIQ_PLATFORM_API
+          encryption_session(encryption_session &&) =  default;
+
+          UBIQ_PLATFORM_API
+          encryption_session & operator =(const encryption_session &) = default;
+          UBIQ_PLATFORM_API
+          encryption_session & operator =(encryption_session &&) = default;
+
+        /*
+          * Gives access to the underlying C object
+          */
+        UBIQ_PLATFORM_API
+        ::ubiq_platform_encryption_session & operator *(void) const;
+
+          private:
+          std::shared_ptr<::ubiq_platform_encryption_session> _session;
+
+          friend class encryption;
+
+        };
 
         class encryption : public transform
         {
@@ -336,6 +408,13 @@ namespace ubiq {
             std::vector<std::uint8_t>
             begin(void)
                 override;
+
+            UBIQ_PLATFORM_API
+            virtual
+            std::vector<std::uint8_t>
+            begin(encryption_session & session);
+
+
             /*
              * This function is equivalent to ubiq_platform_encryption_update();
              * however, it returns the generated cipher text in a vector and
@@ -346,6 +425,12 @@ namespace ubiq {
             std::vector<std::uint8_t>
             update(const void * ptbuf, std::size_t ptlen)
                 override;
+
+            UBIQ_PLATFORM_API
+            virtual
+            std::vector<std::uint8_t>
+            update(encryption_session & session, const void * ptbuf, std::size_t ptlen);
+
             /*
              * This function is equivalent to ubiq_platform_encryption_end();
              * however, it returns the generated cipher text in a vector and
@@ -356,6 +441,11 @@ namespace ubiq {
             std::vector<std::uint8_t>
             end(void)
                 override;
+
+            UBIQ_PLATFORM_API
+            virtual
+            std::vector<std::uint8_t>
+            end(encryption_session & session);
 
             UBIQ_PLATFORM_API
             std::string
@@ -371,8 +461,11 @@ namespace ubiq {
             encryption(::ubiq_platform_encryption * e);
 
             std::shared_ptr<::ubiq_platform_encryption> _enc;
+            encryption_session  _session;
             friend class builder;
+            friend class encryption_session;
         };
+
 
 
         namespace structured {

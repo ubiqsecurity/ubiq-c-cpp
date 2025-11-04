@@ -63,6 +63,7 @@ ubiq_sample_piecewise_encrypt(
     FILE * const ifp, FILE * const ofp)
 {
     struct ubiq_platform_encryption * ctx;
+    struct ubiq_platform_encryption_session * session;
     void * obuf;
     size_t olen;
     int res;
@@ -71,12 +72,16 @@ ubiq_sample_piecewise_encrypt(
         creds, cfg, 1 /* want to use the key once */, &ctx);
     if (res == 0) {
 
+        res = ubiq_platform_encryption_init_session(ctx, &session);
+        if (res == 0) {
+
+
         /*
          * Start by calling the begin() function. It may produce
          * some data which needs to be written to the output.
          */
 
-        res = ubiq_platform_encryption_begin(ctx, &obuf, &olen);
+        res = ubiq_platform_encryption_beginTS(ctx, session, &obuf, &olen);
         if (res == 0) {
             fwrite(obuf, 1, olen, ofp);
             free(obuf);
@@ -92,8 +97,8 @@ ubiq_sample_piecewise_encrypt(
 
                 ilen = fread(ibuf, 1, sizeof(ibuf), ifp);
 
-                res = ubiq_platform_encryption_update(
-                    ctx, ibuf, ilen, &obuf, &olen);
+                res = ubiq_platform_encryption_updateTS(
+                    ctx, session, ibuf, ilen, &obuf, &olen);
                 if (res == 0) {
                     fwrite(obuf, 1, olen, ofp);
                     free(obuf);
@@ -105,15 +110,16 @@ ubiq_sample_piecewise_encrypt(
              * write any data produced by the call to the output file
              */
             if (res == 0) {
-                res = ubiq_platform_encryption_end(ctx, &obuf, &olen);
+                res = ubiq_platform_encryption_endTS(ctx, session, &obuf, &olen);
                 if (res == 0) {
                     fwrite(obuf, 1, olen, ofp);
                     free(obuf);
                 }
             }
         }
-
-        ubiq_platform_encryption_destroy(ctx);
+      }
+      ubiq_platform_encryption_destroy_session(session);
+      ubiq_platform_encryption_destroy(ctx);
     }
 
     return res;
@@ -127,6 +133,7 @@ ubiq_sample_piecewise_decrypt(
     FILE * const ifp, FILE * const ofp)
 {
     struct ubiq_platform_decryption * ctx;
+    struct ubiq_platform_decryption_session * session;
     void * obuf;
     size_t olen;
     int res;
@@ -134,13 +141,16 @@ ubiq_sample_piecewise_decrypt(
     res = ubiq_platform_decryption_create_with_config(creds, cfg, &ctx);
     if (res == 0) {
 
+        res = ubiq_platform_decryption_init_session(ctx, &session);
+        if (res == 0) {
+
         /*
          * Start by calling the begin() function. It may produce
          * some data which needs to be written to the output.
          */
 
-        res = ubiq_platform_decryption_begin(ctx, &obuf, &olen);
-        if (res == 0) {
+          res = ubiq_platform_decryption_beginTS(ctx, session, &obuf, &olen);
+          if (res == 0) {
             fwrite(obuf, 1, olen, ofp);
             free(obuf);
 
@@ -155,8 +165,8 @@ ubiq_sample_piecewise_decrypt(
 
                 ilen = fread(ibuf, 1, sizeof(ibuf), ifp);
 
-                res = ubiq_platform_decryption_update(
-                    ctx, ibuf, ilen, &obuf, &olen);
+                res = ubiq_platform_decryption_updateTS(
+                    ctx, session, ibuf, ilen, &obuf, &olen);
                 if (res == 0) {
                     fwrite(obuf, 1, olen, ofp);
                     free(obuf);
@@ -168,14 +178,15 @@ ubiq_sample_piecewise_decrypt(
              * write any data produced by the call to the output file
              */
             if (res == 0) {
-                res = ubiq_platform_decryption_end(ctx, &obuf, &olen);
+                res = ubiq_platform_decryption_endTS(ctx, session, &obuf, &olen);
                 if (res == 0) {
                     fwrite(obuf, 1, olen, ofp);
                     free(obuf);
                 }
             }
+          }
         }
-
+        ubiq_platform_decryption_destroy_session(session);
         ubiq_platform_decryption_destroy(ctx);
     }
 

@@ -87,7 +87,7 @@ build-centos-9-stream:
        paths:
         - build
 
-test-debian-11:
+.test-debian-11:
     image: debian:bullseye
     stage: test
     before_script:
@@ -105,7 +105,27 @@ test-debian-11:
        paths:
         - build
 
-test-debian-12:
+
+test-debian-11_dev:
+    extends: .test-debian-11
+    rules:
+    - if: $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH && $CI_PIPELINE_SOURCE != 'merge_request_event'
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_PIPELINE_SOURCE == 'schedule'
+    environment: ubs-usw2-dvc
+
+test-debian-11_prod:
+    extends: .test-debian-11
+    rules:
+    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
+      when: on_success
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+      when: on_success
+    - if: $CI_PIPELINE_SOURCE == 'schedule'
+      when: on_success
+    environment: ubs-usw2-prcv3
+
+
+.test-debian-12:
     image: debian:bookworm
     stage: test
     before_script:
@@ -123,7 +143,25 @@ test-debian-12:
        paths:
         - build
 
-test-centos-9-stream:
+test-debian-12_dev:
+    extends: .test-debian-12
+    rules:
+    - if: $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH && $CI_PIPELINE_SOURCE != 'merge_request_event'
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_PIPELINE_SOURCE == 'schedule'
+    environment: ubs-usw2-dvc
+
+test-debian-12_prod:
+    extends: .test-debian-12
+    rules:
+    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
+      when: on_success
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+      when: on_success
+    - if: $CI_PIPELINE_SOURCE == 'schedule'
+      when: on_success
+    environment: ubs-usw2-prcv3
+
+.test-centos-9-stream:
     image: quay.io/centos/centos:stream9
     stage: test
     script:
@@ -137,6 +175,24 @@ test-centos-9-stream:
        key: "centos-${CI_COMMIT_REF_SLUG}"
        paths:
         - build
+
+centos-9-stream_dev:
+    extends: .test-centos-9-stream
+    rules:
+    - if: $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH && $CI_PIPELINE_SOURCE != 'merge_request_event'
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_PIPELINE_SOURCE == 'schedule'
+    environment: ubs-usw2-dvc
+
+centos-9-stream_prod:
+    extends: .test-centos-9-stream
+    rules:
+    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
+      when: on_success
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+      when: on_success
+    - if: $CI_PIPELINE_SOURCE == 'schedule'
+      when: on_success
+    environment: ubs-usw2-prcv3
 
 sast:
     variables:
