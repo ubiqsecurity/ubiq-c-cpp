@@ -8,3 +8,6 @@
 	path = src/test/googletest
 	url = https://github.com/google/googletest.git
 
+[submodule "src/test/ubiq-test-data"]
+	path = src/test/ubiq-test-data
+	url = https://gitlab.com/ubiqsecurity/ubiq-test-data.git
