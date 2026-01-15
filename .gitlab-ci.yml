@@ -97,7 +97,7 @@ build-centos-9-stream:
         - ldd build/src/test/unittests
         - build/src/test/unittests
         - ldd build/src/test/test_performance
-        - ls -l build/src/test src/test/DATA
+        - ls -l build/src/test src/test/DATA src/test/ubiq-test-data/dev src/test/ubiq-test-data/prod 
         - build/src/test/test_performance_c
         - build/src/test/test_performance
     cache:
