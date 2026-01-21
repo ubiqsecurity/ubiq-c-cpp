@@ -198,8 +198,16 @@ sast:
     variables:
         SAST_EXCLUDED_PATHS: src/test, build
     stage: test
+
+secret_detection:
+    stage: test
+    variables:
+        SECRET_DETECTION_EXCLUDED_PATHS: "build/"
+
+# GitLab Security Scanning Templates
 include:
     - template: Security/SAST.gitlab-ci.yml
+    - template: Security/Secret-Detection.gitlab-ci.yml
 
 # package-centos:
 #    stage: deploy
