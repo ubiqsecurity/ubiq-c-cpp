@@ -97,7 +97,7 @@ build-centos-9-stream:
         - ldd build/src/test/unittests
         - build/src/test/unittests
         - ldd build/src/test/test_performance
-        - ls -l build/src/test src/test/DATA src/test/ubiq-test-data/dev src/test/ubiq-test-data/prod $UBIQ_TEST_DATA_FILE
+        - ls -l $UBIQ_TEST_DATA_FILE
         - build/src/test/test_performance_c
         - build/src/test/test_performance
     cache:
@@ -135,7 +135,7 @@ test-debian-11_prod:
         - ldd build/src/test/unittests
         - build/src/test/unittests
         - ldd build/src/test/test_performance
-        - ls -l build/src/test src/test/DATA $UBIQ_TEST_DATA_FILE
+        - ls -l $UBIQ_TEST_DATA_FILE
         - build/src/test/test_performance_c
         - build/src/test/test_performance
     cache:
@@ -168,7 +168,7 @@ test-debian-12_prod:
         - ldd build/src/test/unittests
         - build/src/test/unittests
         - ldd build/src/test/test_performance
-        - ls -l build/src/test src/test/DATA $UBIQ_TEST_DATA_FILE
+        - ls -l $UBIQ_TEST_DATA_FILE
         - build/src/test/test_performance_c
         - build/src/test/test_performance
     cache:
