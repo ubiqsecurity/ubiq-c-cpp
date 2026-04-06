@@ -90,6 +90,8 @@ build-centos-9-stream:
 .test-debian-11:
     image: debian:bullseye
     stage: test
+    variables:
+        GIT_SUBMODULE_STRATEGY: recursive
     before_script:
         - apt -y update
         - apt -y install libcurl4 libssl1.1
@@ -128,6 +130,8 @@ test-debian-11_prod:
 .test-debian-12:
     image: debian:bookworm
     stage: test
+    variables:
+        GIT_SUBMODULE_STRATEGY: recursive
     before_script:
         - apt -y update
         - apt -y install libcurl4 libssl3
@@ -164,6 +168,8 @@ test-debian-12_prod:
 .test-centos-9-stream:
     image: quay.io/centos/centos:stream9
     stage: test
+    variables:
+        GIT_SUBMODULE_STRATEGY: recursive
     script:
         - ldd build/src/test/unittests
         - build/src/test/unittests
