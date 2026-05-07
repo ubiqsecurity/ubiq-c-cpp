@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include <unistr.h>
+#include <chrono>
 
 
 #include "ubiq/platform.h"
@@ -189,9 +190,9 @@ TEST(utf8_utf32, u8_to_u32)
   ASSERT_EQ(u8_check(input_character_set,u8_strlen(input_character_set)), nullptr);
   ASSERT_EQ(u8_check(passthrough_character_set,u8_strlen(passthrough_character_set)), nullptr);
 
-  ASSERT_EQ(convert_utf8_to_utf32((char *)pt,  &u32_pt), 0);
-  ASSERT_EQ(convert_utf8_to_utf32((char *)input_character_set, &u32_input), 0);
-  ASSERT_EQ(convert_utf8_to_utf32((char *)passthrough_character_set, &u32_passthrough), 0);
+  ASSERT_EQ(convert_utf8_to_utf32(pt,  &u32_pt), 0);
+  ASSERT_EQ(convert_utf8_to_utf32(input_character_set, &u32_input), 0);
+  ASSERT_EQ(convert_utf8_to_utf32(passthrough_character_set, &u32_passthrough), 0);
 
   ASSERT_EQ(convert_utf32_to_utf8(u32_pt,  &u8_pt), 0);
   ASSERT_EQ(convert_utf32_to_utf8(u32_input, &u8_input), 0);
@@ -360,5 +361,138 @@ TEST(utf8_utf32, parse2)
 
   free(u8_trimmed);
   free(u8_empty);
+
+}
+
+
+TEST(utf8_utf32, timing_1m)
+{
+  const uint8_t * const pt = (uint8_t *)"23456®23456Ñ23456Á23456"; //"®ÑÁ";
+
+  uint32_t * u32_pt = NULL;
+
+  uint8_t * u8_pt = NULL;
+
+  {
+
+    auto start = std::chrono::steady_clock::now();
+
+    ASSERT_EQ(convert_utf8_len_to_utf32((char *)pt, u8_strlen(pt), &u32_pt), 0);
+
+    ASSERT_EQ(convert_utf32_to_utf8(u32_pt, &u8_pt), 0);
+
+    free(u32_pt);
+    
+    free(u8_pt);
+    auto end = std::chrono::steady_clock::now();
+
+    long duration = std::chrono::duration<double, std::nano>(end - start).count();
+    std::cout << "1 cycle duration (nanoseconds): " << duration << std::endl;
+  }
+
+  {
+    int cnt = 10000000;
+    auto start = std::chrono::steady_clock::now();
+    for (int i = 0;i < cnt; i++) {
+      ASSERT_EQ(convert_utf8_len_to_utf32((char *)pt, u8_strlen(pt), &u32_pt), 0);
+
+      ASSERT_EQ(convert_utf32_to_utf8(u32_pt, &u8_pt), 0);
+
+      free(u32_pt);
+      
+      free(u8_pt);
+    }
+    auto end = std::chrono::steady_clock::now();
+
+    long duration = std::chrono::duration<double, std::nano>(end - start).count();
+    std::cout << cnt << " cycle duration (nanoseconds): " << duration << std::endl;
+    std::cout << cnt << "    each cycle duration (nanoseconds): " << duration / cnt << std::endl;
+
+  }
+
+  {
+    const char * const pt = "23456a23456b23456c23456";
+
+    int cnt = 10000000;
+    auto start = std::chrono::steady_clock::now();
+    for (int i = 0;i < cnt; i++) {
+      char * dest = (char *) calloc(strlen(pt), sizeof(uint8_t));
+      char * dest2 = (char *) calloc(strlen(pt), sizeof(uint8_t));
+      strncpy(dest, pt, strlen(pt));
+      strncpy(dest2, pt, strlen(pt));
+
+      free(dest);
+      free(dest2);
+    }
+    auto end = std::chrono::steady_clock::now();
+
+    long duration = std::chrono::duration<double, std::nano>(end - start).count();
+    std::cout << cnt << " memcpy cycle duration (nanoseconds): " << duration << std::endl;
+    std::cout << cnt << "    each cycle duration (nanoseconds): " << duration / cnt << std::endl;
+
+  }
+
+
+}
+
+TEST(utf8_utf32, lencheck)
+{
+  const uint8_t * pt = (uint8_t *)   "23456®23456Ñ23456Á23456";
+
+  uint32_t * u32_pt = NULL;
+
+  uint8_t * u8_pt = NULL;
+
+  // std::cout << "u8_strlen(pt): " << u8_strlen(pt) << std::endl;
+  // std::cout << "u8_strlen(pt): " << u8_strlen(pt) << std::endl;
+  // std::cout << "u8_mbsnlen(pt): " << u8_mbsnlen(pt,  u8_strlen(pt)) << std::endl;
+  // std::cout << "strlen(pt): " << strlen((char *)pt) << std::endl;
+
+  convert_utf8_len_to_utf32((char *)pt, u8_strlen(pt), &u32_pt);
+  std::cout << "u32_strlen(pt): " << u32_strlen(u32_pt) << std::endl;
+  free(u32_pt);
+
+
+}
+
+
+
+TEST(join, simple)
+{
+  char const * names1[] = {"test"};
+  int res = 0;
+  char * results = NULL;
+
+  res = ubiq_platform_join_array("", names1, 1, &results);
+  ASSERT_EQ(res, 0);
+  printf("results: %s\n", results);
+  EXPECT_EQ(strcmp(results, "test"), 0);
+  free(results);
+
+  res = ubiq_platform_join_array(",", names1, 1, &results);
+  ASSERT_EQ(res, 0);
+  printf("results: %s\n", results);
+  EXPECT_EQ(strcmp(results, "test"), 0);
+  free(results);
+
+}
+
+TEST(join, multiple)
+{
+  char const * names1[] = {"test", "abcdef", "j", "0123456789"};
+  int res = 0;
+  char * results = NULL;
+
+  res = ubiq_platform_join_array("", names1, 4, &results);
+  ASSERT_EQ(res, 0);
+  printf("results: %s\n", results);
+  EXPECT_EQ(strcmp(results, "testabcdefj0123456789"), 0);
+  free(results);
+
+  res = ubiq_platform_join_array(", ", names1, 4, &results);
+  ASSERT_EQ(res, 0);
+  printf("results: %s\n", results);
+  EXPECT_EQ(strcmp(results, "test, abcdef, j, 0123456789"), 0);
+  free(results);
 
 }

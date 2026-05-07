@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
+#include <errno.h>
 
 #include "common.h"
 
@@ -303,6 +304,11 @@ ubiq_structured_usage(
     fprintf(stderr, "                             (default: ~/.ubiq/configuration)\n");
     fprintf(stderr, "  -s                       Perform EncryptForSearch\n");
     fprintf(stderr, "                             Only compatible with the -e option\n");
+    fprintf(stderr, "  -I                       Treat input as an integer 32\n");
+    fprintf(stderr, "  -L                       Treat input as an integer 64\n");
+    fprintf(stderr, "  -D                       Treat input as an Date in YYYMMDDTHH:MM:SSZ format\n");
+    fprintf(stderr, "  -T                       Treat input as an Date Time value in YYYMMDDTHH:MM:SSZ format\n");
+
 }
 
 int
@@ -311,7 +317,8 @@ ubiq_structured_getopt(
     ubiq_sample_mode_t * const mode,
     const char ** const ffsname, const char ** const inputstring,
     const char ** const credfile, const char ** const profile,
-    const char ** const cfgfile, int * const encryptForSearch)
+    const char ** const cfgfile, int * const encryptForSearch,
+    ubiq_dataset_type_t * dataset_type)
 {
     int opt;
 
@@ -321,8 +328,9 @@ ubiq_structured_getopt(
     *mode = UBIQ_SAMPLE_MODE_UNSPEC;
     *inputstring = *ffsname = *credfile = *profile = NULL;
     *encryptForSearch = 0;
+    *dataset_type = UBIQ_DATASET_TYPE_STRING;
 
-    while ((opt = getopt(argc, argv, "+:hVe:d:c:P:n:g:s")) != -1) {
+    while ((opt = getopt(argc, argv, "+:hVe:d:c:P:n:g:sILDT")) != -1) {
         switch (opt) {
         case 'h':
             ubiq_structured_usage(argv[0], NULL);
@@ -331,6 +339,38 @@ ubiq_structured_getopt(
         case 'V':
             fprintf(stderr, "version %s\n", UBIQ_SAMPLE_VERSION);
             exit(EXIT_SUCCESS);
+        case 'I':
+            if (*dataset_type != UBIQ_DATASET_TYPE_STRING) {
+              ubiq_structured_usage(
+                    argv[0], "please specify only one dataset type option");
+                    exit(EXIT_FAILURE);
+            }
+            *dataset_type = UBIQ_DATASET_TYPE_INTEGER32;
+            break;
+        case 'L':
+            if (*dataset_type != UBIQ_DATASET_TYPE_STRING) {
+              ubiq_structured_usage(
+                    argv[0], "please specify only one dataset type option");
+                    exit(EXIT_FAILURE);
+            }
+            *dataset_type = UBIQ_DATASET_TYPE_INTEGER64;
+            break;
+        case 'D':
+            if (*dataset_type != UBIQ_DATASET_TYPE_STRING) {
+              ubiq_structured_usage(
+                    argv[0], "please specify only one dataset type option");
+                    exit(EXIT_FAILURE);
+            }
+            *dataset_type = UBIQ_DATASET_TYPE_DATE;
+            break;
+        case 'T':
+            if (*dataset_type != UBIQ_DATASET_TYPE_STRING) {
+              ubiq_structured_usage(
+                    argv[0], "please specify only one dataset type option");
+                    exit(EXIT_FAILURE);
+            }
+            *dataset_type = UBIQ_DATASET_TYPE_DATETIME;
+            break;
         case 'e':
         case 'd':
             if (*mode != UBIQ_SAMPLE_MODE_UNSPEC) {
@@ -418,4 +458,119 @@ ubiq_structured_getopt(
 
 
     return 0;
+}
+
+int parse_tz(const char *s, int *offset_min) {
+    if (!s || *s == '\0' || *s == 'Z') {
+        *offset_min = 0;
+        return 0;
+    }
+    int sign = 1;
+    if      (*s == '+') sign =  1;
+    else if (*s == '-') sign = -1;
+    else return -1;
+    s++;
+
+    int h = 0, m = 0;
+    int len = (int)strlen(s);
+
+    if (len == 4 && sscanf(s, "%2d%2d", &h, &m) == 2)        /* +0000  */
+        ;
+    else if (len == 5 && sscanf(s, "%d:%d", &h, &m) == 2)    /* +00:00 */
+        ;
+    else if (len == 2 && sscanf(s, "%d", &h) == 1)            /* +00    */
+        ;
+    else
+        return -1;
+
+    *offset_min = sign * (h * 60 + m);
+    return 0;
+}
+
+
+int
+parse_iso8601(char const * const s, struct tm * const out)
+{
+  int res = -EINVAL;
+  int tz_offset_min = 0;
+  if (!s || !out) goto done;
+    memset(out, 0, sizeof(*out));
+    out->tm_mday = 1;  /* sane defaults */
+    out->tm_mon  = 0;
+    out->tm_isdst = -1;
+
+
+    const char *p = s;
+    int year = 0, month = 1, day = 1;
+    int hour = 0, min = 0, sec = 0, ms = 0;
+    int has_time = 0;
+
+    /* ── Year ── */
+    if (sscanf(p, "%4d", &year) != 1) goto done;
+    p += 4;
+
+    /* Basic format: YYYYMMDD */
+    if (*p != '-' && *p != '\0' && *p != 'T' && *p != ' ' && *p != 'Z'
+            && *p != '+' && *p != '-') {
+        if (sscanf(p, "%2d%2d", &month, &day) != 2) goto done;
+        p += 4;
+    } else {
+        if (*p == '-') p++;
+        if (*p == '\0' || *p == 'Z' || *p == '+' || *p == '-') goto finish;
+        if (sscanf(p, "%2d", &month) != 1) goto done;
+        p += 2;
+        if (*p == '-') p++;
+        if (*p == '\0' || *p == 'Z' || *p == '+' || *p == '-') goto finish;
+        if (sscanf(p, "%2d", &day) != 1) goto done;
+        p += 2;
+    }
+
+    /* ── Time separator ── */
+    if (*p != 'T' && *p != ' ') goto done;
+    p++;
+    has_time = 1;
+
+    /* ── Hour ── */
+    if (sscanf(p, "%2d", &hour) != 1) goto done;
+    p += 2;
+    if (*p == ':') p++;
+    if (*p == '\0' || *p == 'Z' || *p == '+' || *p == '-') goto finish;
+
+    /* ── Minute ── */
+    if (sscanf(p, "%2d", &min) != 1) goto done;
+    p += 2;
+    if (*p == ':') p++;
+    if (*p == '\0' || *p == 'Z' || *p == '+' || *p == '-') goto finish;
+
+    /* ── Second ── */
+    if (sscanf(p, "%2d", &sec) != 1) goto done;
+    p += 2;
+
+    /* ── Fractional seconds (ms) ── */
+    if (*p == '.') {
+        p++;
+        char frac[4] = "000";
+        int i = 0;
+        while (*p >= '0' && *p <= '9' && i < 3) frac[i++] = *p++;
+        while (*p >= '0' && *p <= '9') p++;  /* consume extra digits */
+        ms = atoi(frac);
+    }
+
+finish:
+    /* ── Timezone ── */
+    if (parse_tz(p, &tz_offset_min) != 0) goto done;
+
+    out->tm_year = year - 1900;
+    out->tm_mon  = month - 1;
+    out->tm_mday = day;
+    out->tm_hour = hour;
+    out->tm_min  = min + tz_offset_min;
+    out->tm_sec  = sec;
+    // out->ms         = ms;
+    // Adjust for timezone offset
+    mktime(out);
+    res = 0;
+
+done:
+    return res;
 }

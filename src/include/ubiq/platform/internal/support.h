@@ -24,7 +24,15 @@ int ubiq_support_gmtime_r(const time_t * const, struct tm * const);
 int ubiq_support_base64_encode(char ** const, const void * const, const size_t);
 int ubiq_support_base64_decode(void ** const, const char * const, const size_t);
 
+int ubiq_support_base32_encode(char ** const dest, const uint8_t * const src, const size_t len);
+int ubiq_support_base32_decode(void ** const dest, size_t * const dest_len, const char * const src, const size_t in_len);
 
+// Works with UTF32 strings which must be null terminated.
+int ubiq_support_u32_base64_encode(uint32_t ** const, const uint32_t * const);
+int ubiq_support_u32_base64_decode(uint32_t ** const, const uint32_t * const);
+
+int ubiq_support_u32_base32_encode(uint32_t ** const, const uint32_t * const);
+int ubiq_support_u32_base32_decode(uint32_t ** const, const uint32_t * const);
 
 
 struct ubiq_support_hash_context;

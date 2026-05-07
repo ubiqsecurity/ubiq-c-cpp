@@ -1,10 +1,8 @@
 /*
- * Caching of FFS information based on FFS name.  Including pAPI in the
- * cache_ht since in theory, this could used to go to different accounts
- * which could have same FFS name but for different Ubiq accounts, and therefore
- * different data.
+ * Caching of Data information based on a string.  
+ * For convenience, we have methods where keys are char * or char32_t
  *
- * Since the universe of FFS values will be small, but the linux hash table is an
+ * Since the universe of dataset values will be small, but the linux hash table is an
  * immutable size, going to use a simple b-tree
 */
 
@@ -17,6 +15,8 @@
 #include <assert.h>
 #include <time.h>
 #include "ubiq/platform/internal/hashtable.h"
+#include "ubiq/platform/internal/parsing.h"
+#include "ubiq/platform/internal/cache.h"
 
 /**************************************************************************************
  *
@@ -31,7 +31,7 @@
 #define UBIQ_DEBUG(x,y)
 #endif
 
-static int debug_flag = 1;
+static int debug_flag = 0;
 
 
 struct ubiq_platform_cache {
@@ -76,6 +76,8 @@ void * element)
   free(e);
 }
 
+
+
 static
 int
 create_element(
@@ -118,12 +120,28 @@ create_element(
 }
 
 const void *
+ubiq_platform_cache_u32_find_element(
+  struct ubiq_platform_cache const * ubiq_cache,
+  const char32_t * const key
+)
+{
+  const void *  ret = NULL;
+  int res = -EINVAL;
+  char * const utf8_key = NULL;
+  res = convert_utf32_to_utf8(key, (uint8_t**)&utf8_key);
+  if (!res) {
+    ret = ubiq_platform_cache_find_element(ubiq_cache, utf8_key);
+  }
+  free(utf8_key);
+  return ret;
+}
+
+const void *
 ubiq_platform_cache_find_element(
-  struct ubiq_platform_cache * const  ubiq_cache,
+  struct ubiq_platform_cache const * ubiq_cache,
   const char * const key
 )
 {
-  int debug_flag = 1;
   const char * csu = "ubiq_platform_cache_find_element";
   const char * ret = NULL;
   struct timespec ts;
@@ -154,6 +172,24 @@ ubiq_platform_cache_find_element(
     }
   }
   return ret;
+}
+
+// Consider creating a cache32 which uses htable32 but this is probably fine for now
+int
+ubiq_platform_cache_u32_add_element(
+  struct ubiq_platform_cache * ubiq_cache,
+  const char32_t * const key,
+  void * data,
+  void (*free_ptr)(void *))
+{
+  int res = -EINVAL;
+  char * utf8_key = NULL;
+  res = convert_utf32_to_utf8(key, (uint8_t**)&utf8_key);
+  if (!res) {
+    res = ubiq_platform_cache_add_element(ubiq_cache, utf8_key, data, free_ptr);
+  }
+  free(utf8_key);
+  return res;
 }
 
 int

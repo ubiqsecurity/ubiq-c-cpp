@@ -1,3 +1,5 @@
+// #define STRUCTURED_DEBUG_ON // UNCOMMENT to Enable UBIQ_DEBUG macro
+
 #include <ubiq/platform/internal/ff1.h>
 #include <ubiq/platform/internal/ffx.h>
 
@@ -6,6 +8,7 @@
 #include <math.h>
 #include <unistr.h>
 
+static int debug_flag = 0;
 struct ff1_ctx
 {
     struct ffx_ctx ffx;
@@ -60,36 +63,12 @@ unsigned int bitlen(const bigint_t * const radix_pow_v) {
   return bits;
 }
 
-int ff1_ctx_create(struct ff1_ctx ** const ctx,
-                   const uint8_t * const keybuf, const size_t keylen,
-                   const uint8_t * const twkbuf, const size_t twklen,
-                   const size_t mintwklen, const size_t maxtwklen,
-                   const unsigned int radix)
-{
-    /*
-     * maxlen for ff1 is 2**32
-     *
-     * if size_t can't hold 2**32, then limit maxlen
-     * to the maximum value that it *can* hold
-     */
-    const size_t maxtxtlen =
-        sizeof(maxtxtlen) <= 4 ? SIZE_MAX : ((size_t)1 << 32);
-
-    return ffx_ctx_create(
-        (void **)ctx,
-        sizeof(struct ff1_ctx), offsetof(struct ff1_ctx, ffx),
-        keybuf, keylen,
-        twkbuf, twklen,
-        maxtxtlen,
-        mintwklen, maxtwklen,
-        radix);
-}
 
 int ff1_ctx_create_custom_radix(struct ff1_ctx ** const ctx,
                    const uint8_t * const keybuf, const size_t keylen,
                    const uint8_t * const twkbuf, const size_t twklen,
                    const size_t mintwklen, const size_t maxtwklen,
-                   const uint8_t * const custom_radix_str) 
+                   const uint32_t * const custom_radix_str) 
 {
     int res = 0;
     const size_t maxtxtlen =
@@ -99,20 +78,9 @@ int ff1_ctx_create_custom_radix(struct ff1_ctx ** const ctx,
     // radix lengths.  If so, simply use the standard radix length, not the
     // string.
 
-    size_t radix_len = strlen(custom_radix_str);
+    size_t radix_len = u32_strlen(custom_radix_str);
 
-    const char * bignum_radix_str = get_standard_bignum_radix(radix_len);
-
-    if (bignum_radix_str != NULL && strncmp(bignum_radix_str, custom_radix_str, radix_len) == 0) {
-        res = ffx_ctx_create(
-        (void **)ctx,
-        sizeof(struct ff1_ctx), offsetof(struct ff1_ctx, ffx),
-        keybuf, keylen,
-        twkbuf, twklen,
-        maxtxtlen,
-        mintwklen, maxtwklen,
-        radix_len);
-    } else {
+    {
         res = ffx_ctx_create_custom_radix_str(
         (void **)ctx,
         sizeof(struct ff1_ctx), offsetof(struct ff1_ctx, ffx),
@@ -146,7 +114,7 @@ int ff1_cipher(struct ff1_ctx * const ctx,
                const int encrypt)
 {
     const char * csu = "ff1_cipher";
-    int debug_flag = 0;
+    int debug_flag = 1;
 
     // Input character set may be non-standard or even UTF8.
 
@@ -158,18 +126,16 @@ int ff1_cipher(struct ff1_ctx * const ctx,
 
     char * X = NULL;
 
-    if (ctx->ffx.custom_radix_str) {
-        X = calloc(strlen(_X) + 1, sizeof(char));
-        map_characters(X, _X, ctx->ffx.custom_radix_str, get_standard_bignum_radix(ctx->ffx.radix));
-        STRUCTURED_DEBUG(debug_flag,printf("%s _X(%s) X(%s) radix(%s) std(%s) \n", csu, _X, X, ctx->ffx.custom_radix_str, get_standard_bignum_radix(ctx->ffx.radix)));
-    } else if (ctx->ffx.u32_custom_radix_str) {
+    if (ctx->ffx.u32_custom_radix_str) {
+      // TODO - Figure out how to remove this map_characters and reverse
+      // Means that string encrypt will need to work on uint32_t, not bytes but 
+      // already does this for other languages.
         X = calloc(u8_mbsnlen(_X, strlen(_X) + 1), sizeof(char));
         map_characters_from_u32(X, _X, ctx->ffx.u32_custom_radix_str, get_standard_bignum_radix(ctx->ffx.radix));
-    } else {
-       X = strdup(_X);
-
+       STRUCTURED_DEBUG(debug_flag, printf("X: %s len(%d)\n", X, strlen(X)));
+       STRUCTURED_DEBUG(debug_flag, printf("_X: %s\n", _X));
     }
-
+ 
     /* Step 1 */
     const unsigned int n = strlen(X);
     const unsigned int u = n / 2, v = n - u;
@@ -202,7 +168,7 @@ int ff1_cipher(struct ff1_ctx * const ctx,
     bigint_t nA, nB, y, mU, mV;
 
     /* use the default tweak when none is supplied */
-    if (T == NULL) {
+    if (T == NULL || t == 0) {
         T = ctx->ffx.twk.buf;
         t = ctx->ffx.twk.len;
     }
@@ -385,12 +351,15 @@ int ff1_cipher(struct ff1_ctx * const ctx,
     /* Step 7 */
     // strcpy(Y, A);
     // strcat(Y, B);
+    STRUCTURED_DEBUG(debug_flag, printf("before Y: %s len(%d)\n", Y, strlen(Y)));
 
-     if (ctx->ffx.custom_radix_str) {
-        map_characters(Y, Y, get_standard_bignum_radix(ctx->ffx.radix), ctx->ffx.custom_radix_str);
-    } else if (ctx->ffx.u32_custom_radix_str) {
+    //  if (ctx->ffx.custom_radix_str) {
+    //     map_characters(Y, Y, get_standard_bignum_radix(ctx->ffx.radix), ctx->ffx.custom_radix_str);
+    // } else 
+    if (ctx->ffx.u32_custom_radix_str) {
         map_characters_to_u32((uint8_t*)Y, Y, get_standard_bignum_radix(ctx->ffx.radix), ctx->ffx.u32_custom_radix_str);
     }
+    STRUCTURED_DEBUG(debug_flag, printf("after Y: %s len(%d)\n", Y, strlen(Y)));
 
     memset(scratch.buf, 0, scratch.len);
     free(scratch.buf);

@@ -1,5 +1,7 @@
 #pragma once
 
+
+#include <time.h>
 #include <ubiq/platform/compat/cdefs.h>
 
 
@@ -25,10 +27,23 @@ ubiq_platform_cache_add_element(
   void (*free_ptr)(void *)
 );
 
+int
+ubiq_platform_cache_u32_add_element(
+  struct ubiq_platform_cache * ubiq_cache,
+  const char32_t * const key,
+  void * data,
+  void (*free_ptr)(void *));
+
 const void *
 ubiq_platform_cache_find_element(
   struct ubiq_platform_cache const *  ubiq_cache,
   const char * const key
+);
+
+const void *
+ubiq_platform_cache_u32_find_element(
+  struct ubiq_platform_cache const * ubiq_cache,
+  const char32_t * const key
 );
 
 int

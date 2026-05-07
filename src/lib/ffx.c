@@ -1,20 +1,13 @@
 #include <ubiq/platform/internal/ffx.h>
+#include <ubiq/platform/internal/parsing.h>
 
 #include <math.h>
 #include <unistr.h>
 #include <uniwidth.h>
 #include <wchar.h>
 
-/*
- * This function is intended to be used to create a context for
- * a specific algorithm. That is, the algorithm embeds the ffx_ctx
- * structure within a structure of its own. It then supplies the
- * total length of its structure as the @len parameter and the offset
- * to the ffx_ctx structure within as the @off parameter.
- *
- * The other parameters describe the limits/parameters of the algorithm.
- */
-int ffx_ctx_create(void ** const _ctx,
+
+int ffx_ctx_create_base(void ** const _ctx,
                    const size_t len, const size_t off,
                    const uint8_t * const keybuf, const size_t keylen,
                    const uint8_t * const twkbuf, const size_t twklen,
@@ -87,8 +80,9 @@ int ffx_ctx_create(void ** const _ctx,
         if (ctx->evp) {
             static const uint8_t IV[16] = { 0 };
 
+            STRUCTURED_DEBUG(debug_flag, printf("ffx_ctx_create_base radix(%d)\n", radix));
             ctx->radix = radix;
-            ctx->custom_radix_str = NULL;
+            // ctx->custom_radix_str = NULL;
             ctx->u32_custom_radix_str = NULL;
 
             ctx->txtlen.min = mintxtlen;
@@ -116,6 +110,44 @@ int ffx_ctx_create(void ** const _ctx,
 
     return 0;
 }
+/*
+ * This function is intended to be used to create a context for
+ * a specific algorithm. That is, the algorithm embeds the ffx_ctx
+ * structure within a structure of its own. It then supplies the
+ * total length of its structure as the @len parameter and the offset
+ * to the ffx_ctx structure within as the @off parameter.
+ *
+ * The other parameters describe the limits/parameters of the algorithm.
+ */
+int ffx_ctx_create(void ** const _ctx,
+                   const size_t len, const size_t off,
+                   const uint8_t * const keybuf, const size_t keylen,
+                   const uint8_t * const twkbuf, const size_t twklen,
+                   const size_t maxtxtlen,
+                   const size_t mintwklen, const size_t maxtwklen,
+                   const unsigned int radix)
+{
+
+    // return ffx_ctx_create_base(_ctx,
+    // len, off,
+    // keybuf, keylen,
+    // twkbuf, twklen,
+    // maxtxtlen,mintwklen, maxtwklen,
+    // radix);
+
+  uint32_t * tmp = u32_strdup(u32_get_standard_bignum_radix(radix));
+  tmp[radix] = '\0';
+
+  int x = ffx_ctx_create_custom_radix_str(_ctx,
+    len, off,
+    keybuf, keylen,
+    twkbuf, twklen,
+    maxtxtlen,mintwklen, maxtwklen,
+    tmp);
+    free(tmp);
+    return x;
+
+}
 
 int ffx_ctx_create_custom_radix_str(void ** const _ctx,
                    const size_t len, const size_t off,
@@ -123,30 +155,23 @@ int ffx_ctx_create_custom_radix_str(void ** const _ctx,
                    const uint8_t * const twkbuf, const size_t twklen,
                    const size_t maxtxtlen,
                    const size_t mintwklen, const size_t maxtwklen,
-                   const uint8_t * const custom_radix_str) 
+                   const uint32_t * const custom_radix_str) 
 {
     // Get the number of bytes in the custom radix string
-    size_t radix_len = strlen(custom_radix_str);
+    size_t radix_len = u32_strlen(custom_radix_str);
     // Get the number of UTF8 characters in the custom radix string
-    size_t radix_u8_mbsnlen = u8_mbsnlen(custom_radix_str, radix_len);
+    // size_t radix_u32_mbsnlen = u32_strlen(custom_radix_str, radix_len);
+    STRUCTURED_DEBUG(debug_flag, printf("ffx_ctx_create_custom_radix_str: radix_str(%s) radix_len(%d)\n", custom_radix_str, radix_len));
 
-    int x = ffx_ctx_create(_ctx, len, off,keybuf, keylen, twkbuf,twklen,maxtxtlen, mintwklen, maxtwklen, radix_u8_mbsnlen);
+    int x = ffx_ctx_create_base(_ctx, len, off,keybuf, keylen, twkbuf,twklen,maxtxtlen, mintwklen, maxtwklen, radix_len);
     if (!x) {
         struct ffx_ctx * ctx = (void *)((uint8_t *)*_ctx + off);
 
-        // If the radix string contains multibyte values, then create the u32_version
-        // else simply use the custom radix string.
-        if (radix_len == radix_u8_mbsnlen) {
-            ctx->custom_radix_str = strdup(custom_radix_str);
-            ctx->u32_custom_radix_str = NULL;
-        } else {
-            uint32_t * tmp = NULL;
-            size_t lengthp = 0;
-            ctx->custom_radix_str = NULL;
-            tmp = u8_to_u32(custom_radix_str, u8_strlen(custom_radix_str) + 1, NULL, &lengthp);
-            if (tmp != NULL) {
-                ctx->u32_custom_radix_str = tmp;
-            }
+        STRUCTURED_DEBUG(debug_flag, printf("u8_strlen(custom_radix_str):%d\n",u8_strlen(custom_radix_str)));
+        ctx->u32_custom_radix_str = u32_strdup(custom_radix_str);
+        STRUCTURED_DEBUG(debug_flag, printf("u32_strlen(tmp):%d\n",u32_strlen(ctx->u32_custom_radix_str)));
+        if (ctx->u32_custom_radix_str != NULL) {
+            STRUCTURED_DEBUG(debug_flag, printf("u32_strlen(u32_custom_radix_str):%d\n",u32_strlen(ctx->u32_custom_radix_str)));
         }
     }
     return x;
@@ -157,9 +182,6 @@ void ffx_ctx_destroy(void * const _ctx, const size_t off)
 {
     struct ffx_ctx * const ctx = (void *)((uint8_t *)_ctx + off);
     EVP_CIPHER_CTX_free(ctx->evp);
-    if (ctx->custom_radix_str) {
-        free(ctx->custom_radix_str);
-    }
     if (ctx->u32_custom_radix_str) {
         free(ctx->u32_custom_radix_str);
     }

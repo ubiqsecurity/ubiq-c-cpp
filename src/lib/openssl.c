@@ -51,7 +51,9 @@ ubiq_support_base64_decode(
      * the allocation a byte short.
      */
     res = -ENOMEM;
-    buf = malloc(3 * ((size + 3) / 4));
+    size_t len = 3 * ((size + 3) / 4);
+    // Include the null terminator
+    buf = calloc(len + 1, sizeof(uint8_t));
     if (buf) {
         EVP_ENCODE_CTX * ctx;
 

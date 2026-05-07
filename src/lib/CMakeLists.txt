@@ -24,21 +24,45 @@ add_library(
   builder.c
   cache.c
   common.c
+  convert_radix_operation.c
   credentials.c
   configuration.c
+  dataset.c
+  dataset_cache.c
   decrypt.c
+  decrypt_operation.c
+  decryption_pipeline.c
+  decode_input_operation.c
+  decode_key_number_operation.c
+  encode_input_operation.c
+  encode_key_number_operation.c
   encrypt.c
+  encrypt_operation.c
+  encryption_pipeline.c
+  expand_passthrough_characters_operation.c
+  expand_passthrough_prefix_operation.c
+  expand_passthrough_suffix_operation.c
   ff1.c
+  ff1_cache.c
   ffx.c
   deprecated_fpe.c
-  structured.c
+  structured_new.c
   hashtable.c
+  hashtable32.c
   init.c
+  operation_context.c
+  pad_input_operation.c
   parsing.c
   rest.c
   rsa.c
   sso.c
+  structured_key_cache.c
+  structured_pipeline.c
   support.c
+  trim_passthrough_characters_operation.c
+  trim_passthrough_prefix_operation.c
+  trim_passthrough_suffix_operation.c
+  unpad_input_operation.c
   ${CMAKE_CURRENT_SOURCE_DIR}/../ext/cJSON/cJSON.c
   ${CMAKE_CURRENT_SOURCE_DIR}/../ext/inih/ini.c)
 
@@ -73,7 +97,8 @@ else()
   target_compile_options(
     c_objects
     PUBLIC
-    -O2)
+    -O0
+    -g)
    
 endif()
 
@@ -124,12 +149,14 @@ else()
   target_compile_options(
     cxx_objects
     PUBLIC
-    -O2)
+    -O0
+    -g)
     
 endif()
 target_include_directories(
   cxx_objects
   PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/../ext
   ${CMAKE_CURRENT_SOURCE_DIR}/../include)
 set_target_properties(
   cxx_objects

@@ -1,10 +1,15 @@
+#define STRUCTURED_DEBUG_ON // UNCOMMENT to Enable STRUCTURED_DEBUG macro
+
 #include <ubiq/platform/internal/bn.h>
 #include <ubiq/platform/internal/ffx.h>
-
+#include <ubiq/platform/internal/parsing.h>
 #include <string.h>
 #include <unistr.h>
 #include <uniwidth.h>
 #include <wchar.h>
+
+
+static int debug_flag = 0;
 
 /*
  * Convert a numerical value in a given alphabet to a number
@@ -31,6 +36,10 @@
 int __u32_bigint_set_str(bigint_t * const x,
                      const uint32_t * const str, const uint32_t * const alpha)
 {
+    static const char * const csu = "__u32_bigint_set_str";
+
+    STRUCTURED_DEBUG(debug_flag,printf("%s str(%S) alpha(%S)\n", csu, str, alpha));
+
     const int len = u32_strlen(str);
 
     /*
@@ -111,6 +120,8 @@ int __u32_bigint_get_str(uint32_t * const str, const size_t len,
     const char * const csu = "__u32_bigint_get_str";
     const int rad = u32_strlen(alpha);
 
+    STRUCTURED_DEBUG(debug_flag,printf("%s alpha(%S) len(%d)\n", csu, alpha, len));
+
     STRUCTURED_DEBUG(debug_flag,printf("%s len(%d) rad(%d) alpha(%S) \n", csu, len, rad, alpha));
    
    if (str == NULL) {
@@ -135,10 +146,10 @@ int __u32_bigint_get_str(uint32_t * const str, const size_t len,
     bigint_mul_ui(&x, _x, 1);
     i = 0;
 
-    while (bigint_cmp_si(&x, 0) != 0) {
+    while (bigint_cmp_si(&x, 0) != 0 && i <= len) {
         int r;
-
         bigint_div_ui(&x, &r, &x, rad);
+        STRUCTURED_DEBUG(debug_flag,printf("%s i(%d) r(%d)\n", csu, i, r));
         if (i < len) {
             str[i] = alpha[r];
         }
@@ -154,9 +165,9 @@ int __u32_bigint_get_str(uint32_t * const str, const size_t len,
     }
 
     // Make sure to set null terminator
-    str[i] = '\0';
     STRUCTURED_DEBUG(debug_flag,wprintf(L"__u32_bigint_get_str str(%S)\n",str));
     if (i <= len) {
+      str[i] = '\0';
         /*
          * to simplify conversion from a numbers to a string,
          * the output digits are stored in reverse order.
@@ -164,6 +175,7 @@ int __u32_bigint_get_str(uint32_t * const str, const size_t len,
          */
         ffx_revu32(str, str, i);
     } else {
+        str[len] = '\0';
         err = -ENOMEM;
     }
 
@@ -195,102 +207,132 @@ int __u32_bigint_get_str(uint32_t * const str, const size_t len,
  * The function returns 0 or a negative error number
  */
 int __bigint_set_str(bigint_t * const x,
-                     const char * const str, const char * const alpha)
+                     const char * const _str, const char * const _alpha)
 {
   static const char * const csu = "__bigint_set_str";
   int debug_flag = 0;
   int err = 0;
 
-  STRUCTURED_DEBUG(debug_flag,printf("START DEBUG %s str(%s)   alpha(%s)\n", csu, str, alpha));
+  size_t src_len = 0;
+
+  STRUCTURED_DEBUG(debug_flag,printf("%s _str(%s) _alpha(%s)\n", csu, _str,_alpha));
 
 
-  const size_t rad = strlen(alpha);
+  uint32_t * str = NULL;
+  convert_utf8_to_utf32(_str, &str);
+  uint32_t * alpha = NULL;
+  convert_utf8_to_utf32(_alpha, &alpha);
+
+  STRUCTURED_DEBUG(debug_flag,printf("%s str(%S) alpha(%S)\n", csu, str, alpha));
+
+
+  err = __u32_bigint_set_str(x, str, alpha);
+
+  STRUCTURED_DEBUG(debug_flag,printf("%s _str(%s) str(%S) alpha(%S)\n", csu, _str, str, alpha));
+
+  free(str);
+  free(alpha);
 
   // Cannot make any assumption about the alpha character set.  Assume that the 
   // character set does NOT match the expected bignum values.
-  size_t len = strlen(str);
-  char * mapped = calloc(len + 1, sizeof(char));
-  if (mapped == NULL) {
-      err = -ENOMEM;
-  } else {
-      mapped[len] = '\0';
-      STRUCTURED_DEBUG(debug_flag,printf("%s set_str (%s)\n", csu, str));
-      err = map_characters(mapped, str, alpha, get_standard_bignum_radix(rad));
-      STRUCTURED_DEBUG(debug_flag,printf(" %s mapped (%s)\n", csu, mapped));
-      if (!err) {
-          err = __bigint_set_str_radix(x, mapped, rad);
-          STRUCTURED_DEBUG(debug_flag,gmp_printf("%s x %Zd\n", csu, x));
-      }
+  // size_t len = strlen(_str);
+  // char * mapped = calloc(len + 1, sizeof(char));
+  // if (mapped == NULL) {
+  //     err = -ENOMEM;
+  // } else {
+  //     mapped[len] = '\0';
+  //     STRUCTURED_DEBUG(debug_flag,printf("%s set_str (%s)\n", csu, _str));
+  //     err = map_characters(mapped, _str, _alpha, get_standard_bignum_radix(rad));
+  //     STRUCTURED_DEBUG(debug_flag,printf(" %s mapped (%s)\n", csu, mapped));
+  //     if (!err) {
+  //         err = __bigint_set_str_radix(x, mapped, rad);
+  //         STRUCTURED_DEBUG(debug_flag,gmp_printf("%s x %Zd\n", csu, x));
+  //     }
 
-  }
-  free(mapped);
+  // }
+  // free(mapped);
 
-  STRUCTURED_DEBUG(debug_flag,printf("END DEBUG %s err(%d)\n\n", csu, err));
+  // STRUCTURED_DEBUG(debug_flag,printf("END DEBUG %s err(%d)\n\n", csu, err));
   return err;
 }
 
 int __bigint_set_str_radix(bigint_t * const x,
-                     const char * const str, const size_t radix)
+                     const char * const _str, const size_t radix)
 {
   static const char * const csu = "__bigint_set_str_radix";
   int debug_flag = 0;
   int err = 0;
 
-  STRUCTURED_DEBUG(debug_flag,printf("START DEBUG %s str(%s)   radix(%s)\n", csu, str, radix));
+
+  STRUCTURED_DEBUG(debug_flag,printf("START DEBUG %s str(%s)   radix(%s)\n", csu, _str, radix));
+
+//  size_t src_len = 0;
+  uint32_t * str = NULL;
+  convert_utf8_to_utf32(_str, &str);
+
+  // Downstream function uses the length of this string so need function to make sure length 
+  // of radix string is same as radix.  Eventually it will be deprecated
+  uint32_t * radix_str = u32_strdup(u32_get_standard_bignum_radix(radix));
+  radix_str[radix] = U'\0';
+
+  err = __u32_bigint_set_str(x, str, radix_str);
+
+  free(str);
+  free(radix_str);
 
 
-  if (radix <= 62) {
-      // Assumption that the character set matches valid ranges for 2-62
-      err = bigint_set_str(x, str, radix);
-      STRUCTURED_DEBUG(debug_flag,gmp_printf("%s x %Zd\n", csu, x));
-  } else {
-      const int len = strlen(str);
+  // if (radix <= 62) {
+  //     // Assumption that the character set matches valid ranges for 2-62
+  //     err = bigint_set_str(x, _str, radix);
+  //     STRUCTURED_DEBUG(debug_flag,gmp_printf("%s x %Zd\n", csu, x));
+  // } else {
+  //     const int len = strlen(_str);
 
-      // Alphabet is assumed to be \x01 - \xFF meaning the character integer value is related 
-      // the index in the alpha string so we can simply skip that portion of the logic.
+  //     // Alphabet is assumed to be \x01 - \xFF meaning the character integer value is related 
+  //     // the index in the alpha string so we can simply skip that portion of the logic.
 
-      bigint_t m, a;
-      int i;
+  //     bigint_t m, a;
+  //     int i;
 
-      /* @n will be the numerical value of @str */
-      bigint_set_ui(x, 0);
+  //     /* @n will be the numerical value of @str */
+  //     bigint_set_ui(x, 0);
 
-      /*
-      * @m is a multiplier used to multiply each digit
-      * of the input into its correct position in @n
-      */
-      bigint_init(&m);
-      bigint_set_ui(&m, 1);
+  //     /*
+  //     * @m is a multiplier used to multiply each digit
+  //     * of the input into its correct position in @n
+  //     */
+  //     bigint_init(&m);
+  //     bigint_set_ui(&m, 1);
 
-      /*
-      * @a is a temporary value used
-      * to add each digit into @n
-      */
-      bigint_init(&a);
+  //     /*
+  //     * @a is a temporary value used
+  //     * to add each digit into @n
+  //     */
+  //     bigint_init(&a);
 
-      for (i = 0; i < len; i++) {
-          size_t pos;
+  //     for (i = 0; i < len; i++) {
+  //         size_t pos;
 
-          /*
-          * determine index/position in the alphabet.
-          * if the character is not present the input
-          * is not valid.
-          */
-          pos = ((uint8_t)str[len - 1 - i]); // values 1 - 255 since we don't support 0 (null terminator)
+  //         /*
+  //         * determine index/position in the alphabet.
+  //         * if the character is not present the input
+  //         * is not valid.
+  //         */
+  //         pos = ((uint8_t)_str[len - 1 - i]); // values 1 - 255 since we don't support 0 (null terminator)
 
-      /*
-        * multiply the digit into the correct position
-        * and add it to the result
-        */
-          bigint_mul_ui(&a, &m, pos - 1); // 0 - 254 (radix 255)
-          bigint_add(x, x, &a);
+  //     /*
+  //       * multiply the digit into the correct position
+  //       * and add it to the result
+  //       */
+  //         bigint_mul_ui(&a, &m, pos - 1); // 0 - 254 (radix 255)
+  //         bigint_add(x, x, &a);
 
-          bigint_mul_ui(&m, &m, radix);
-      }
+  //         bigint_mul_ui(&m, &m, radix);
+  //     }
 
-      bigint_deinit(&a);
-      bigint_deinit(&m);
-  }
+  //     bigint_deinit(&a);
+  //     bigint_deinit(&m);
+  // }
   STRUCTURED_DEBUG(debug_flag,printf("END DEBUG %s err(%d)\n\n", csu, err));
   return err;
 }
@@ -302,31 +344,60 @@ int __bigint_set_str_radix(bigint_t * const x,
  * is never written. In short, success is determined by the return value
  * being less than or equal to @len.
  */
-int __bigint_get_str(char * const str, const size_t len,
-                     const char * const alpha, const bigint_t * const _x)
+int __bigint_get_str(char * const _str, const size_t len,
+                     const char * const _alpha, const bigint_t * const _x)
 {
 
   static const char * const csu = "__bigint_get_str";
   int debug_flag = 0;
-  const size_t rad = strlen(alpha);
+  const size_t rad = strlen(_alpha);
   int err = 0;
 
-  STRUCTURED_DEBUG(debug_flag,printf("START DEBUG %s rad(%d)\n", csu, rad));
+  STRUCTURED_DEBUG(debug_flag,printf("%s _alpha(%s)\n", csu, _alpha));
 
-  STRUCTURED_DEBUG(debug_flag,printf("DEBUG %s len(%d)\n", csu, len));
-  STRUCTURED_DEBUG(debug_flag,printf("DEBUG %s alpha(%s)\n", csu, alpha));
-  err = __bigint_get_str_radix(str, len, rad, _x);
-  STRUCTURED_DEBUG(debug_flag,gmp_printf("__bigint_get_str   _x %Zd\n", _x));
+    size_t src_len = 0;
+
+  uint32_t * str = calloc(len+1, sizeof(uint32_t));
+  // uint32_t * str = u8_to_u32(_str, u8_strlen(_str) + 1, NULL, &src_len);
+  // printf("%s str(%S) len(%d)\n", csu, str, src_len);
+  uint32_t * alpha = NULL;
+  convert_utf8_to_utf32(_alpha, &alpha);
+  STRUCTURED_DEBUG(debug_flag,printf("%s alpha(%S) len(%d)\n", csu, alpha, src_len));
+
+  err = __u32_bigint_get_str(str, len, alpha, _x);
+  STRUCTURED_DEBUG(debug_flag,printf("%s err(%d)\n", csu, err));
+
   if (!err) {
-      err = map_characters(str, str, get_standard_bignum_radix(rad), alpha);
-  }
+    STRUCTURED_DEBUG(debug_flag,printf("%s str(%S) len(%d)\n", csu, str, len));
+    char * tmp = NULL;
+    convert_utf32_to_utf8(str, (uint8_t**)&tmp);
+    STRUCTURED_DEBUG(debug_flag,printf("%s tmp(%S)\n", csu, tmp));
+    strncpy(_str, tmp, len);
+    STRUCTURED_DEBUG(debug_flag,printf("%s tmp(%S)\n", csu, _str));
 
-  STRUCTURED_DEBUG(debug_flag,printf("DEBUG %s err(%d)\n", csu, err));
-  STRUCTURED_DEBUG(debug_flag,printf("DEBUG %s s(%s)\n", csu, str));
+    free(tmp);
+  }
+  free(alpha);
+  free(str);
+
+
+  // STRUCTURED_DEBUG(debug_flag,printf("START DEBUG %s rad(%d)\n", csu, rad));
+
+  // STRUCTURED_DEBUG(debug_flag,printf("DEBUG %s len(%d)\n", csu, len));
+  // STRUCTURED_DEBUG(debug_flag,printf("DEBUG %s alpha(%s)\n", csu, _alpha));
+  // err = __bigint_get_str_radix(_str, len, rad, _x);
+  // STRUCTURED_DEBUG(debug_flag,gmp_printf("__bigint_get_str   _x %Zd\n", _x));
+  // if (!err) {
+  //     err = map_characters(_str, _str, get_standard_bignum_radix(rad), _alpha);
+  // }
+
+  // STRUCTURED_DEBUG(debug_flag,printf("DEBUG %s err(%d)\n", csu, err));
+  // STRUCTURED_DEBUG(debug_flag,printf("DEBUG %s s(%s)\n", csu, _str));
+  //     printf("%s _str(%s)\n", csu, _str);
   return err;
 }
 
-int __bigint_get_str_radix(char * const str, const size_t len,
+int __bigint_get_str_radix(char * const _str, const size_t len,
                      const size_t radix, const bigint_t * const _x)
 {
 
@@ -334,65 +405,101 @@ int __bigint_get_str_radix(char * const str, const size_t len,
   int debug_flag = 0;
   int err = 0;
 
-  STRUCTURED_DEBUG(debug_flag,printf("START STRUCTURED_DEBUG %s rad(%d)\n", csu, radix));
+  // STRUCTURED_DEBUG(debug_flag,printf("START STRUCTURED_DEBUG %s rad(%d)\n", csu, radix));
 
-  if (radix <= 62) {
+  // if (radix <= 62) {
 
-    err = bigint_get_str(str, len, radix, _x);
+  //   err = bigint_get_str(_str, len, radix, _x);
 
-  } else {
-    const char * const alpha = get_standard_bignum_radix(radix);
-    bigint_t x;
-    int i = 0;
-    /*
-     * to convert the numerical value, repeatedly
-     * divide (storing the result and the remainder)
-     * @n by the desired radix of the output.
-     *
-     * the remainder is the current digit; the result
-     * of the division becomes the input to the next
-     * iteration
-     */
+  // } else
+   {
+    uint32_t * _alpha = u32_strdup(u32_get_standard_bignum_radix(radix));
+    _alpha[radix] = '\0';
 
-    bigint_init(&x);
-    bigint_mul_ui(&x, _x, 1);
+    uint32_t * str = calloc(len + 1, sizeof(uint32_t));
+    err = __u32_bigint_get_str(str, len, _alpha, _x);
 
-    while (bigint_cmp_si(&x, 0) != 0) {
-        int r;
+    if (!err) {
 
-        bigint_div_ui(&x, &r, &x, radix);
-        if (i < len) {
-            str[i] = alpha[r];
-        }
-        i++;
+      size_t src_len = 0;
+
+      // uint32_t * str = u8_to_u32(_str, u8_strlen(_str) + 1, NULL, &src_len);
+      // uint32_t * alpha = u8_to_u32(_alpha, u8_strlen(_alpha) + 1, NULL, &src_len);
+
+      // err = __u32_bigint_get_str(str, len, alpha, _x);
+      // uint32_t * str = U"1234";
+      char * tmp = NULL;
+      convert_utf32_to_utf8(str, (uint8_t**)&tmp);
+      strncpy(_str, tmp, len - 1);
+
+      // src_len = len + 8;// Arbitrary 8.  u32_to_u8 does not add null terminator
+      // char * tmp = calloc(src_len, sizeof(char)); 
+      // char * t = u32_to_u8(str, len, tmp, &src_len);
+      // if (t == tmp && t != NULL) {
+      //   STRUCTURED_DEBUG(debug_flag,printf("%s str(%S), tmp(%s), len(%d), src_len(%d) _tmplen(%d)\n", csu, str, tmp, len, src_len, strlen(tmp)));
+      //   tmp[src_len] = '\0';
+      //   // _str[len - 1] = '\0';
+      //   strncpy(_str, tmp, len - 1);
+      // }
+      free(tmp);
     }
+    free(str);
+    free(_alpha);
 
-    /* handle the case where the initial value was 0 */
-    if (!i) {
-        if (i < len) {
-            str[i] = alpha[0];
-        }
-        i++;
-    }
-    // Make sure to set null terminator
-    str[i] = '\0';
-    if (i <= len) {
-        /*
-         * to simplify conversion from a number to a string,
-         * the output digits are stored in reverse order.
-         * reverse the final value so that the output is correct
-         */
-        ffx_revb(str, str, i);
-    }
-    STRUCTURED_DEBUG(debug_flag,printf("DEBUG %s s(%s)\n", csu, str));
+ }
 
-    bigint_deinit(&x);
-    STRUCTURED_DEBUG(debug_flag,printf("DEBUG %s ret(%d)\n", csu, i));
-    if (!err && i > len) {
-        err = -ENOMEM;
-    }
-  }
-  STRUCTURED_DEBUG(debug_flag,printf("END DEBUG %s err(%d) str(%s) \n\n", csu, err, str));
+
+  //   bigint_t x;
+  //   int i = 0;
+  //   /*
+  //    * to convert the numerical value, repeatedly
+  //    * divide (storing the result and the remainder)
+  //    * @n by the desired radix of the output.
+  //    *
+  //    * the remainder is the current digit; the result
+  //    * of the division becomes the input to the next
+  //    * iteration
+  //    */
+
+  //   bigint_init(&x);
+  //   bigint_mul_ui(&x, _x, 1);
+
+  //   while (bigint_cmp_si(&x, 0) != 0) {
+  //       int r;
+
+  //       bigint_div_ui(&x, &r, &x, radix);
+  //       if (i < len) {
+  //           _str[i] = alpha[r];
+  //       }
+  //       i++;
+  //   }
+
+  //   /* handle the case where the initial value was 0 */
+  //   if (!i) {
+  //       if (i < len) {
+  //           _str[i] = alpha[0];
+  //       }
+  //       i++;
+  //   }
+  //   // Make sure to set null terminator
+  //   _str[i] = '\0';
+  //   if (i <= len) {
+  //       /*
+  //        * to simplify conversion from a number to a string,
+  //        * the output digits are stored in reverse order.
+  //        * reverse the final value so that the output is correct
+  //        */
+  //       ffx_revb(_str, _str, i);
+  //   }
+  //   STRUCTURED_DEBUG(debug_flag,printf("DEBUG %s s(%s)\n", csu, _str));
+
+  //   bigint_deinit(&x);
+  //   STRUCTURED_DEBUG(debug_flag,printf("DEBUG %s ret(%d)\n", csu, i));
+  //   if (!err && i > len) {
+  //       err = -ENOMEM;
+  //   }
+  // }
+  // STRUCTURED_DEBUG(debug_flag,printf("END DEBUG %s err(%d) str(%s) \n\n", csu, err, _str));
   return err;
 
 }
@@ -427,15 +534,18 @@ int map_characters_from_u32(char * const dst, const uint8_t * const src,
     const uint32_t * const src_chars,
     const char * const dst_chars) 
 {
+    const char * const csu = "map_characters_from_u32";
     int debug_flag = 0;
     uint32_t * tmp = NULL;
     size_t src_len = 0;
+    STRUCTURED_DEBUG(debug_flag, printf("IN %s\n", csu));
 
-    STRUCTURED_DEBUG(debug_flag,printf("src_chars (%S) len(%d)\n", src_chars, u32_strlen(src_chars)));
-    tmp = u8_to_u32(src, u8_strlen(src) + 1, NULL, &src_len);
+    convert_utf8_to_utf32(src, &tmp);
+    STRUCTURED_DEBUG(debug_flag, printf("%s src(%s) u32(%S)\n", csu, src, tmp));
+    src_len = u32_strlen(tmp);
+
     STRUCTURED_DEBUG(debug_flag,printf("tmp (%S) len(%d) src_len(%d)\n", tmp, u32_strlen(tmp), src_len));
-
-    for (int i = 0; i < src_len - 1; i++) {
+    for (int i = 0; i < src_len ; i++) {
         uint32_t * pos = u32_strchr(src_chars, tmp[i]);
         if (!pos) {
             STRUCTURED_DEBUG(debug_flag,printf("Unable to find %c \n", src[i]));
@@ -468,7 +578,8 @@ int map_characters_to_u32(uint8_t * const dst, const char * const src,
         }
         tmp[i] = dst_chars[pos - src_chars];
     }
-    uint8_t * x = u32_to_u8(tmp, src_len + 1, NULL, &src_len);
+    uint8_t * x = NULL;
+    convert_utf32_to_utf8(tmp, &x);//u32_to_u8(tmp, src_len + 1, NULL, &src_len);
     if (x) {
         strcpy(dst, x);
         free(x);
@@ -511,4 +622,97 @@ const char * get_standard_bignum_radix(
         return radix62;
     }
     return radix255;
+}
+
+const uint32_t * u32_get_standard_bignum_radix(
+    const size_t radix) {
+    static const uint32_t radix10[] = U"0123456789";
+    static const uint32_t radix36[] = U"0123456789abcdefghijklmnopqrstuvwxyz";
+    static const uint32_t radix62[] = U"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+    static const uint32_t radix255[] =     U"\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f" 
+                                   U"\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f"
+                                   U"\x20\x21\x22\x23\x24\x25\x26\x27\x28\x29\x2a\x2b\x2c\x2d\x2e\x2f"
+                                   U"\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x3a\x3b\x3c\x3d\x3e\x3f"
+                                   U"\x40\x41\x42\x43\x44\x45\x46\x47\x48\x49\x4a\x4b\x4c\x4d\x4e\x4f"
+                                   U"\x50\x51\x52\x53\x54\x55\x56\x57\x58\x59\x5a\x5b\x5c\x5d\x5e\x5f"
+                                   U"\x60\x61\x62\x63\x64\x65\x66\x67\x68\x69\x6a\x6b\x6c\x6d\x6e\x6f"
+                                   U"\x70\x71\x72\x73\x74\x75\x76\x77\x78\x79\x7a\x7b\x7c\x7d\x7e\x7f"
+                                   U"\x80\x81\x82\x83\x84\x85\x86\x87\x88\x89\x8a\x8b\x8c\x8d\x8e\x8f"
+                                   U"\x90\x91\x92\x93\x94\x95\x96\x97\x98\x99\x9a\x9b\x9c\x9d\x9e\x9f"
+                                   U"\xa0\xa1\xa2\xa3\xa4\xa5\xa6\xa7\xa8\xa9\xaa\xab\xac\xad\xae\xaf"
+                                   U"\xb0\xb1\xb2\xb3\xb4\xb5\xb6\xb7\xb8\xb9\xba\xbb\xbc\xbd\xbe\xbf"
+                                   U"\xc0\xc1\xc2\xc3\xc4\xc5\xc6\xc7\xc8\xc9\xca\xcb\xcc\xcd\xce\xcf"
+                                   U"\xd0\xd1\xd2\xd3\xd4\xd5\xd6\xd7\xd8\xd9\xda\xdb\xdc\xdd\xde\xdf"
+                                   U"\xe0\xe1\xe2\xe3\xe4\xe5\xe6\xe7\xe8\xe9\xea\xeb\xec\xed\xee\xef"
+                                   U"\xf0\xf1\xf2\xf3\xf4\xf5\xf6\xf7\xf8\xf9\xfa\xfb\xfc\xfd\xfe\xff";
+
+    if (radix <= 10) {
+        return radix10;
+    }
+    if (radix <= 36) {
+        return radix36;
+    }
+    if (radix <= 62) {
+        return radix62;
+    }
+    return radix255;
+}
+
+
+
+int
+ubiq_platform_u32_str_convert_u32_radix(
+  const uint32_t * const src_str,
+  const uint32_t * const input_radix,
+  const uint32_t * output_radix,
+  const int skip_length_check, // default was false
+  const int left_pad, // default was true
+  uint32_t * out_str)
+{
+  static const char * const csu = "u32_str_convert_u32_radix";
+
+  static size_t magic_number = 50; // Allow for null and extra space in get_string function
+  int res = 0;
+  bigint_t n;
+
+  size_t len = u32_strlen(src_str);
+  // Malloc causes valgrind to consider out uninitialized and spits out warnings
+  uint32_t * out = calloc(len + magic_number,sizeof(uint32_t));
+
+  bigint_init(&n);
+
+  if (out == NULL) {
+    res = -ENOMEM;
+  }
+
+  if (!res) {res = __u32_bigint_set_str(&n, src_str, input_radix);}
+
+  if (!res) {
+    res = __u32_bigint_get_str(out, len+magic_number, output_radix, &n);
+    STRUCTURED_DEBUG(debug_flag,printf("__u32_bigint_get_str res (%d), out %S\n", res, out));
+
+    size_t out_len = u32_strlen(out);
+    STRUCTURED_DEBUG(debug_flag,printf("__u32_bigint_get_str len(%d) out_len(%d)\n", len, out_len));
+
+    // Make sure the get_string succeeded
+    if ((!skip_length_check) && (out_len > len)) {
+      res = -EINVAL;
+    } 
+    
+    if (!res) {
+      // pad the leading characters of the output radix with zeroth character
+      uint32_t * c = out_str;
+      if (left_pad) {
+        for (int i = 0; i < len - out_len; i++) {
+          *c = output_radix[0];
+          c++;
+        }
+      }
+      u32_strcpy(c, out);
+    }
+  }
+  STRUCTURED_DEBUG(debug_flag,printf("%s res(%d) out_str(%S)\n", csu, res, out_str));
+  bigint_deinit(&n);
+  free(out);
+  return res;
 }

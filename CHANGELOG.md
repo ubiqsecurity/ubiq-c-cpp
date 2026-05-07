@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.3.0.0 - 2026-03-15
+* Updated to include capabilities for new dataset types including integers, dates, datetime
+
 ## 2.2.4.0 - 2025-09-22
 * Added threadsafe interfaces for unstructured encryption
 
