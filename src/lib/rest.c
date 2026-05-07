@@ -481,3 +481,16 @@ ubiq_platform_rest_uri_escape(
 {
   return ubiq_support_uri_escape(h->hnd, uri, encoded_uri);
 }
+
+int
+ubiq_platform_rest_u32uri_escape(
+  const struct ubiq_platform_rest_handle * const h,
+  const char32_t * const uri, char ** const encoded_uri)
+{
+  int res = -EINVAL;
+  uint8_t ** const utf8_uri;
+  res = convert_utf32_to_utf8(uri, &utf8_uri);
+  if (!res) { res = ubiq_support_uri_escape(h->hnd, utf8_uri, encoded_uri); }
+  free(utf8_uri);
+  return res;
+}

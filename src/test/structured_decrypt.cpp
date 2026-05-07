@@ -105,14 +105,14 @@ TEST(c_structured_decrypt, piecewise_bad_char)
     res = ubiq_platform_structured_decrypt_data(enc,
       ffs_name, NULL, 0, pt, strlen(pt), &ctbuf, &ctlen);
     EXPECT_EQ(res, -EINVAL);
-    if (res) {
-      int err_num;
-      char * err_msg = NULL;
+    // if (res) {
+    //   int err_num;
+    //   char * err_msg = NULL;
 
-      res = ubiq_platform_structured_get_last_error(enc, &err_num, &err_msg);
-      printf("error: %s\n", err_msg);
-      free(err_msg);
-    }
+    //   res = ubiq_platform_structured_get_last_error(enc, &err_num, &err_msg);
+    //   printf("error: %s\n", err_msg);
+    //   free(err_msg);
+    // }
 
     ubiq_platform_structured_enc_dec_destroy(enc);
 

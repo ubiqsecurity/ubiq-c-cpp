@@ -74,6 +74,7 @@ struct ubiq_billing_ctx {
     // Used to sign requests - still need URL to call
     struct ubiq_platform_rest_handle * rest;
     char * billing_url;
+    char * papi;
     int    reporting_wake_interval; // seconds
     int    reporting_flush_interval; // seconds
     int    reporting_minimum_count;
@@ -657,6 +658,7 @@ ubiq_billing_ctx_create(
     local_ctx->billing_url = ((void *)local_ctx) + sizeof(*local_ctx);
     strcpy(local_ctx->billing_url, host_path);
     strcat(local_ctx->billing_url, "/api/v3/tracking/events");
+    local_ctx->papi = strdup(papi);
 
     res = ubiq_platform_cache_create(CACHE_CAPACITY, CACHE_DURATION, &local_ctx->billing_elements_cache);
     if (!res) {
@@ -725,6 +727,7 @@ ubiq_billing_ctx_destroy(struct ubiq_billing_ctx * const ctx){
     if (ctx->user_defined_metadata) {
       free(ctx->user_defined_metadata);
     }
+    free(ctx->papi);
     free(ctx);
   }
 }
@@ -760,11 +763,11 @@ ubiq_billing_add_billing_event(
   }
 
 
-  size_t len = snprintf(NULL, 0, key_fmt, api_key, ds, billing_action, dsg, key_number);
+  size_t len = snprintf(NULL, 0, key_fmt, e->papi, ds, billing_action, dsg, key_number);
   if ((key_str = malloc(len + 1)) == NULL) {
     res = -ENOMEM;
   } else {
-    snprintf(key_str, len + 1, key_fmt, api_key, ds, billing_action, dsg, key_number);
+    snprintf(key_str, len + 1, key_fmt, e->papi, ds, billing_action, dsg, key_number);
   }
 
   // Check billing element cache based on key
@@ -785,7 +788,7 @@ ubiq_billing_add_billing_event(
   else {
     res = billing_element_create(
       &billing_element,
-      api_key,
+      e->papi,
       dataset_name,
       dataset_group_name,
       key_number,

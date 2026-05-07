@@ -5,11 +5,6 @@
 
 __BEGIN_DECLS
 
-#ifdef NODEF
-//struct hash_elem_t;
-// typedef struct hash_elem_t ubiq_platform_hash_elem;
-#endif
-
 //Hashtabe structure
 typedef struct hashtable_t ubiq_platform_hashtable;
 
@@ -127,22 +122,6 @@ void ubiq_platform_ht_walk_r(
   const ubiq_platform_hashtable * const hasht,
   void (* action) (const void *__nodep, void *__closure) ,
   void *__closure);
-
-#ifdef NODEF
-/**
- * @brief Get the key associated with an element.  Do not alter the value
- * 
- * @return const char* 
- */
-// const char * ubiq_platform_ht_element_key(ubiq_platform_hash_elem *);
-
-/**
- * @brief Get the data associated with an element
- * 
- * @return const void* 
- */
-// const void * ubiq_platform_ht_element_data(ubiq_platform_hash_elem *);
-#endif
 
 /**
  * @brief Get the number of elements stored in the hash table

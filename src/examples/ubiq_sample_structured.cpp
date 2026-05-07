@@ -5,29 +5,155 @@
 
 
 static
+int
+encryptForSearch(
+  ubiq::platform::structured::encryption & enc,
+  const char * const dataset_name, 
+  const char * const p, 
+  const ubiq_dataset_type_t dataset_type)
+{
+  int res = 0;
+
+  switch (dataset_type) {
+    case UBIQ_DATASET_TYPE_INTEGER32:
+    {
+        int32_t pt = std::stoi(p);
+        std::vector<int32_t> ct = enc.encryptInt_for_search(dataset_name, pt);
+        std::cout << "EncryptForSearch results:" << std::endl;
+        for (int32_t c : ct) {
+          std::cout << "\t" << c << std::endl;
+        }
+    }
+    break;
+    case UBIQ_DATASET_TYPE_INTEGER64:
+    {
+        int64_t pt = std::stoi(p);
+        std::vector<int64_t> ct = enc.encryptLong_for_search(dataset_name, pt);
+        std::cout << "EncryptForSearch results:" << std::endl;
+        for (int64_t c : ct) {
+          std::cout << "\t" << c << std::endl;
+        }
+      }
+    break;
+    case UBIQ_DATASET_TYPE_DATE:
+    {
+        struct tm pt;
+        parse_iso8601(p, &pt);
+        std::vector<struct tm> ct = enc.encryptDate_for_search(dataset_name, pt);
+        std::cout << "EncryptForSearch results:" << std::endl;
+        for (struct tm c : ct) {
+          char buffer[30];
+          size_t len = strftime(buffer, sizeof(buffer), "%04Y-%m-%dT%H:%M:%SZ", &c);
+
+          std::cout << "\t" << buffer << std::endl;
+        }
+      }
+    break;
+    case UBIQ_DATASET_TYPE_DATETIME:
+    {
+        struct tm pt;
+        parse_iso8601(p, &pt);
+        std::vector<struct tm> ct = enc.encryptDate_for_search(dataset_name, pt);
+        std::cout << "EncryptForSearch results:" << std::endl;
+        for (struct tm c : ct) {
+          char buffer[30];
+          size_t len = strftime(buffer, sizeof(buffer), "%04Y-%m-%dT%H:%M:%SZ", &c);
+
+          std::cout << "\t" << buffer << std::endl;
+        }
+      }
+    break;
+    default:
+    {
+      std::vector<std::string> ct = enc.encrypt_for_search(dataset_name, p);
+      std::cout << "EncryptForSearch results:" << std::endl;
+      for (std::string c : ct) {
+        std::cout << "\t" << c << std::endl;
+      }
+    }
+    break;
+  }
+  return res;
+}
+
+static
+int
+encrypt(
+  ubiq::platform::structured::encryption & enc,
+  const char * const dataset_name, 
+  const char * const p, 
+  const ubiq_dataset_type_t dataset_type)
+{
+  int res = 0;
+
+  switch (dataset_type) {
+    case UBIQ_DATASET_TYPE_INTEGER32:
+    {
+        int32_t pt = std::stoi(p);
+        int32_t ct = enc.encryptInt(dataset_name, pt);
+        printf("Structured Encryption Data Results => '%d'\n", ct);
+    }
+    break;
+    case UBIQ_DATASET_TYPE_INTEGER64:
+    {
+        int64_t pt = std::stoll(p);
+        int64_t ct = enc.encryptLong(dataset_name, pt);
+        printf("Structured Encryption Data Results => '%ld'\n", ct);
+      }
+    break;
+    case UBIQ_DATASET_TYPE_DATE:
+    {
+        struct tm ct;
+        struct tm pt;
+        parse_iso8601(p, &pt);
+        ct = enc.encryptDate(dataset_name, pt);
+
+        char buffer[30];
+        size_t len = strftime(buffer, sizeof(buffer), "%04Y-%m-%dT%H:%MZ", &ct);
+        printf("Structured Encryption Data Results => '%s'\n", buffer);
+      }
+    break;
+    case UBIQ_DATASET_TYPE_DATETIME:
+    {
+        struct tm ct;
+        struct tm pt;
+        parse_iso8601(p, &pt);
+        ct = enc.encryptDateTime(dataset_name, pt);
+
+        char buffer[30];
+        size_t len = strftime(buffer, sizeof(buffer), "%04Y-%m-%dT%H:%M:%SZ", &ct);
+        printf("Structured Encryption Data Results => '%s'\n", buffer);
+      }
+    break;
+    default:
+    {
+      std::string ct;
+      ct = enc.encrypt(dataset_name, p);
+
+      std::cout << "Structured Encryption Data Results => '" << ct << "'" << std::endl;
+    }
+    break;
+  }
+  return res;
+}
+
+static
 void
 ubiq_structured_encrypt(
   const ubiq::platform::credentials & creds,
   const ubiq::platform::configuration & cfg,
   const char * const dataset_name,
   const char * const pt,
-  const int encryptForSearch)
+  const int encryptForSearchFlag,
+  const ubiq_dataset_type_t dataset_type)
 {
 
   ubiq::platform::structured::encryption enc(creds, cfg);
 
-  if (encryptForSearch) {
-    std::vector<std::string> ct;
-    ct = enc.encrypt_for_search(dataset_name, pt);
-    std::cout << "EncryptForSearch results:" << std::endl;
-    for (std::string c : ct) {
-      std::cout << "\t" << c << std::endl;
-    }
+  if (encryptForSearchFlag) {
+    encryptForSearch(enc, dataset_name, pt, dataset_type);
   } else {
-    std::string ct;
-    ct = enc.encrypt(dataset_name, pt);
-
-    std::cout << "Structured Encryption Data Results => '" << ct << "'" << std::endl;
+    encrypt(enc, dataset_name, pt, dataset_type);;
   }
 
 }
@@ -38,13 +164,61 @@ ubiq_structured_decrypt(
   const ubiq::platform::credentials & creds,
   const ubiq::platform::configuration & cfg,
   const char * const dataset_name,
-  const char * const ct)
+  const char * const c,
+  const ubiq_dataset_type_t dataset_type)
 {
   std::string pt;
   ubiq::platform::structured::decryption dec(creds, cfg);
-  pt = dec.decrypt(dataset_name, ct);
+    switch (dataset_type) {
+    case UBIQ_DATASET_TYPE_INTEGER32:
+    {
+      int32_t ct = std::stoi(c);
+      int32_t pt = dec.decryptInt(dataset_name, ct);
 
-  std::cout << "Structured Decryption Data Results => '" << pt << "'" << std::endl;
+      printf("Structured Decryption Data Results => '%d'\n", pt);
+    }
+    break;
+    case UBIQ_DATASET_TYPE_INTEGER64:
+    {
+      int64_t ct = std::stoll(c);
+      int64_t pt = dec.decryptLong(dataset_name, ct);
+
+      printf("Structured Decryption Data Results => '%d'\n", pt);
+    }
+    break;
+    case UBIQ_DATASET_TYPE_DATE:
+    {
+      struct tm ct;
+      struct tm pt;
+      parse_iso8601(c, &ct);
+      pt = dec.decryptDate(dataset_name, ct);
+      char buffer[30];
+      size_t len = strftime(buffer, sizeof(buffer), "%04Y-%m-%dT%H:%M:%SZ", &pt);
+
+      printf("Structured Decryption Data Results => '%s'\n", buffer);
+    }
+    break;
+    case UBIQ_DATASET_TYPE_DATETIME:
+    {
+      struct tm ct;
+      struct tm pt;
+      parse_iso8601(c, &ct);
+      pt = dec.decryptDateTime(dataset_name, ct);
+      char buffer[30];
+      size_t len = strftime(buffer, sizeof(buffer), "%04Y-%m-%dT%H:%M:%SZ", &pt);
+
+      printf("Structured Decryption Data Results => '%s'\n", buffer);
+    }
+    break;
+    default:
+    {
+      std::string pt;
+      pt = dec.decrypt(dataset_name, c);
+
+      printf("Structured Decryption Data Results => '%.*s'\n", pt.c_str());
+    }
+    break;
+  }
 }
 
 int main(const int argc, char * const argv[])
@@ -52,6 +226,7 @@ int main(const int argc, char * const argv[])
     ubiq_sample_mode_t mode;
     const char * inputstring, * dataset_name, * credfile, * profile, *cfgfile = NULL;
     int encryptForSearch;
+    ubiq_dataset_type_t dataset_type;
 
     ubiq::platform::credentials creds;
     ubiq::platform::configuration cfg;
@@ -75,7 +250,8 @@ int main(const int argc, char * const argv[])
       ubiq_structured_getopt(argc, argv,
                         &mode, 
                         &dataset_name, &inputstring,
-                        &credfile, &profile, &cfgfile, &encryptForSearch);
+                        &credfile, &profile, &cfgfile, &encryptForSearch,
+                        &dataset_type);
 
       /*
        * When `creds` was declared above, it loaded the default
@@ -108,9 +284,9 @@ int main(const int argc, char * const argv[])
       }
 
       if (mode == UBIQ_SAMPLE_MODE_ENCRYPT) {
-          ubiq_structured_encrypt(creds, cfg, dataset_name, inputstring, encryptForSearch);
+          ubiq_structured_encrypt(creds, cfg, dataset_name, inputstring, encryptForSearch, dataset_type);
       } else {
-          ubiq_structured_decrypt(creds, cfg, dataset_name, inputstring);
+          ubiq_structured_decrypt(creds, cfg, dataset_name, inputstring, dataset_type);
       }
     }
     catch (const std::exception& e) {

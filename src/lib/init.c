@@ -2,7 +2,7 @@
 #include "ubiq/platform/internal/support.h"
 #include <errno.h>
 #include <stdio.h>
-
+#include <stdlib.h>
 // #define UBIQ_DEBUG_ON
 #ifdef UBIQ_DEBUG_ON
 #define UBIQ_DEBUG(x,y) {x && y;}
@@ -37,6 +37,7 @@ int ubiq_platform_init(void)
       library_init = 1;
       ret = ubiq_support_http_init();
     }
+    setenv("TZ", "UTC", 0);
     UBIQ_DEBUG(debug_flag, printf("%s: end library_init(%d) res(%d)\n", csu, library_init, ret));
 
     return ret;

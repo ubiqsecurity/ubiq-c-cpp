@@ -202,6 +202,66 @@ ubiq_platform_structured_decrypt_data(
 
 UBIQ_PLATFORM_API
 int
+ubiq_platform_structured_decrypt_u32data(
+  struct ubiq_platform_structured_enc_dec_obj * const enc,
+  const char * const ffs_name,
+  const uint8_t * const tweak, const size_t tweaklen,
+  const char32_t * const ptbuf, const size_t ptlen,
+  char32_t ** const ctbuf, size_t * const ctlen
+);
+
+UBIQ_PLATFORM_API
+int
+ubiq_platform_structured_decrypt_int_data(
+  struct ubiq_platform_structured_enc_dec_obj * const enc,
+  const char * const dataset_name,
+  const uint8_t * const tweak, const size_t tweaklen,
+  const int32_t ct,
+  int32_t * const pt
+);
+
+UBIQ_PLATFORM_API
+int
+ubiq_platform_structured_decrypt_long_data(
+  struct ubiq_platform_structured_enc_dec_obj * const enc,
+  const char * const dataset_name,
+  const uint8_t * const tweak, const size_t tweaklen,
+  const int64_t ct,
+  int64_t * const pt
+);
+
+UBIQ_PLATFORM_API
+int
+ubiq_platform_structured_decrypt_date_data(
+  struct ubiq_platform_structured_enc_dec_obj * const enc,
+  const char * const dataset_name,
+  const uint8_t * const tweak, const size_t tweaklen,
+  const struct tm * const ct,
+  struct tm * const pt
+);
+
+UBIQ_PLATFORM_API
+int
+ubiq_platform_structured_decrypt_datetime_data(
+  struct ubiq_platform_structured_enc_dec_obj * const enc,
+  const char * const dataset_name,
+  const uint8_t * const tweak, const size_t tweaklen,
+  const struct tm * const ct,
+  struct tm * const pt
+);
+
+// __attribute__ ((deprecated))   UBIQ_PLATFORM_API
+// int
+// ubiq_platform_structured_old_decrypt_data_prealloc(
+//   struct ubiq_platform_structured_old_enc_dec_obj * const enc,
+//   const char * const ffs_name,
+//   const uint8_t * const tweak, const size_t tweaklen,
+//   const char * const ctbuf, const size_t ctlen,
+//   char * const ptbuf, size_t * const ptlen
+// );
+
+UBIQ_PLATFORM_API
+int
 ubiq_platform_structured_decrypt_data_prealloc(
   struct ubiq_platform_structured_enc_dec_obj * const enc,
   const char * const ffs_name,
@@ -210,6 +270,16 @@ ubiq_platform_structured_decrypt_data_prealloc(
   char * const ptbuf, size_t * const ptlen
 );
 
+// The NEW should be the char32_t
+UBIQ_PLATFORM_API
+int
+ubiq_platform_structured_decrypt_data_prealloc(
+  struct ubiq_platform_structured_enc_dec_obj * const enc,
+  const char * const ffs_name,
+  const uint8_t * const tweak, const size_t tweaklen,
+  const char * const ctbuf, const size_t ctlen,
+  char * const ptbuf, size_t * const ptlen
+);
 
 __END_DECLS
 
@@ -413,7 +483,47 @@ namespace ubiq {
             std::string
             decrypt(
               const std::string & ffs_name,
-              const std::string & pt
+              const std::string & ct
+            ) ;
+
+            UBIQ_PLATFORM_API
+            virtual
+            std::u32string
+            decrypt(
+              const std::string & ffs_name,
+              const std::u32string & ct
+            ) ;
+
+            UBIQ_PLATFORM_API
+            virtual
+            int32_t
+            decryptInt(
+              const std::string & ffs_name,
+              const int32_t & ct
+            ) ;
+
+            UBIQ_PLATFORM_API
+            virtual
+            int64_t
+            decryptLong(
+              const std::string & ffs_name,
+              const int64_t & ct
+            ) ;
+
+            UBIQ_PLATFORM_API
+            virtual
+            struct tm
+            decryptDate(
+              const std::string & ffs_name,
+              const struct tm & ct
+            ) ;
+
+            UBIQ_PLATFORM_API
+            virtual
+            struct tm
+            decryptDateTime(
+              const std::string & ffs_name,
+              const struct tm & ct
             ) ;
 
             UBIQ_PLATFORM_API
@@ -422,8 +532,53 @@ namespace ubiq {
             decrypt(
               const std::string & ffs_name,
               const std::vector<std::uint8_t> & tweak,
-              const std::string & pt
+              const std::string & ct
             ) ;
+
+            UBIQ_PLATFORM_API
+            virtual
+            std::u32string
+            decrypt(
+              const std::string & ffs_name,
+              const std::vector<std::uint8_t> & tweak,
+              const std::u32string & ct
+            ) ;
+
+            UBIQ_PLATFORM_API
+            virtual
+            int32_t
+            decryptInt(
+              const std::string & ffs_name,
+              const std::vector<std::uint8_t> & tweak,
+              const int32_t & ct
+            ) ;
+
+            UBIQ_PLATFORM_API
+            virtual
+            int64_t
+            decryptLong(
+              const std::string & ffs_name,
+              const std::vector<std::uint8_t> & tweak,
+              const int64_t & ct
+            ) ;
+
+            UBIQ_PLATFORM_API
+            virtual
+            struct tm
+            decryptDate(
+              const std::string & ffs_name,
+              const std::vector<std::uint8_t> & tweak,
+              const struct tm & ct
+            ) ;
+
+            UBIQ_PLATFORM_API
+            virtual
+            struct tm
+            decryptDateTime(
+              const std::string & ffs_name,
+              const std::vector<std::uint8_t> & tweak,
+              const struct tm & ct
+            );
 
             UBIQ_PLATFORM_API
             virtual

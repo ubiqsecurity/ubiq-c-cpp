@@ -2,6 +2,7 @@
 
 #include <ubiq/platform/compat/cdefs.h>
 #include <stddef.h>
+#include <uchar.h>
 
 #include <ubiq/platform/internal/http.h>
 
@@ -103,6 +104,9 @@ ubiq_platform_rest_uri_escape(
   const struct ubiq_platform_rest_handle * const h,
   const char * const uri, char ** const encoded_uri);
 
+int ubiq_platform_rest_u32uri_escape(
+  const struct ubiq_platform_rest_handle * const h,
+  const char32_t * const uri, char ** const encoded_uri);
 
 __END_DECLS
 

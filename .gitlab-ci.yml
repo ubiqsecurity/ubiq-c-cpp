@@ -102,6 +102,8 @@ build-centos-9-stream:
         - ls -l $UBIQ_TEST_DATA_FILE
         - build/src/test/test_performance_c
         - build/src/test/test_performance
+        - build/src/test/test_performance_c -i $UBIQ_TEST_DATA_FILE/dataset_types/
+        - build/src/test/test_performance -i $UBIQ_TEST_DATA_FILE/dataset_types/
     cache:
        key: "debian-11-${CI_COMMIT_REF_SLUG}"
        paths:
@@ -142,6 +144,8 @@ test-debian-11_prod:
         - ls -l $UBIQ_TEST_DATA_FILE
         - build/src/test/test_performance_c
         - build/src/test/test_performance
+        - build/src/test/test_performance_c -i $UBIQ_TEST_DATA_FILE/dataset_types/
+        - build/src/test/test_performance -i $UBIQ_TEST_DATA_FILE/dataset_types/
     cache:
        key: "debian-12-${CI_COMMIT_REF_SLUG}"
        paths:
@@ -177,6 +181,8 @@ test-debian-12_prod:
         - ls -l $UBIQ_TEST_DATA_FILE
         - build/src/test/test_performance_c
         - build/src/test/test_performance
+        - build/src/test/test_performance_c -i $UBIQ_TEST_DATA_FILE/dataset_types/
+        - build/src/test/test_performance -i $UBIQ_TEST_DATA_FILE/dataset_types/
     cache:
        key: "centos-${CI_COMMIT_REF_SLUG}"
        paths:

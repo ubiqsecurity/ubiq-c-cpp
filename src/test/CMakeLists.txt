@@ -10,9 +10,21 @@ add_executable(
   cache.cpp
   credentials.cpp
   configuration.cpp
+  convert_radix_operation.cpp
+  dataset.cpp
+  dataset_cache.cpp
   decrypt.cpp
+  decode_input_operation.cpp
+  decode_key_number_operation.cpp
+  encode_input_operation.cpp
+  encode_key_number_operation.cpp
   encrypt.cpp
+  encrypt_operation.cpp
+  expand_passthrough_characters_operation.cpp
+  expand_passthrough_prefix_operation.cpp
+  expand_passthrough_suffix_operation.cpp
   ff1.cpp
+  ff1_cache.cpp
   ffx.cpp
   deprecated_decrypt.cpp
   deprecated_encrypt.cpp
@@ -20,17 +32,34 @@ add_executable(
   structured_encrypt.cpp
   structured_decrypt.cpp
   structured_encrypt_new.cpp
+  structured_encrypt_pipeline.cpp
   structured_threadsafe.cpp
+  structured_key_cache.cpp
   global.cpp
   hashtable.cpp
+  hashtable32.cpp
+  operation_context.cpp
+  pad_input_operation.cpp
   parsing.cpp
   request.cpp
   rsa.cpp
+  structured_pipeline.cpp
+  trim_passthrough_characters_operation.cpp
+  trim_passthrough_prefix_operation.cpp
+  trim_passthrough_suffix_operation.cpp
+  unpad_input_operation.cpp
   unstructured_threadsafe.cpp
 )
 # link against the static libraries which avoids
 # having to export certain internal interfaces
 # on windows to make them available for testing
+
+target_include_directories(
+  unittests
+  PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/../include
+  ${CMAKE_CURRENT_SOURCE_DIR}/../ext)
+
 
 add_executable(
   test_performance

@@ -42,9 +42,11 @@ void bigint_set(bigint_t * const rop, const bigint_t * const op)
     mpz_set(*rop, *op);
 }
 
+// Create a BN using the given string and the alphabet (radix string)
 int __u32_bigint_set_str(bigint_t * const x,
                     const uint32_t * const str, const uint32_t * const alpha);
 
+// Create a BN using the given string and a radix number - radix string is predefined)
 static inline
 int bigint_set_str(bigint_t * const x,
                    const char * const str, const unsigned int radix)
@@ -52,16 +54,20 @@ int bigint_set_str(bigint_t * const x,
     return mpz_set_str(*x, str, radix);
 }
 
+// Create a BN using the given string and the alphabet (radix string)
 int __bigint_set_str(bigint_t * const x,
                      const char * const str, const char * const alpha);
 
+// Create a BN using the given string and radix number
 // Makes assumption about character set being used rad <= 10 (0-9), rad <= 36 (0-9a-z), rad <= 62 (0-9a-zA-Z), 63 < rad (\x01 - \xFF)
 int __bigint_set_str_radix(bigint_t * const x,
                      const char * const str, const size_t radix);
 
+// Given a BN, get the equivalent string using the given alphabet (radix)                  
 int __u32_bigint_get_str(uint32_t * const str, const size_t len,
                     const uint32_t * const alpha, const bigint_t * const x);
 
+// Given a BN, get the equivalent string using a preset radix number
 static inline
 int bigint_get_str(char * const str, const size_t len,
                    const unsigned int radix,
@@ -206,7 +212,18 @@ int map_characters_to_u32(uint8_t * const dst, const char * const src,
 const char * get_standard_bignum_radix(
     const size_t radix);
 
+const uint32_t * u32_get_standard_bignum_radix(
+    const size_t radix);
+
+int ubiq_platform_u32_str_convert_u32_radix(
+  const uint32_t * const src_str,
+  const uint32_t * const input_radix,
+  const uint32_t * output_radix,
+  const int skip_length_check, // default was true
+  const int left_pad, // default was true
+  uint32_t * out_str);
 
 __END_DECLS
+
 
 #endif

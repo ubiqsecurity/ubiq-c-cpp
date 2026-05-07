@@ -1,5 +1,7 @@
 #pragma once
 
+#include <time.h>
+
 #if defined(__cplusplus)
 extern "C" {
 #endif
@@ -20,6 +22,15 @@ typedef enum
     UBIQ_SAMPLE_METHOD_CHUNKING,
 } ubiq_sample_method_t;
 
+typedef enum
+{
+    UBIQ_DATASET_TYPE_STRING,
+    UBIQ_DATASET_TYPE_INTEGER32,
+    UBIQ_DATASET_TYPE_INTEGER64,
+    UBIQ_DATASET_TYPE_DATE,
+    UBIQ_DATASET_TYPE_DATETIME,
+} ubiq_dataset_type_t;
+
 int
 ubiq_sample_getopt(
     const int argc, char * const argv[],
@@ -35,7 +46,12 @@ ubiq_structured_getopt(
     ubiq_sample_mode_t * const mode,
     const char ** const ffsname, const char ** const inputstring,
     const char ** const credfile, const char ** const profile,
-    const char ** const cfgfile, int * const encryptForSearch);
+    const char ** const cfgfile, int * const encryptForSearch,
+    ubiq_dataset_type_t * dataset_type);
+
+int parse_tz(const char *s, int *offset_min);
+
+int parse_iso8601(char const * const s, struct tm * const out);
 
 #if defined(__cplusplus)
 }

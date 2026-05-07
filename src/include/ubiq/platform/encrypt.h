@@ -3,6 +3,8 @@
 #include <ubiq/platform/compat/cdefs.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <uchar.h>
+#include <time.h>
 
 #include <ubiq/platform/credentials.h>
 #include <ubiq/platform/configuration.h>
@@ -37,6 +39,8 @@ struct ubiq_platform_encryption_session;
 
 /* Opaque encryption object */
 struct ubiq_platform_encryption;
+
+// struct ubiq_platform_structured_old_enc_dec_obj;
 
 struct ubiq_platform_structured_enc_dec_obj;
 
@@ -184,7 +188,7 @@ struct ubiq_platform_encryption_session ** const session);
  * *******************************************
  */
 
-// Piecewise functions
+
 UBIQ_PLATFORM_API
 int
 ubiq_platform_structured_enc_dec_create(
@@ -198,6 +202,128 @@ ubiq_platform_structured_enc_dec_create_with_config(
     const struct ubiq_platform_credentials * const creds,
     const struct ubiq_platform_configuration * const cfg,
     struct ubiq_platform_structured_enc_dec_obj ** const enc);
+
+UBIQ_PLATFORM_API
+int
+ubiq_platform_structured_encrypt_u32data(
+  struct ubiq_platform_structured_enc_dec_obj * const enc,
+  const char * const ffs_name,
+  const uint8_t * const tweak, const size_t tweaklen,
+  const char32_t * const ptbuf, const size_t ptlen,
+  char32_t ** const ctbuf, size_t * const ctlen
+);
+
+UBIQ_PLATFORM_API
+int
+ubiq_platform_structured_encrypt_int_data(
+  struct ubiq_platform_structured_enc_dec_obj * const enc,
+  const char * const dataset_name,
+  const uint8_t * const tweak, const size_t tweaklen,
+  const int32_t pt,
+  int32_t * const ct
+);
+
+UBIQ_PLATFORM_API
+int
+ubiq_platform_structured_encrypt_int_data_for_search(
+  struct ubiq_platform_structured_enc_dec_obj * const enc,
+  const char * const dataset_name,
+  const uint8_t * const tweak, const size_t tweaklen,
+  const int32_t pt,
+  int32_t ** const ctarr, size_t * const count
+);
+
+UBIQ_PLATFORM_API
+int
+ubiq_platform_structured_encrypt_long_data(
+  struct ubiq_platform_structured_enc_dec_obj * const enc,
+  const char * const dataset_name,
+  const uint8_t * const tweak, const size_t tweaklen,
+  const int64_t pt,
+  int64_t * const ct
+);
+
+UBIQ_PLATFORM_API
+int
+ubiq_platform_structured_encrypt_long_data_for_search(
+  struct ubiq_platform_structured_enc_dec_obj * const enc,
+  const char * const dataset_name,
+  const uint8_t * const tweak, const size_t tweaklen,
+  const int64_t pt,
+  int64_t ** const ctarr, size_t * const count
+);
+
+UBIQ_PLATFORM_API
+int
+ubiq_platform_structured_encrypt_date_data(
+  struct ubiq_platform_structured_enc_dec_obj * const enc,
+  const char * const dataset_name,
+  const uint8_t * const tweak, const size_t tweaklen,
+  const struct tm * const pt,
+  struct tm * const ct
+);
+
+UBIQ_PLATFORM_API
+int
+ubiq_platform_structured_encrypt_date_data_for_search(
+  struct ubiq_platform_structured_enc_dec_obj * const enc,
+  const char * const dataset_name,
+  const uint8_t * const tweak, const size_t tweaklen,
+  const struct tm * const pt,
+  struct tm ** const ctarr, size_t * const count
+);
+
+UBIQ_PLATFORM_API
+int
+ubiq_platform_structured_encrypt_datetime_data(
+  struct ubiq_platform_structured_enc_dec_obj * const enc,
+  const char * const dataset_name,
+  const uint8_t * const tweak, const size_t tweaklen,
+  const struct tm * const pt,
+  struct tm * const ct
+);
+
+UBIQ_PLATFORM_API
+int
+ubiq_platform_structured_encrypt_datetime_data_for_search(
+  struct ubiq_platform_structured_enc_dec_obj * const enc,
+  const char * const dataset_name,
+  const uint8_t * const tweak, const size_t tweaklen,
+  const struct tm * const pt,
+  struct tm ** const ctarr, size_t * const count
+);
+
+void
+ubiq_platform_structured_enc_dec_destroy(
+    struct ubiq_platform_structured_enc_dec_obj * const e);
+
+UBIQ_PLATFORM_API
+int ubiq_platform_structured_load_cache_dataset(
+  struct ubiq_platform_structured_enc_dec_obj * const enc,
+  char * dataset_name);
+
+UBIQ_PLATFORM_API
+int ubiq_platform_structured_load_cache_datasets(
+  struct ubiq_platform_structured_enc_dec_obj * const enc,
+  char const * dataset_names[],
+  size_t count
+);
+// OLD structured
+
+// Piecewise functions
+// UBIQ_PLATFORM_API
+// int
+// ubiq_platform_structured_enc_dec_create(
+//     const struct ubiq_platform_credentials * const creds,
+//     struct ubiq_platform_structured_old_enc_dec_obj ** const enc);
+
+// Piecewise functions
+// UBIQ_PLATFORM_API
+// int
+// ubiq_platform_structured_enc_dec_create_with_config(
+//     const struct ubiq_platform_credentials * const creds,
+//     const struct ubiq_platform_configuration * const cfg,
+//     struct ubiq_platform_structured_old_enc_dec_obj ** const enc);
 /**
  * @brief Encrypt data using a pre-allocated byffer of data for the results.
  * 
@@ -214,6 +340,17 @@ ubiq_platform_structured_enc_dec_create_with_config(
  * bytes of the ctbuf returned or necessary space if ctbuf is not long enough
  * @return integer, 0 on success or negative error number on failure. 
  */
+// UBIQ_PLATFORM_API
+// int
+// ubiq_platform_structured_old_encrypt_data_prealloc(
+//   struct ubiq_platform_structured_old_enc_dec_obj * const enc,
+//   const char * const ffs_name,
+//   const uint8_t * const tweak, const size_t tweaklen,
+//   const char * const ptbuf, const size_t ptlen,
+//   char * const ctbuf, size_t * const ctlen
+// );
+
+// For backwards compatibility
 UBIQ_PLATFORM_API
 int
 ubiq_platform_structured_encrypt_data_prealloc(
@@ -223,6 +360,28 @@ ubiq_platform_structured_encrypt_data_prealloc(
   const char * const ptbuf, const size_t ptlen,
   char * const ctbuf, size_t * const ctlen
 );
+
+// NEW should be the 32 bit ones
+UBIQ_PLATFORM_API
+int
+ubiq_platform_structured_encrypt_data_prealloc(
+  struct ubiq_platform_structured_enc_dec_obj * const enc,
+  const char * const ffs_name,
+  const uint8_t * const tweak, const size_t tweaklen,
+  const char * const ptbuf, const size_t ptlen,
+  char * const ctbuf, size_t * const ctlen
+);
+
+// UBIQ_PLATFORM_API
+// int
+// ubiq_platform_structured_old_encrypt_data(
+//   struct ubiq_platform_structured_old_enc_dec_obj * const enc,
+//   const char * const ffs_name,
+//   const uint8_t * const tweak, const size_t tweaklen,
+//   const char * const ptbuf, const size_t ptlen,
+//   char ** const ctbuf, size_t * const ctlen
+// );
+
 
 UBIQ_PLATFORM_API
 int
@@ -256,9 +415,20 @@ ubiq_platform_structured_encrypt_data(
  * If count is not large enough for all cipher text values, an error will be returned and this value will be set to the neccessary value.
  * @return integer, 0 on success or negative error number on failure. 
  */
+// __attribute__ ((deprecated))  UBIQ_PLATFORM_API
+// int
+// ubiq_platform_structured_old_encrypt_data_for_search_prealloc(
+//   struct ubiq_platform_structured_old_enc_dec_obj * const enc,
+//   const char * const ffs_name,
+//   const uint8_t * const tweak, const size_t tweaklen,
+//   const char * const ptbuf, const size_t ptlen,
+//   char ** const ctbuf, size_t * const ctbuflen, size_t * const count
+// );
+
+
 UBIQ_PLATFORM_API
 int
-ubiq_platform_encrypt_data_for_search_prealloc(
+ubiq_platform_structured_encrypt_data_for_search_prealloc(
   struct ubiq_platform_structured_enc_dec_obj * const enc,
   const char * const ffs_name,
   const uint8_t * const tweak, const size_t tweaklen,
@@ -266,7 +436,16 @@ ubiq_platform_encrypt_data_for_search_prealloc(
   char ** const ctbuf, size_t * const ctbuflen, size_t * const count
 );
 
-UBIQ_PLATFORM_API
+// __attribute__ ((deprecated)) UBIQ_PLATFORM_API
+// int
+// ubiq_platform_structured_old_encrypt_data_for_search(
+//   struct ubiq_platform_structured_old_enc_dec_obj * const enc,
+//   const char * const ffs_name,
+//   const uint8_t * const tweak, const size_t tweaklen,
+//   const char * const ptbuf, const size_t ptlen,
+//   char *** const ctbuf, size_t * const count
+// );
+
 int
 ubiq_platform_structured_encrypt_data_for_search(
   struct ubiq_platform_structured_enc_dec_obj * const enc,
@@ -277,13 +456,31 @@ ubiq_platform_structured_encrypt_data_for_search(
 );
 
 UBIQ_PLATFORM_API
-void
-ubiq_platform_structured_enc_dec_destroy(
-    struct ubiq_platform_structured_enc_dec_obj * const e);
+int
+ubiq_platform_structured_encrypt_u32data_for_search(
+  struct ubiq_platform_structured_enc_dec_obj * const enc,
+  const char * const ffs_name,
+  const uint8_t * const tweak, const size_t tweaklen,
+  const char32_t * const ptbuf, const size_t ptlen,
+  char32_t *** const ctbuf, size_t * const count
+);
+
+// UBIQ_PLATFORM_API
+// void
+// ubiq_platform_structured_enc_dec_destroy(
+//     struct ubiq_platform_structured_old_enc_dec_obj * const e);
 
 // Get details regarding last error message if
 // available.  Must free the errmsg string when
 // done.
+// UBIQ_PLATFORM_API
+// int
+// ubiq_platform_structured_get_last_error(
+//   struct ubiq_platform_structured_old_enc_dec_obj * const enc,
+//   int * const err_num,
+//   char ** const err_msg
+// );
+
 UBIQ_PLATFORM_API
 int
 ubiq_platform_structured_get_last_error(
@@ -292,11 +489,24 @@ ubiq_platform_structured_get_last_error(
   char ** const err_msg
 );
 
+
+// UBIQ_PLATFORM_API
+// int
+// ubiq_platform_structured_enc_dec_get_copy_of_usage(
+//     struct ubiq_platform_structured_old_enc_dec_obj * const obj,
+//     char ** const buffer, size_t * const buffer_len);
+
 UBIQ_PLATFORM_API
 int
 ubiq_platform_structured_enc_dec_get_copy_of_usage(
     struct ubiq_platform_structured_enc_dec_obj * const obj,
     char ** const buffer, size_t * const buffer_len);
+
+// UBIQ_PLATFORM_API
+// int
+// ubiq_platform_structured_enc_dec_add_user_defined_metadata(
+//     struct ubiq_platform_structured_old_enc_dec_obj * const obj,
+//     const char * const jsonString);
 
 UBIQ_PLATFORM_API
 int
@@ -471,9 +681,14 @@ namespace ubiq {
         namespace structured {
 
 
+// __attribute__ ((deprecated))           UBIQ_PLATFORM_API
+//           std::string
+//           get_error(struct ubiq_platform_structured_old_enc_dec_obj * const enc);
+
           UBIQ_PLATFORM_API
           std::string
           get_error(struct ubiq_platform_structured_enc_dec_obj * const enc);
+
 
           // Bulk
           class encryption
@@ -521,6 +736,98 @@ namespace ubiq {
 
             UBIQ_PLATFORM_API
             virtual
+            std::u32string
+            encrypt(
+              const std::string & ffs_name,
+              const std::u32string & pt
+            ) ;
+
+            UBIQ_PLATFORM_API
+            virtual
+            int32_t
+            encryptInt(
+              const std::string & ffs_name,
+              const int32_t & pt
+            ) ;
+
+            UBIQ_PLATFORM_API
+            virtual
+            int64_t
+            encryptLong(
+              const std::string & ffs_name,
+              const int64_t & pt
+            ) ;
+
+            UBIQ_PLATFORM_API
+            virtual
+            struct tm
+            encryptDate(
+              const std::string & ffs_name,
+              const struct tm & pt
+            ) ;
+
+            UBIQ_PLATFORM_API
+            virtual
+            struct tm
+            encryptDate(
+              const std::string & ffs_name,
+              const std::vector<std::uint8_t> & tweak,
+              const struct tm & pt
+            ) ;
+
+            UBIQ_PLATFORM_API
+            virtual
+            std::vector<struct tm>
+            encryptDate_for_search(
+              const std::string & ffs_name,
+              const struct tm & pt
+            ) ;
+
+            UBIQ_PLATFORM_API
+            virtual
+            std::vector<struct tm>
+            encryptDate_for_search(
+              const std::string & ffs_name,
+              const std::vector<std::uint8_t> & tweak,
+              const struct tm & pt
+            ) ;
+
+            UBIQ_PLATFORM_API
+            virtual
+            struct tm
+            encryptDateTime(
+              const std::string & ffs_name,
+              const struct tm & pt
+            ) ;
+
+            UBIQ_PLATFORM_API
+            virtual
+            struct tm
+            encryptDateTime(
+              const std::string & ffs_name,
+              const std::vector<std::uint8_t> & tweak,
+              const struct tm & pt
+            ) ;
+
+            UBIQ_PLATFORM_API
+            virtual
+            std::vector<struct tm>
+            encryptDateTime_for_search(
+              const std::string & ffs_name,
+              const struct tm & pt
+            ) ;
+
+            UBIQ_PLATFORM_API
+            virtual
+            std::vector<struct tm>
+            encryptDateTime_for_search(
+              const std::string & ffs_name,
+              const std::vector<std::uint8_t> & tweak,
+              const struct tm & pt
+            ) ;
+
+            UBIQ_PLATFORM_API
+            virtual
             std::vector<std::string>
             encrypt_for_search(
               const std::string & ffs_name,
@@ -534,6 +841,67 @@ namespace ubiq {
               const std::string & ffs_name,
               const std::vector<std::uint8_t> & tweak,
               const std::string & pt
+            ) ;
+
+            UBIQ_PLATFORM_API
+            virtual
+            std::u32string
+            encrypt(
+              const std::string & ffs_name,
+              const std::vector<std::uint8_t> & tweak,
+              const std::u32string & pt
+            ) ;
+
+            UBIQ_PLATFORM_API
+            virtual
+            int32_t
+            encryptInt(
+              const std::string & ffs_name,
+              const std::vector<std::uint8_t> & tweak,
+              const int32_t & pt
+            ) ;
+
+            UBIQ_PLATFORM_API
+            virtual
+            std::vector<int32_t>
+            encryptInt_for_search(
+              const std::string & ffs_name,
+              const int32_t & pt
+            ) ;
+
+            UBIQ_PLATFORM_API
+            virtual
+            std::vector<int32_t>
+            encryptInt_for_search(
+              const std::string & ffs_name,
+              const std::vector<std::uint8_t> & tweak,
+              const int32_t & pt
+            ) ;
+
+            UBIQ_PLATFORM_API
+            virtual
+            int64_t
+            encryptLong(
+              const std::string & ffs_name,
+              const std::vector<std::uint8_t> & tweak,
+              const int64_t & pt
+            ) ;
+
+            UBIQ_PLATFORM_API
+            virtual
+            std::vector<int64_t>
+            encryptLong_for_search(
+              const std::string & ffs_name,
+              const int64_t & pt
+            ) ;
+
+            UBIQ_PLATFORM_API
+            virtual
+            std::vector<int64_t>
+            encryptLong_for_search(
+              const std::string & ffs_name,
+              const std::vector<std::uint8_t> & tweak,
+              const int64_t & pt
             ) ;
 
             UBIQ_PLATFORM_API
