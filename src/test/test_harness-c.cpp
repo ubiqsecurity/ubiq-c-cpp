@@ -201,6 +201,41 @@ Results decrypt(ubiq_platform_structured_enc_dec_obj * const enc,
   return results;
 }
 
+void find_files_recursive(const std::string &dir_path, std::list<std::string> &files) {
+    DIR *d;
+    struct dirent *dir;
+    struct stat s;
+
+    d = opendir(dir_path.c_str());
+    if (!d) return;
+
+    while ((dir = readdir(d)) != NULL) {
+        // Skip "." and ".." to avoid infinite loops
+        if (strcmp(dir->d_name, ".") == 0 || strcmp(dir->d_name, "..") == 0)
+            continue;
+
+        std::string full_path = dir_path + "/" + std::string(dir->d_name);
+
+        if (dir->d_type == DT_REG) {
+            // Regular file — add to list
+            files.push_back(full_path);
+        } else if (dir->d_type == DT_DIR) {
+            // Subdirectory — recurse into it
+            find_files_recursive(full_path, files);
+        } else if (dir->d_type == DT_UNKNOWN) {
+            // Some filesystems (e.g. ext2) don't support d_type,
+            // so fall back to stat()
+            if (stat(full_path.c_str(), &s) == 0) {
+                if (s.st_mode & S_IFREG)
+                    files.push_back(full_path);
+                else if (s.st_mode & S_IFDIR)
+                    find_files_recursive(full_path, files);
+            }
+        }
+    }
+    closedir(d);
+}
+
 int main(const int argc, char * const argv[])
 {
     Options options;
@@ -255,26 +290,10 @@ int main(const int argc, char * const argv[])
       int t = stat(options.infile.c_str(), &s);
 
       if (t == 0 && s.st_mode & S_IFREG) {
-        files.push_back(options.infile);
+          files.push_back(options.infile);
       } else if (t == 0 && s.st_mode & S_IFDIR) {
-        DIR *d;
-        struct dirent *dir;
-        d = opendir(options.infile.c_str());
-        
-        if (d) {
-            while ((dir = readdir(d)) != NULL)
-            {
-                //Condition to check regular file.
-                if(dir->d_type==DT_REG){
-                  std::string path = options.infile;
-                  path += "/" + std::string(dir->d_name);
-                  files.push_back(path);
-                }
-            }
-            closedir(d);
-        }
+          find_files_recursive(options.infile, files);
       }
-
 
       long recordCount = 0;
       for (auto const & file : files) {
