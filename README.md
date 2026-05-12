@@ -104,8 +104,6 @@ Before the library can be used, it must be initialized
 
 ```c
 #include <ubiq/platform.h>
-```
-```c
 /* C
  *
  * Returns an `int` equal to 0 if the library is successfully
@@ -114,6 +112,7 @@ Before the library can be used, it must be initialized
 ubiq_platform_init();
 ```
 ```c++
+#include <ubiq/platform.h>
 /* C++
  *
  * Returns `void`, but throws an exception if the library
