@@ -24,25 +24,6 @@ stages:
     - test
     - deploy
 
-build-debian-11:
-    image: debian:bullseye
-    variables:
-        GIT_SUBMODULE_STRATEGY: recursive
-    stage: build
-    before_script:
-        - apt -y update
-        - apt -y install cmake gcc g++
-        - apt -y install libcurl4-openssl-dev libssl-dev
-        - apt -y install dpkg-dev file libgmp-dev
-        - apt -y install libunistring-dev
-    script:
-        - cmake -S. -Bbuild
-        - cmake --build build -- -j$(nproc)
-        - cmake --build build --target package -- -j$(nproc)
-    cache:
-       key: "debian-11-${CI_COMMIT_REF_SLUG}"
-       paths:
-        - build
 
 build-debian-12:
     image: debian:bookworm
@@ -86,46 +67,6 @@ build-centos-9-stream:
        key: "centos-${CI_COMMIT_REF_SLUG}"
        paths:
         - build
-
-.test-debian-11:
-    image: debian:bullseye
-    stage: test
-    variables:
-        GIT_SUBMODULE_STRATEGY: recursive
-    before_script:
-        - apt -y update
-        - apt -y install libcurl4 libssl1.1
-    script:
-        - ldd build/src/test/unittests
-        - build/src/test/unittests
-        - ldd build/src/test/test_performance
-        - ls -l $UBIQ_TEST_DATA_FILE
-        - build/src/test/test_performance_c
-        - build/src/test/test_performance
-    cache:
-       key: "debian-11-${CI_COMMIT_REF_SLUG}"
-       paths:
-        - build
-
-
-test-debian-11_dev:
-    extends: .test-debian-11
-    rules:
-    - if: $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH && $CI_PIPELINE_SOURCE != 'merge_request_event'
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_PIPELINE_SOURCE == 'schedule'
-    environment: ubs-usw2-dvc
-
-test-debian-11_prod:
-    extends: .test-debian-11
-    rules:
-    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
-      when: on_success
-    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
-      when: on_success
-    - if: $CI_PIPELINE_SOURCE == 'schedule'
-      when: on_success
-    environment: ubs-usw2-prcv3
-
 
 .test-debian-12:
     image: debian:bookworm
@@ -215,41 +156,7 @@ include:
     - template: Security/SAST.gitlab-ci.yml
     - template: Security/Secret-Detection.gitlab-ci.yml
 
-# package-centos:
-#    stage: deploy
-#    cache:
-#       key: "centos-${CI_COMMIT_REF_SLUG}"
-#       paths:
-#        - build
-#    script:
-#        - ls build/*.rpm
-#    artifacts:
-#        paths:
-#            - build/*.rpm
-#    only:
-#        - master
-#        - tags
-#    except:
-#        - schedules
 
-package-debian-11:
-    image: debian:bullseye
-    stage: deploy
-    artifacts:
-        paths:
-            - build/*.deb
-    script:
-        - ls build/*.deb
-    only:
-        - UB1-980_Debian_bookworm_port
-        - master
-        - tags
-    except:
-        - schedules
-    cache:
-       key: "debian-11-${CI_COMMIT_REF_SLUG}"
-       paths:
-        - build
 
 package-debian-12:
     image: debian:bookworm
@@ -271,7 +178,7 @@ package-debian-12:
         - build
 
 deploy:
-    image: debian:bullseye
+    image: debian:bookworm
     stage: deploy
     before_script:
         - apt -y update
@@ -295,7 +202,7 @@ deploy:
     except:
         - schedules
     cache:
-       key: "debian-11-${CI_COMMIT_REF_SLUG}"
+       key: "debian-12-${CI_COMMIT_REF_SLUG}"
        paths:
         - build
         
