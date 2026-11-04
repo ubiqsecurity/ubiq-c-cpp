@@ -1082,6 +1082,304 @@ catch (const std::exception& e) {
 ubiq::platform::exit();
 ```
 
+### Encrypt / Decrypt / EncrypForSearch for Integer (32 bit) and Long (64 bit)
+This requires pre-configuration of an Integer dataset with the corresponding length, either 32 or 64 bit.
+
+```c
+/* C */
+#include <ubiq/platform.h>
+
+
+struct ubiq_platform_credentials * creds = NULL;
+struct ubiq_platform_structured_enc_dec_obj *enc = NULL;
+const char * const DATASET_NAME_32 = "Int32";
+int32_t ct32 = 0;
+int32_t p32 = 12345;
+
+const char * const DATASET_NAME_64 = "Int64";
+int64_t ct64 = 0L;
+int64_t p64 = 12345L;
+
+int res = ubiq_platform_init();
+
+if (!res) {res = ubiq_platform_credentials_create(&creds); }
+if (!res) {res = ubiq_platform_structured_enc_dec_create(creds, &enc); }
+...
+// Encrypt
+res = ubiq_platform_structured_encrypt_int_data(enc,DATASET_NAME_32, NULL, 0, p32, &ct32);
+res = ubiq_platform_structured_encrypt_long_data(enc,DATASET_NAME_64, NULL, 0, p64, &ct64);
+...
+// Decrypt
+res = ubiq_platform_structured_decrypt_int_data(enc,DATASET_NAME_32, NULL, 0, ct32, &p32);
+res = ubiq_platform_structured_decrypt_long_data(enc,DATASET_NAME_64, NULL, 0, ct64, &p64);
+...
+// Encrypt for Search
+int32_t * ct32_arr = NULL;
+size_t count = 0;
+res = ubiq_platform_structured_encrypt_int_data_for_search(enc,DATASET_NAME_32, NULL, 0, p32, &ct32_arr, &count);
+for (int i = 0; i < count; i++) {
+  printf("\t'%d'\n", ct32_arr[i]);
+}
+free(ct32_arr);
+...
+int64_t * ct64_arr = NULL;
+size_t count = 0;
+res = ubiq_platform_structured_encrypt_long_data_for_search(enc,DATASET_NAME_64, NULL, 0, p64, &ct64_arr, &count);
+for (int i = 0; i < count; i++) {
+  printf("\t'%ld'\n", ct64_arr[i]);
+}
+free(ct64_arr);
+...
+ubiq_platform_structured_enc_dec_destroy(enc);
+ubiq_platform_credentials_destroy(creds);
+
+ubiq_platform_exit();
+
+```
+```c++
+/* C++ */
+#include <ubiq/platform.h>
+
+int32_t ct32 = 0;
+int32_t p32 = 12345;
+std::string DATASET_NAME_32("Int32");
+
+int64_t ct64 = 0L;
+int64_t p64 = 12345L;
+std::string DATASET_NAME_64("Int64");
+
+ubiq::platform::init();
+ubiq::platform::credentials creds;
+ubiq::platform::structured::encryption enc(creds);
+ubiq::platform::structured::decryption dec(creds);
+
+...
+// Encrypt
+ct32 = enc.encryptInt(DATASET_NAME_32, p32);
+ct64 = enc.encryptLong(DATASET_NAME_64, p64);
+...
+// Decrypt
+p32 = dec.encryptInt(DATASET_NAME_32, ct32);
+p64 = dec.encryptLong(DATASET_NAME_64, ct64);
+...
+// Encrypt For Search
+std::vector<int32_t> ct32_arr = enc.encryptInt_for_search(DATASET_NAME_32, pt32);
+for (int32_t c : ct32_arr) {
+  std::cout << "\t" << c << std::endl;
+}
+...
+std::vector<int64_t> ct64_arr = enc.encryptLong_for_search(DATASET_NAME_64, pt64);
+for (int64_t c : ct64_arr) {
+  std::cout << "\t" << c << std::endl;
+}
+ubiq::platform::exit();
+
+```
+
+### Encrypt / Decrypt / EncrypForSearch for DateTime
+This requires pre-configuration of an DateTime dataset.
+```c
+/* C */
+#include <ubiq/platform.h>
+
+struct ubiq_platform_credentials * creds = NULL;
+struct ubiq_platform_structured_enc_dec_obj *enc = NULL;
+const char * const DATASET_NAME = "datetime";
+struct tm ct;
+struct tm p;
+
+// Encrypt
+res = ubiq_platform_structured_encrypt_datetime_data(enc,DATASET_NAME, NULL, 0, &p, &ct);
+
+// Decrypt
+res = ubiq_platform_structured_decrypt_datetime_data(enc,DATASET_NAME, NULL, 0, &c, &p);
+
+// Encrypt For Search
+struct tm * ct_arr = NULL;
+size_t count = 0;
+res = ubiq_platform_structured_encrypt_datetime_data_for_search(enc,dataset_name, NULL, 0, &p, &ct_arr, &count);
+for (int i = 0; i < count; i++) {
+  char buffer[30];
+  size_t len = strftime(buffer, sizeof(buffer), "%04Y-%m-%dT%H:%M:%SZ", &ct_arr[i]);
+  printf("\t%s\n", buffer);
+}
+free(ct_arr);
+```
+```c++
+/* C++ */
+#include <ubiq/platform.h>
+
+ubiq::platform::init();
+ubiq::platform::credentials creds;
+ubiq::platform::structured::encryption enc(creds);
+ubiq::platform::structured::decryption dec(creds);
+
+struct tm ct;
+struct tm p;
+std::string DATASET_NAME_32("datetime");
+
+// Encrypt
+ct = enc.encryptDateTime(dataset_name, p);
+
+// Decrypt
+p = dec.decryptDateTime(dataset_name, ct);
+
+// Encrypt For Search
+std::vector<struct tm> ct_arr = enc.encryptDateTime_for_search(dataset_name, p);
+for (struct tm c : ct_arr) {
+  char buffer[30];
+  size_t len = strftime(buffer, sizeof(buffer), "%04Y-%m-%dT%H:%M:%SZ", &c);
+  std::cout << "\t" << buffer << std::endl;
+}
+ubiq::platform::exit();
+
+```
+
+
+### Encrypt / Decrypt / EncrypForSearch for Date
+This requires pre-configuration of an DateTime dataset.
+```c
+/* C */
+#include <ubiq/platform.h>
+
+struct ubiq_platform_credentials * creds = NULL;
+struct ubiq_platform_structured_enc_dec_obj *enc = NULL;
+const char * const DATASET_NAME = "datetime";
+struct tm ct;
+struct tm p;
+
+// Encrypt
+res = ubiq_platform_structured_encrypt_date_data(enc,DATASET_NAME, NULL, 0, &p, &ct);
+
+// Decrypt
+res = ubiq_platform_structured_decrypt_date_data(enc,DATASET_NAME, NULL, 0, &c, &p);
+
+// Encrypt For Search
+struct tm * ct_arr = NULL;
+size_t count = 0;
+res = ubiq_platform_structured_encrypt_date_data_for_search(enc,dataset_name, NULL, 0, &p, &ct_arr, &count);
+for (int i = 0; i < count; i++) {
+  char buffer[30];
+  size_t len = strftime(buffer, sizeof(buffer), "%04Y-%m-%dT%H:%M:%SZ", &ct_arr[i]);
+  printf("\t%s\n", buffer);
+}
+free(ct_arr);
+```
+```c++
+/* C++ */
+#include <ubiq/platform.h>
+
+ubiq::platform::init();
+ubiq::platform::credentials creds;
+ubiq::platform::structured::encryption enc(creds);
+ubiq::platform::structured::decryption dec(creds);
+
+struct tm ct;
+struct tm p;
+std::string DATASET_NAME_32("datetime");
+
+// Encrypt
+ct = enc.encryptDate(dataset_name, p);
+
+// Decrypt
+p = dec.decryptDate(dataset_name, ct);
+
+// Encrypt For Search
+std::vector<struct tm> ct_arr = enc.encryptDate_for_search(dataset_name, p);
+for (struct tm c : ct_arr) {
+  char buffer[30];
+  size_t len = strftime(buffer, sizeof(buffer), "%04Y-%m-%dT%H:%M:%SZ", &c);
+  std::cout << "\t" << buffer << std::endl;
+}
+ubiq::platform::exit();
+```
+### Encrypt / Decrypt / EncrypForSearch for Generic string.  Input is base32 or base64 encoded and padded if necessary to reach minimum length.
+This requires pre-configuration of a Generic string dataset with the corresponding encoding and padding character
+```c
+/* C */
+#include <ubiq/platform.h>
+
+
+struct ubiq_platform_credentials * creds = NULL;
+struct ubiq_platform_structured_enc_dec_obj *enc = NULL;
+const char * const DATASET_NAME_32 = "generic32";
+const char * const DATASET_NAME_64 = "generic64";
+char * ct = NULL;
+char * p = "Ñáñ";
+char ** ctbuf = NULL;
+size_t count = 0;
+
+
+int res = ubiq_platform_init();
+
+if (!res) {res = ubiq_platform_credentials_create(&creds); }
+if (!res) {res = ubiq_platform_structured_enc_dec_create(creds, &enc); }
+...
+ // Input can be any UTF-8 string.  Output string is defined during dataset configuration
+res = ubiq_platform_structured_encrypt_data(enc,DATASET_NAME_32, NULL, 0, p, &ct);
+res = ubiq_platform_structured_decrypt_data(enc,DATASET_NAME_32, NULL, 0, ct, &pt);
+res = ubiq_platform_structured_encrypt_data_for_search(enc,DATASET_NAME_32, NULL, 0, p, strlen(p), &ctbuf, &count);
+for (int i = 0; i < count; i++) {
+    printf("\t%s\n", ctbuf[i]);
+    free(ctbuf[i]);
+}
+free(ct);
+free(pt);
+free(ctbuf);
+
+// Input can be any UTF-8 string.  Output string is defined during dataset configuration
+res = ubiq_platform_structured_encrypt_data(enc,DATASET_NAME_64, NULL, 0, p, &ct);
+res = ubiq_platform_structured_decrypt_data(enc,DATASET_NAME_64, NULL, 0, ct, &pt);
+res = ubiq_platform_structured_encrypt_data_for_search(enc,DATASET_NAME_64, NULL, 0, p, strlen(p), &ctbuf, &count);
+for (int i = 0; i < count; i++) {
+    printf("\t%s\n", ctbuf[i]);
+    free(ctbuf[i]);
+}
+free(ct);
+free(pt);
+free(ctbuf);
+
+...
+ubiq_platform_structured_enc_dec_destroy(enc);
+ubiq_platform_credentials_destroy(creds);
+
+ubiq_platform_exit();
+
+```
+```c++
+/* C++ */
+#include <ubiq/platform.h>
+
+std::string DATASET_NAME_32("generic32");
+std::string DATASET_NAME_64("generic64");
+std::string p("Ñáñ");
+std::string ct;
+std::vector<std::string> ct_arr;
+
+ubiq::platform::init();
+ubiq::platform::credentials creds;
+ubiq::platform::structured::encryption enc(creds);
+ubiq::platform::structured::decryption dec(creds);
+
+// Input can be any UTF-8 string.  Output string is defined during dataset configuration
+ct = enc.encrypt(DATASET_NAME_32, p);
+pt = dec.decrypt(DATASET_NAME_32, ct);
+ct_arr = enc.encrypt_for_search(dataset_name, p);
+for (std::string c : ct_arr) {
+  std::cout << "\t" << c << std::endl;
+}
+
+// Input can be any UTF-8 string.  Output string is defined during dataset configuration
+ct = enc.encrypt(DATASET_NAME_64, p);
+pt = dec.decrypt(DATASET_NAME_64, ct);
+ct_arr = enc.encrypt_for_search(dataset_name, p);
+for (std::string c : ct_arr) {
+  std::cout << "\t" << c << std::endl;
+}
+
+ubiq::platform::exit();
+
+```
 ### Builder Interfaces
 
 The library also includes <b>builder</b> design pattern for creating the unstructured
